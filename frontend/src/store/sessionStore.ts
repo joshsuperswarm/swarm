@@ -1,95 +1,125 @@
 import { create } from 'zustand';
-import type { Session, CreateSessionData, SessionStatus } from '../types';
+import type { Session, CreateSessionData, Message } from '../types';
 
 interface SessionStore {
-  sessions: Session[];
+  currentSession: Session | null;
   isLoading: boolean;
   error: string | null;
   
   // Actions
-  setSessions: (sessions: Session[]) => void;
-  addSession: (sessionData: CreateSessionData) => void;
-  updateSession: (id: string, updates: Partial<Session>) => void;
-  deleteSession: (id: string) => void;
-  moveSession: (id: string, newStatus: SessionStatus) => void;
+  setCurrentSession: (session: Session | null) => void;
+  createSession: (sessionData: CreateSessionData) => void;
+  addMessage: (message: Message) => void;
+  sendMessage: (content: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 }
 
-// Mock data for development
-const mockSessions: Session[] = [
-  {
-    id: '1',
-    title: 'Add user authentication',
-    description: 'Implement JWT-based authentication system',
-    status: 'todo',
-    agentType: 'claude_code',
-    repoUrl: 'https://github.com/user/my-app',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    userId: 'user_123'
-  },
-  {
-    id: '2',
-    title: 'Fix database migrations',
-    description: 'Resolve issues with Postgres schema migrations',
-    status: 'in_progress',
-    agentType: 'codex',
-    repoUrl: 'https://github.com/user/backend',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-    userId: 'user_123'
-  },
-  {
-    id: '3',
-    title: 'Optimize React components',
-    description: 'Improve performance of dashboard components',
-    status: 'done',
-    agentType: 'gemini_cli',
-    repoUrl: 'https://github.com/user/frontend',
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-    userId: 'user_123'
-  }
-];
+// Mock session for development
+const mockSession: Session = {
+  id: '1',
+  title: 'Add user authentication',
+  agentType: 'claude_code',
+  status: 'idle',
+  messages: [
+    {
+      id: 'msg_1',
+      role: 'user',
+      content: 'Help me implement JWT-based authentication for my React app',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      type: 'text'
+    },
+    {
+      id: 'msg_2',
+      role: 'assistant',
+      content: 'I\'ll help you implement JWT authentication. Let me start by examining your current project structure and then set up the necessary components.',
+      timestamp: new Date(Date.now() - 3500000).toISOString(),
+      type: 'text'
+    },
+    {
+      id: 'msg_3',
+      role: 'assistant',
+      content: 'First, let me check your package.json to see what dependencies you already have...',
+      timestamp: new Date(Date.now() - 3400000).toISOString(),
+      type: 'tool_use'
+    }
+  ],
+  claudeSessionId: 'claude_session_123',
+  createdAt: new Date(Date.now() - 3600000).toISOString(),
+  updatedAt: new Date().toISOString(),
+  userId: 'user_123'
+};
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
-  sessions: mockSessions,
+  currentSession: mockSession,
   isLoading: false,
   error: null,
 
-  setSessions: (sessions) => set({ sessions }),
+  setCurrentSession: (session) => set({ currentSession: session }),
 
-  addSession: (sessionData) => {
+  createSession: (sessionData) => {
     const newSession: Session = {
       ...sessionData,
       id: Math.random().toString(36).substring(7),
-      status: 'todo',
+      status: 'idle',
+      messages: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       userId: 'user_123' // This would come from Clerk in real implementation
     };
-    set((state) => ({ sessions: [...state.sessions, newSession] }));
+    set({ currentSession: newSession });
   },
 
-  updateSession: (id, updates) => {
-    set((state) => ({
-      sessions: state.sessions.map((session) =>
-        session.id === id
-          ? { ...session, ...updates, updatedAt: new Date().toISOString() }
-          : session
-      )
-    }));
+  addMessage: (message) => {
+    set((state) => {
+      if (!state.currentSession) return state;
+      
+      return {
+        currentSession: {
+          ...state.currentSession,
+          messages: [...state.currentSession.messages, message],
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
   },
 
-  deleteSession: (id) => {
-    set((state) => ({
-      sessions: state.sessions.filter((session) => session.id !== id)
-    }));
-  },
+  sendMessage: async (content) => {
+    const { currentSession, addMessage, setLoading, setError } = get();
+    if (!currentSession) return;
 
-  moveSession: (id, newStatus) => {
-    get().updateSession(id, { status: newStatus });
+    // Add user message immediately
+    const userMessage: Message = {
+      id: `msg_${Date.now()}_user`,
+      role: 'user',
+      content,
+      timestamp: new Date().toISOString(),
+      type: 'text'
+    };
+    addMessage(userMessage);
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // TODO: Replace with actual API call to backend
+      // For now, simulate a response
+      setTimeout(() => {
+        const assistantMessage: Message = {
+          id: `msg_${Date.now()}_assistant`,
+          role: 'assistant',
+          content: `I received your message: "${content}". This is a mock response. Backend integration coming soon!`,
+          timestamp: new Date().toISOString(),
+          type: 'text'
+        };
+        addMessage(assistantMessage);
+        setLoading(false);
+      }, 1500);
+      
+    } catch (error) {
+      setError('Failed to send message');
+      setLoading(false);
+    }
   },
 
   setLoading: (loading) => set({ isLoading: loading }),

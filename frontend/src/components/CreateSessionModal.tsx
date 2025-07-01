@@ -9,12 +9,10 @@ interface CreateSessionModalProps {
 }
 
 export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose }) => {
-  const { addSession } = useSessionStore();
+  const { createSession } = useSessionStore();
   const [formData, setFormData] = useState<CreateSessionData>({
     title: '',
-    description: '',
-    agentType: 'claude_code',
-    repoUrl: ''
+    agentType: 'claude_code'
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -22,17 +20,12 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, 
     
     if (!formData.title.trim()) return;
 
-    addSession({
-      ...formData,
-      repoUrl: formData.repoUrl || undefined
-    });
+    createSession(formData);
 
     // Reset form
     setFormData({
       title: '',
-      description: '',
-      agentType: 'claude_code',
-      repoUrl: ''
+      agentType: 'claude_code'
     });
 
     onClose();
@@ -78,19 +71,6 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, 
             />
           </div>
 
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              id="description"
-              value={formData.description}
-              onChange={handleChange('description')}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Describe what the AI agent should work on..."
-            />
-          </div>
 
           <div>
             <label htmlFor="agentType" className="block text-sm font-medium text-gray-700 mb-1">
@@ -109,19 +89,6 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, 
             </select>
           </div>
 
-          <div>
-            <label htmlFor="repoUrl" className="block text-sm font-medium text-gray-700 mb-1">
-              Repository URL (Optional)
-            </label>
-            <input
-              id="repoUrl"
-              type="url"
-              value={formData.repoUrl}
-              onChange={handleChange('repoUrl')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="https://github.com/username/repo"
-            />
-          </div>
 
           <div className="flex gap-3 pt-4">
             <button
