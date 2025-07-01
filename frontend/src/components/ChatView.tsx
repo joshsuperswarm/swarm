@@ -9,7 +9,7 @@ export const ChatView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-gray-600">Loading session...</div>
       </div>
     );
@@ -17,7 +17,7 @@ export const ChatView: React.FC = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-red-600">Error: {error}</div>
       </div>
     );
@@ -25,7 +25,7 @@ export const ChatView: React.FC = () => {
 
   if (!currentSession) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             No Active Session
@@ -45,7 +45,7 @@ export const ChatView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden min-h-0">
       <ChatHeader session={currentSession} />
       <MessageList 
         messages={currentSession.messages} 

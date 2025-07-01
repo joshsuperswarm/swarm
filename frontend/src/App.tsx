@@ -8,8 +8,8 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900">Swarm</h1>
           <SignedIn>
@@ -26,15 +26,15 @@ function App() {
       </header>
 
       <SignedOut>
-        <main className="container mx-auto px-6 py-8">
-          <div className="text-center mt-20">
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto px-6">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               AI Agent Session Manager
             </h2>
             <p className="text-lg text-gray-600 mb-8">
               Chat with Claude Code and manage your AI coding sessions
             </p>
-            <div className="bg-white rounded-lg shadow-sm p-8 max-w-md mx-auto">
+            <div className="bg-white rounded-lg shadow-sm p-8">
               <p className="text-gray-600 mb-4">
                 Please sign in to start chatting with Claude Code.
               </p>

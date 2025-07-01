@@ -57,7 +57,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = 
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 min-h-0">
         <div className="text-center">
           <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">Start a conversation with Claude Code</p>
@@ -67,9 +67,9 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = 
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
       {messages.map((message) => (
-        <div key={message.id} className="flex items-start space-x-3">
+        <div key={message.id} className={`flex items-start space-x-3 ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
           <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${getAvatarClass(message.role, message.type)}`}>
             {getMessageIcon(message.role, message.type)}
           </div>
@@ -80,7 +80,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = 
                 {message.content}
               </div>
             </div>
-            <div className="mt-1 text-xs text-gray-500">
+            <div className={`mt-1 text-xs text-gray-500 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
               {formatTime(message.timestamp)}
             </div>
           </div>

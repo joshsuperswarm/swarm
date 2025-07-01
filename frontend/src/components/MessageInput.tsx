@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Send, Paperclip } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 interface MessageInputProps {
   onSendMessage: (content: string) => void;
@@ -42,30 +42,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="bg-white border-t border-gray-200 p-4">
+    <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0">
       <form onSubmit={handleSubmit} className="flex items-end space-x-3">
-        <div className="flex-1 relative">
+        <div className="flex-1">
           <textarea
             ref={textareaRef}
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={disabled ? "Session has ended" : "Type your message... (Enter to send, Shift+Enter for new line)"}
+            placeholder={disabled ? "Session has ended" : "Type your message..."}
             disabled={disabled}
-            className={`w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            className={`w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               disabled ? 'bg-gray-100 text-gray-500' : 'bg-white'
             }`}
             style={{ minHeight: '52px', maxHeight: '200px' }}
             rows={1}
           />
-          
-          <button
-            type="button"
-            className="absolute right-3 bottom-3 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Attach file (coming soon)"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
         </div>
         
         <button
@@ -80,14 +72,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <Send className="w-5 h-5" />
         </button>
       </form>
-      
-      <div className="mt-2 text-xs text-gray-500">
-        {disabled ? (
-          'Session is not active'
-        ) : (
-          'Press Enter to send, Shift+Enter for new line'
-        )}
-      </div>
     </div>
   );
 };
