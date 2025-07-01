@@ -54,7 +54,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onCreateSession }) => 
     setActiveSession(null);
   };
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = () => {
     // Handle any additional drag over logic if needed
   };
 

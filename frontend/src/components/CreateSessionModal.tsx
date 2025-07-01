@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { CreateSessionData, Session } from '../types';
+import type { CreateSessionData } from '../types';
 import { useSessionStore } from '../store/sessionStore';
 import { X } from 'lucide-react';
 
