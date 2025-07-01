@@ -30,5 +30,5 @@ services:
           type: web
           name: swarm-backend
           property: host
-    customDomains:
-      - domain: app.superswarm.dev
+    domains:
+      - app.superswarm.dev
