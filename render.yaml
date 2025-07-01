@@ -1,0 +1,34 @@
+services:
+  # Rust Backend API
+  - type: web
+    name: swarm-backend
+    env: rust
+    plan: starter
+    buildCommand: cargo build --release
+    startCommand: ./target/release/swarm-backend
+    envVars:
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: RUST_LOG
+        value: info
+      - key: PORT
+        value: 10000
+    healthCheckPath: /health
+    
+  # React Frontend
+  - type: web
+    name: swarm-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: swarm-backend
+          property: host
+    customDomains:
+      - domain: app.superswarm.dev

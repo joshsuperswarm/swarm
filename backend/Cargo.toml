@@ -1,0 +1,17 @@
+[package]
+name = "swarm-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+jsonwebtoken = "9.3"
+reqwest = { version = "0.12", features = ["json"] }
+base64 = "0.22"
+env_logger = "0.11"
