@@ -31,14 +31,17 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = Router::new()
-        .route("/health", get(health_check))
+    let protected_routes = Router::new()
         .route("/protected", get(protected_endpoint))
         .layer(middleware::from_fn_with_state(
             clerk_keys.clone(),
             clerk_auth_middleware,
         ))
-        .with_state(clerk_keys)
+        .with_state(clerk_keys.clone());
+
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .merge(protected_routes)
         .layer(cors);
 
     let bind_address = format!("0.0.0.0:{}", port);
