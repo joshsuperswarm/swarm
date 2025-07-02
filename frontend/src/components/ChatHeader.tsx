@@ -7,23 +7,6 @@ interface ChatHeaderProps {
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({ session }) => {
-  const getAgentColor = (agentType: Session['agentType']) => {
-    switch (agentType) {
-      case 'claude_code': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'codex': return 'bg-green-100 text-green-800 border-green-200';
-      case 'gemini_cli': return 'bg-purple-100 text-purple-800 border-purple-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusColor = (status: Session['status']) => {
-    switch (status) {
-      case 'idle': return 'bg-gray-100 text-gray-700';
-      case 'running': return 'bg-blue-100 text-blue-700';
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'error': return 'bg-red-100 text-red-700';
-    }
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
