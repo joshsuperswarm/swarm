@@ -6,7 +6,8 @@ use axum::{
 };
 use jsonwebtoken::{Validation, Algorithm};
 use serde::{Deserialize, Serialize};
-use crate::{AppState, models::CreateUser};
+use crate::{AppState, models::{CreateUser, CreateGitHubToken}};
+use std::env;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClerkClaims {
@@ -48,6 +49,20 @@ struct ClerkJWKS {
     keys: Vec<ClerkKey>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ClerkOAuthToken {
+    pub provider: String,
+    pub token: String,
+    pub provider_user_id: String,
+    pub public_metadata: serde_json::Value,
+    pub label: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct ClerkOAuthResponse {
+    pub data: Vec<ClerkOAuthToken>,
+}
+
 pub async fn fetch_clerk_jwks() -> Result<ClerkKeys, Box<dyn std::error::Error + Send + Sync>> {
     let response = reqwest::get("https://api.clerk.com/v1/jwks")
         .await?
@@ -55,6 +70,33 @@ pub async fn fetch_clerk_jwks() -> Result<ClerkKeys, Box<dyn std::error::Error +
         .await?;
     
     Ok(ClerkKeys { keys: response.keys })
+}
+
+pub async fn fetch_github_token_from_clerk(clerk_user_id: &str) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let clerk_secret = env::var("CLERK_SECRET_KEY")?;
+    
+    let client = reqwest::Client::new();
+    let url = format!("https://api.clerk.com/v1/users/{}/oauth_access_tokens/oauth_github", clerk_user_id);
+    
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", clerk_secret))
+        .header("Content-Type", "application/json")
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let oauth_response: ClerkOAuthResponse = response.json().await?;
+        
+        // Find GitHub token
+        for token_data in oauth_response.data {
+            if token_data.provider == "oauth_github" {
+                return Ok(Some(token_data.token));
+            }
+        }
+    }
+    
+    Ok(None)
 }
 
 pub async fn clerk_auth_middleware(
@@ -114,6 +156,22 @@ async fn get_or_create_user(
 ) -> Result<crate::models::User, sqlx::Error> {
     // Try to get existing user
     if let Some(user) = database.get_user_by_clerk_id(clerk_user_id).await? {
+        // Check if we need to fetch GitHub token for existing user
+        if database.get_github_token(user.id).await.unwrap_or(None).is_none() {
+            // Try to fetch and store GitHub token
+            if let Ok(Some(github_token)) = fetch_github_token_from_clerk(clerk_user_id).await {
+                let create_token = CreateGitHubToken {
+                    user_id: user.id,
+                    access_token: github_token,
+                    token_type: "bearer".to_string(),
+                    scope: Some("repo,user".to_string()),
+                };
+                
+                // Store token (ignore errors for now)
+                let _ = database.store_github_token(create_token).await;
+            }
+        }
+        
         return Ok(user);
     }
 
@@ -125,5 +183,20 @@ async fn get_or_create_user(
         email: None,
     };
 
-    database.create_user(create_user).await
+    let user = database.create_user(create_user).await?;
+    
+    // Try to fetch and store GitHub token for new user
+    if let Ok(Some(github_token)) = fetch_github_token_from_clerk(clerk_user_id).await {
+        let create_token = CreateGitHubToken {
+            user_id: user.id,
+            access_token: github_token,
+            token_type: "bearer".to_string(),
+            scope: Some("repo,user".to_string()),
+        };
+        
+        // Store token (ignore errors for now)
+        let _ = database.store_github_token(create_token).await;
+    }
+    
+    Ok(user)
 }

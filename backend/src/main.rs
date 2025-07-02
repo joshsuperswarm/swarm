@@ -15,9 +15,12 @@ use serde::Deserialize;
 mod clerk_middleware;
 mod models;
 mod database_working;
+mod github;
 
 use clerk_middleware::{clerk_auth_middleware, fetch_clerk_jwks, AuthenticatedUser};
 use database_working::Database;
+use github::GitHubClient;
+use models::{CreateRepository};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -149,21 +152,81 @@ async fn get_user_repos(
     Extension(user): Extension<AuthenticatedUser>,
     State(app_state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
-    // TODO: In the full implementation, this would:
-    // 1. Get user's GitHub token from database
-    // 2. Use GitHub API to fetch repositories
-    // 3. Store/sync repositories in database
-    
-    match app_state.database.get_user_repositories(user.user_id).await {
-        Ok(repos) => {
-            Ok(Json(json!({
-                "repositories": repos,
-                "count": repos.len(),
-                "message": "Repository sync not yet implemented - showing cached repositories"
-            })))
-        },
+    // Step 1: Get user's GitHub token from database
+    let github_token = match app_state.database.get_github_token(user.user_id).await {
+        Ok(Some(token)) => token.access_token,
+        Ok(None) => {
+            return Ok(Json(json!({
+                "repositories": [],
+                "count": 0,
+                "message": "No GitHub token found. Please reconnect your GitHub account."
+            })));
+        }
         Err(e) => {
-            eprintln!("Database error getting repositories: {}", e);
+            eprintln!("Database error getting GitHub token: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Step 2: Use GitHub API to fetch repositories
+    let github_client = match GitHubClient::new(&github_token) {
+        Ok(client) => client,
+        Err(e) => {
+            eprintln!("Error creating GitHub client: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let github_repos = match github_client.get_user_repositories(50).await {
+        Ok(repos) => repos,
+        Err(e) => {
+            eprintln!("Error fetching repositories from GitHub: {}", e);
+            // Fallback to cached repositories
+            return match app_state.database.get_user_repositories(user.user_id).await {
+                Ok(cached_repos) => {
+                    Ok(Json(json!({
+                        "repositories": cached_repos,
+                        "count": cached_repos.len(),
+                        "message": "GitHub API error - showing cached repositories"
+                    })))
+                }
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
+            };
+        }
+    };
+
+    // Step 3: Store/sync repositories in database
+    let create_repos: Vec<CreateRepository> = github_repos
+        .iter()
+        .map(|repo| CreateRepository {
+            github_repo_id: repo.id,
+            owner: repo.owner.login.clone(),
+            name: repo.name.clone(),
+            full_name: repo.full_name.clone(),
+            user_id: user.user_id,
+            is_private: repo.private,
+        })
+        .collect();
+
+    match app_state.database.sync_repositories(user.user_id, create_repos).await {
+        Ok(_) => {
+            // Return fresh data from database after sync
+            match app_state.database.get_user_repositories(user.user_id).await {
+                Ok(synced_repos) => {
+                    Ok(Json(json!({
+                        "repositories": synced_repos,
+                        "count": synced_repos.len(),
+                        "message": format!("Successfully synced {} repositories from GitHub", github_repos.len())
+                    })))
+                }
+                Err(e) => {
+                    eprintln!("Database error after sync: {}", e);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Error syncing repositories to database: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
