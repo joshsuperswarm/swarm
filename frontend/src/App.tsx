@@ -1,11 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { ChatView } from './components/ChatView'
 import { CreateSessionModal } from './components/CreateSessionModal'
+import { ApiService } from './services/api'
 import './App.css'
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
+  // Test backend connection on app load
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const health = await ApiService.healthCheck()
+        console.log('✅ Backend connection successful:', health)
+      } catch (error) {
+        console.error('❌ Backend connection failed:', error)
+      }
+    }
+    
+    testConnection()
+  }, [])
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">

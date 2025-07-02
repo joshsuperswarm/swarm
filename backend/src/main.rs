@@ -36,13 +36,13 @@ async fn main() {
         .layer(middleware::from_fn_with_state(
             clerk_keys.clone(),
             clerk_auth_middleware,
-        ))
-        .with_state(clerk_keys.clone());
+        ));
 
     let app = Router::new()
         .route("/health", get(health_check))
         .merge(protected_routes)
-        .layer(cors);
+        .layer(cors)
+        .with_state(clerk_keys);
 
     let bind_address = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
