@@ -32,8 +32,8 @@ function App() {
           </SignedIn>
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Sign in with Google
+              <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+                Sign in with GitHub
               </button>
             </SignInButton>
           </SignedOut>
@@ -44,18 +44,18 @@ function App() {
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md mx-auto px-6">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              AI Agent Session Manager
+              AI Agent Task Manager
             </h2>
             <p className="text-lg text-gray-600 mb-8">
-              Chat with Claude Code and manage your AI coding sessions
+              Create tasks for AI agents to work on your GitHub repositories
             </p>
             <div className="bg-white rounded-lg shadow-sm p-8">
               <p className="text-gray-600 mb-4">
-                Please sign in to start chatting with Claude Code.
+                Sign in with GitHub to start creating AI agent tasks for your repositories.
               </p>
               <SignInButton mode="modal">
-                <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  Get Started
+                <button className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+                  Continue with GitHub
                 </button>
               </SignInButton>
             </div>

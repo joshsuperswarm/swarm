@@ -1,86 +1,68 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@clerk/clerk-react"
 import type { Task } from "@/types"
 import { createColumns } from "@/components/data-table/columns"
 import { DataTable } from "@/components/data-table/data-table"
 import { TaskDetailModal } from "@/components/TaskDetailModal"
-
-// Sample tasks data matching the screenshot aesthetic
-const tasks: Task[] = [
-  {
-    id: "SWARM-8782",
-    title: "Implement user authentication with JWT tokens",
-    status: "in progress",
-    label: "feature",
-    priority: "high",
-  },
-  {
-    id: "SWARM-7878",
-    title: "Fix memory leak in data processing pipeline",
-    status: "backlog",
-    label: "bug",
-    priority: "urgent",
-  },
-  {
-    id: "SWARM-7839",
-    title: "Update API documentation for v2.0 release",
-    status: "todo",
-    label: "documentation",
-    priority: "medium",
-  },
-  {
-    id: "SWARM-5562",
-    title: "Optimize database query performance",
-    status: "done",
-    label: "improvement",
-    priority: "high",
-  },
-  {
-    id: "SWARM-8686",
-    title: "Add real-time notifications system",
-    status: "canceled",
-    label: "feature",
-    priority: "low",
-  },
-  {
-    id: "SWARM-1234",
-    title: "Implement dark mode toggle",
-    status: "todo",
-    label: "feature",
-    priority: "medium",
-  },
-  {
-    id: "SWARM-5678",
-    title: "Refactor legacy authentication middleware",
-    status: "in progress",
-    label: "improvement",
-    priority: "high",
-  },
-  {
-    id: "SWARM-9012",
-    title: "Write unit tests for user service",
-    status: "backlog",
-    label: "improvement",
-    priority: "medium",
-  },
-  {
-    id: "SWARM-3456",
-    title: "Fix responsive layout on mobile devices",
-    status: "done",
-    label: "bug",
-    priority: "high",
-  },
-  {
-    id: "SWARM-7890",
-    title: "Create onboarding flow for new users",
-    status: "todo",
-    label: "feature",
-    priority: "low",
-  },
-]
+import { CreateTaskModal } from "@/components/CreateTaskModal"
+import { ApiService } from "@/services/api"
 
 export function TasksPage() {
+  const { getToken, isLoaded } = useAuth()
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false)
+
+  // Load tasks on component mount
+  useEffect(() => {
+    if (isLoaded) {
+      loadTasks()
+    }
+  }, [isLoaded])
+
+  const loadTasks = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const token = await getToken()
+      if (!token) {
+        throw new Error('No authentication token available')
+      }
+
+      const response = await ApiService.getTasks(token)
+      
+      // Convert backend tasks to frontend format
+      const frontendTasks: Task[] = response.tasks.map(task => ({
+        id: task.id,
+        title: task.title,
+        status: task.status as any, // Backend might use different status values
+        label: "feature", // Default label - could be determined from task data
+        priority: "medium", // Default priority - could be determined from task data
+      }))
+      
+      setTasks(frontendTasks)
+    } catch (err) {
+      console.error('Failed to load tasks:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load tasks')
+      
+      // Show mock data as fallback for development
+      setTasks([
+        {
+          id: "SWARM-DEMO",
+          title: "Demo task - backend not fully connected",
+          status: "todo",
+          label: "demo",
+          priority: "low",
+        }
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task)
@@ -92,7 +74,79 @@ export function TasksPage() {
     setSelectedTask(null)
   }
 
+  const handleCreateTask = () => {
+    setIsCreateTaskModalOpen(true)
+  }
+
+  const handleCloseCreateTaskModal = () => {
+    setIsCreateTaskModalOpen(false)
+  }
+
+  const handleTaskCreated = async (taskData: any) => {
+    try {
+      const token = await getToken()
+      if (!token) {
+        throw new Error('No authentication token available')
+      }
+
+      await ApiService.createTask(token, {
+        title: taskData.title,
+        description: taskData.description,
+        repository_id: taskData.repositoryId,
+      })
+      
+      // Reload tasks to show the new task
+      await loadTasks()
+      
+      setIsCreateTaskModalOpen(false)
+    } catch (err) {
+      console.error('Failed to create task:', err)
+      // TODO: Show error notification to user
+      setIsCreateTaskModalOpen(false)
+    }
+  }
+
   const columns = createColumns(handleTaskClick)
+
+  if (!isLoaded) {
+    return (
+      <div className="h-full flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="h-full flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading tasks...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex-1 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-red-500 mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to load tasks</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={loadTasks}
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-full flex-1 flex-col space-y-2 p-2 md:flex">
@@ -100,11 +154,17 @@ export function TasksPage() {
         data={tasks} 
         columns={columns}
         onTaskClick={handleTaskClick}
+        onCreateTask={handleCreateTask}
       />
       <TaskDetailModal
         task={selectedTask}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+      />
+      <CreateTaskModal
+        isOpen={isCreateTaskModalOpen}
+        onClose={handleCloseCreateTaskModal}
+        onCreateTask={handleTaskCreated}
       />
     </div>
   )

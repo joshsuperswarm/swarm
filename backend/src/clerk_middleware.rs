@@ -4,8 +4,9 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{Validation, Algorithm};
 use serde::{Deserialize, Serialize};
+use crate::{AppState, models::CreateUser};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClerkClaims {
@@ -14,6 +15,18 @@ pub struct ClerkClaims {
     pub exp: usize,
     pub iss: String,
     pub aud: String,
+    pub username: Option<String>,
+    pub given_name: Option<String>,
+    pub family_name: Option<String>,
+    pub picture: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthenticatedUser {
+    pub clerk_user_id: String,
+    pub email: Option<String>,
+    pub username: Option<String>,
+    pub user_id: i32,
 }
 
 #[derive(Clone)]
@@ -45,9 +58,9 @@ pub async fn fetch_clerk_jwks() -> Result<ClerkKeys, Box<dyn std::error::Error +
 }
 
 pub async fn clerk_auth_middleware(
-    State(_clerk_keys): State<ClerkKeys>,
+    State(app_state): State<AppState>,
     headers: HeaderMap,
-    req: Request,
+    mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let auth_header = headers
@@ -60,29 +73,57 @@ pub async fn clerk_auth_middleware(
         None => return Err(StatusCode::UNAUTHORIZED),
     };
 
-    // For now, we'll implement a simplified validation
+    // For development, we'll implement a simplified JWT parsing
     // In production, you'd want to properly verify the JWT with Clerk's public keys
-    let validation = Validation::new(Algorithm::RS256);
+    let _validation = Validation::new(Algorithm::RS256);
     
-    // This is a simplified approach - in production you'd fetch and cache Clerk's public keys
-    // For now, we'll just extract the claims without full verification for development
-    match decode::<ClerkClaims>(
-        token,
-        &DecodingKey::from_secret(&[]), // This won't work but demonstrates the structure
-        &validation,
-    ) {
-        Ok(_token_data) => {
-            // In a real implementation, you'd add user info to request extensions
-            // req.extensions_mut().insert(token_data.claims);
-            Ok(next.run(req).await)
+    // Extract claims from token (simplified for development)
+    let clerk_user_id = if token.starts_with("clerk_") || !token.is_empty() {
+        // For development, we'll create a mock user ID from the token
+        // In production, you'd extract this from the verified JWT
+        format!("user_{}", token.chars().take(8).collect::<String>())
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    // Create or get user from database
+    let user = match get_or_create_user(&app_state.database, &clerk_user_id).await {
+        Ok(user) => user,
+        Err(e) => {
+            println!("Error getting/creating user: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
-        Err(_) => {
-            // For development, let's be permissive and just check if token exists
-            if !token.is_empty() {
-                Ok(next.run(req).await)
-            } else {
-                Err(StatusCode::UNAUTHORIZED)
-            }
-        }
+    };
+
+    // Add authenticated user to request extensions
+    let auth_user = AuthenticatedUser {
+        clerk_user_id: user.clerk_user_id.clone(),
+        email: user.email.clone(),
+        username: user.github_username.clone(),
+        user_id: user.id,
+    };
+
+    req.extensions_mut().insert(auth_user);
+    
+    Ok(next.run(req).await)
+}
+
+async fn get_or_create_user(
+    database: &crate::database_working::Database,
+    clerk_user_id: &str,
+) -> Result<crate::models::User, sqlx::Error> {
+    // Try to get existing user
+    if let Some(user) = database.get_user_by_clerk_id(clerk_user_id).await? {
+        return Ok(user);
     }
+
+    // Create new user if doesn't exist
+    let create_user = CreateUser {
+        clerk_user_id: clerk_user_id.to_string(),
+        github_username: None,
+        github_user_id: None,
+        email: None,
+    };
+
+    database.create_user(create_user).await
 }
