@@ -1,6 +1,8 @@
+import { useState } from "react"
 import type { Task } from "@/types"
-import { columns } from "@/components/data-table/columns"
+import { createColumns } from "@/components/data-table/columns"
 import { DataTable } from "@/components/data-table/data-table"
+import { TaskDetailModal } from "@/components/TaskDetailModal"
 
 // Sample tasks data matching the screenshot aesthetic
 const tasks: Task[] = [
@@ -77,9 +79,33 @@ const tasks: Task[] = [
 ]
 
 export function TasksPage() {
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedTask(null)
+  }
+
+  const columns = createColumns(handleTaskClick)
+
   return (
     <div className="h-full flex-1 flex-col space-y-2 p-2 md:flex">
-      <DataTable data={tasks} columns={columns} />
+      <DataTable 
+        data={tasks} 
+        columns={columns}
+        onTaskClick={handleTaskClick}
+      />
+      <TaskDetailModal
+        task={selectedTask}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </div>
   )
 }

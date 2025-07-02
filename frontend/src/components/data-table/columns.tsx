@@ -18,7 +18,7 @@ import {
 import { labels, priorities, statuses } from "@/data/data"
 import type { Task } from "@/types"
 
-export const columns: ColumnDef<Task>[] = [
+export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Task>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -143,7 +143,9 @@ export const columns: ColumnDef<Task>[] = [
               Copy task ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View task</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onTaskClick?.(task)}>
+              View task
+            </DropdownMenuItem>
             <DropdownMenuItem>Edit task</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -151,3 +153,5 @@ export const columns: ColumnDef<Task>[] = [
     },
   },
 ]
+
+export const columns = createColumns()
