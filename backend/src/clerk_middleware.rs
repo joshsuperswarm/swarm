@@ -18,6 +18,7 @@ pub struct ClerkClaims {
 
 #[derive(Clone)]
 pub struct ClerkKeys {
+    #[allow(dead_code)]
     pub keys: Vec<ClerkKey>,
 }
 
@@ -44,9 +45,9 @@ pub async fn fetch_clerk_jwks() -> Result<ClerkKeys, Box<dyn std::error::Error +
 }
 
 pub async fn clerk_auth_middleware(
-    State(clerk_keys): State<ClerkKeys>,
+    State(_clerk_keys): State<ClerkKeys>,
     headers: HeaderMap,
-    mut req: Request,
+    req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let auth_header = headers
