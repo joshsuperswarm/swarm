@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
-import { ChatView } from './components/ChatView'
+import { TasksPage } from './components/TasksPage'
 import { CreateSessionModal } from './components/CreateSessionModal'
 import { ApiService } from './services/api'
 import './App.css'
@@ -64,7 +64,7 @@ function App() {
       </SignedOut>
 
       <SignedIn>
-        <ChatView />
+        <TasksPage />
       </SignedIn>
 
       <CreateSessionModal

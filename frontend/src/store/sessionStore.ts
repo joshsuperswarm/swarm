@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session, CreateSessionData, Message } from '../types';
+import type { Session, CreateSessionData, Message, Task } from '../types';
 
 interface SessionStore {
   currentSession: Session | null;
@@ -11,41 +11,27 @@ interface SessionStore {
   createSession: (sessionData: CreateSessionData) => void;
   addMessage: (message: Message) => void;
   sendMessage: (content: string) => void;
+  
+  // Task management actions
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateTaskStatus: (taskId: string, status: Task['status']) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
+  deleteTask: (taskId: string) => void;
+  
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 }
 
-// Mock session for development
+// Mock session for development (simplified)
 const mockSession: Session = {
   id: '1',
-  title: 'Add user authentication',
+  title: 'Frontend Redesign Project',
   agentType: 'claude_code',
   status: 'idle',
-  messages: [
-    {
-      id: 'msg_1',
-      role: 'user',
-      content: 'Help me implement JWT-based authentication for my React app',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      type: 'text'
-    },
-    {
-      id: 'msg_2',
-      role: 'assistant',
-      content: 'I\'ll help you implement JWT authentication. Let me start by examining your current project structure and then set up the necessary components.',
-      timestamp: new Date(Date.now() - 3500000).toISOString(),
-      type: 'text'
-    },
-    {
-      id: 'msg_3',
-      role: 'assistant',
-      content: 'First, let me check your package.json to see what dependencies you already have...',
-      timestamp: new Date(Date.now() - 3400000).toISOString(),
-      type: 'tool_use'
-    }
-  ],
+  messages: [],
+  tasks: [],
   claudeSessionId: 'claude_session_123',
-  createdAt: new Date(Date.now() - 3600000).toISOString(),
+  createdAt: new Date(Date.now() - 10800000).toISOString(),
   updatedAt: new Date().toISOString(),
   userId: 'user_123'
 };
@@ -63,6 +49,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       id: Math.random().toString(36).substring(7),
       status: 'idle',
       messages: [],
+      tasks: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       userId: 'user_123' // This would come from Clerk in real implementation
@@ -120,6 +107,87 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       setError('Failed to send message');
       setLoading(false);
     }
+  },
+
+  // Task management actions
+  addTask: (taskData) => {
+    set((state) => {
+      if (!state.currentSession) return state;
+      
+      const newTask: Task = {
+        ...taskData,
+        id: `task_${Date.now()}`
+      };
+      
+      return {
+        currentSession: {
+          ...state.currentSession,
+          tasks: [...(state.currentSession.tasks || []), newTask],
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
+  },
+
+  updateTaskStatus: (taskId, status) => {
+    set((state) => {
+      if (!state.currentSession) return state;
+      
+      const updatedTasks = (state.currentSession.tasks || []).map(task => 
+        task.id === taskId 
+          ? { 
+              ...task, 
+              status, 
+              updatedAt: new Date().toISOString(),
+              completedAt: status === 'done' ? new Date().toISOString() : undefined
+            }
+          : task
+      );
+      
+      return {
+        currentSession: {
+          ...state.currentSession,
+          tasks: updatedTasks,
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
+  },
+
+  updateTask: (taskId, updates) => {
+    set((state) => {
+      if (!state.currentSession) return state;
+      
+      const updatedTasks = (state.currentSession.tasks || []).map(task => 
+        task.id === taskId 
+          ? { ...task, ...updates, updatedAt: new Date().toISOString() }
+          : task
+      );
+      
+      return {
+        currentSession: {
+          ...state.currentSession,
+          tasks: updatedTasks,
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
+  },
+
+  deleteTask: (taskId) => {
+    set((state) => {
+      if (!state.currentSession) return state;
+      
+      const updatedTasks = (state.currentSession.tasks || []).filter(task => task.id !== taskId);
+      
+      return {
+        currentSession: {
+          ...state.currentSession,
+          tasks: updatedTasks,
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
   },
 
   setLoading: (loading) => set({ isLoading: loading }),
