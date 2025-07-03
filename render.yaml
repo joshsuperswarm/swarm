@@ -2,7 +2,7 @@ databases:
   - name: swarm-database
     databaseName: swarm
     user: swarm_user
-    plan: starter
+    plan: basic
 
 services:
   # Rust Backend API
