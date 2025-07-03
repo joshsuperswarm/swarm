@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
 pub struct User {
     pub id: i32,
     pub clerk_user_id: String,
@@ -44,7 +46,8 @@ pub struct CreateRepository {
     pub is_private: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
 pub struct GitHubToken {
     pub id: i32,
     pub user_id: i32,
@@ -63,7 +66,8 @@ pub struct CreateGitHubToken {
     pub scope: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
 pub struct Task {
     pub id: i32,
     pub user_id: i32,
@@ -95,7 +99,8 @@ pub struct UserWithDefaultRepo {
     pub created_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct RepositoryWithTasks {
     pub id: i32,
     pub github_repo_id: i64,

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, State},
+    extract::State,
     http::StatusCode,
     middleware,
     response::Json,
@@ -11,77 +11,22 @@ use tower_http::cors::{Any, CorsLayer};
 use std::env;
 use sqlx::PgPool;
 use serde::Deserialize;
-// JWT imports for future proper validation
-use serde::{Serialize, Deserialize as SerdeDeserialize};
-use base64::prelude::*;
 
 mod models;
 mod database_working;
 mod github;
+mod auth;
 
 use database_working::Database;
 use github::GitHubClient;
-use models::{CreateRepository, CreateUser};
+use models::{CreateRepository, CreateUser, CreateGitHubToken};
+use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
 
 #[derive(Clone)]
 pub struct AppState {
     pub database: Database,
 }
 
-#[derive(Debug, Clone, Serialize, SerdeDeserialize)]
-pub struct ClerkClaims {
-    pub sub: String,  // User ID
-    pub email: Option<String>,
-    pub exp: Option<usize>,
-    pub iss: Option<String>,
-    pub aud: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthenticatedUser {
-    pub clerk_user_id: String,
-    pub email: Option<String>,
-    pub user_id: i32,
-}
-
-// Simple authentication middleware
-async fn auth_middleware(
-    State(app_state): State<AppState>,
-    mut req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, StatusCode> {
-    let auth_header = req
-        .headers()
-        .get("authorization")
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header| header.strip_prefix("Bearer "));
-
-    let token = match auth_header {
-        Some(token) => token,
-        None => return Err(StatusCode::UNAUTHORIZED),
-    };
-
-    // For development: skip JWT validation, just extract user from token
-    let clerk_user_id = format!("user_{}",
-        base64::prelude::BASE64_STANDARD.encode(token.chars().take(10).collect::<String>())
-            .chars().take(8).collect::<String>()
-    );
-
-    // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user_id).await {
-        Ok(user) => user,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let auth_user = AuthenticatedUser {
-        clerk_user_id: user.clerk_user_id.clone(),
-        email: user.email.clone(),
-        user_id: user.id,
-    };
-
-    req.extensions_mut().insert(auth_user);
-    Ok(next.run(req).await)
-}
 
 async fn get_or_create_user(
     database: &Database,
@@ -102,6 +47,29 @@ async fn get_or_create_user(
     
     database.create_user(create_user).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn store_github_token(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Json(body): Json<GitHubTokenBody>,
+) -> Result<Json<Value>, StatusCode> {
+    // Upsert Swarm user (helper re-uses existing DB methods)
+    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+        Ok(u) => u,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    app_state.database.store_github_token(CreateGitHubToken {
+        user_id: db_user.id,
+        access_token: body.access_token,
+        token_type: "bearer".into(),
+        scope: Some("repo".into()),
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(json!({ "success": true })))
 }
 
 #[tokio::main]
@@ -149,21 +117,16 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let protected_routes = Router::new()
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .route("/api/auth/github-token", post(store_github_token))
         .route("/protected", get(protected_endpoint))
         .route("/api/user/profile", get(get_user_profile))
         .route("/api/user/repos", get(get_user_repos))
         .route("/api/user/default-repo", post(set_default_repo))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
-        .layer(middleware::from_fn_with_state(
-            app_state.clone(),
-            auth_middleware,
-        ));
-
-    let app = Router::new()
-        .route("/health", get(health_check))
-        .merge(protected_routes)
+        .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
 
@@ -191,11 +154,11 @@ async fn protected_endpoint() -> Result<Json<Value>, StatusCode> {
 
 // API handlers
 async fn get_user_profile(
-    Extension(user): Extension<AuthenticatedUser>,
+    CurrentUser(user): CurrentUser,
     State(app_state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
     // Get full user data from database
-    match app_state.database.get_user_by_clerk_id(&user.clerk_user_id).await {
+    match app_state.database.get_user_by_clerk_id(&user.id).await {
         Ok(Some(db_user)) => {
             Ok(Json(json!({
                 "id": db_user.id,
@@ -212,12 +175,18 @@ async fn get_user_profile(
 }
 
 async fn get_user_repos(
-    Extension(user): Extension<AuthenticatedUser>,
+    CurrentUser(clerk_user): CurrentUser,
     State(app_state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    
     // Step 1: Get user's GitHub token from database
-    let github_token = match app_state.database.get_github_token(user.user_id).await {
+    let github_token = match app_state.database.get_github_token(user.id).await {
         Ok(Some(token)) => token.access_token,
         Ok(None) => {
             // Return demo repositories when no GitHub token is available
@@ -268,7 +237,7 @@ async fn get_user_repos(
         Err(e) => {
             eprintln!("Error fetching repositories from GitHub: {}", e);
             // Fallback to cached repositories
-            return match app_state.database.get_user_repositories(user.user_id).await {
+            return match app_state.database.get_user_repositories(user.id).await {
                 Ok(cached_repos) => {
                     Ok(Json(json!({
                         "repositories": cached_repos,
@@ -289,15 +258,15 @@ async fn get_user_repos(
             owner: repo.owner.login.clone(),
             name: repo.name.clone(),
             full_name: repo.full_name.clone(),
-            user_id: user.user_id,
+            user_id: user.id,
             is_private: repo.private,
         })
         .collect();
 
-    match app_state.database.sync_repositories(user.user_id, create_repos).await {
+    match app_state.database.sync_repositories(user.id, create_repos).await {
         Ok(_) => {
             // Return fresh data from database after sync
-            match app_state.database.get_user_repositories(user.user_id).await {
+            match app_state.database.get_user_repositories(user.id).await {
                 Ok(synced_repos) => {
                     Ok(Json(json!({
                         "repositories": synced_repos,
@@ -324,14 +293,19 @@ struct SetDefaultRepoRequest {
 }
 
 async fn set_default_repo(
-    Extension(user): Extension<AuthenticatedUser>,
+    CurrentUser(clerk_user): CurrentUser,
     State(app_state): State<AppState>,
     Json(payload): Json<SetDefaultRepoRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
     
     match app_state.database.update_user_github_info(
-        user.user_id,
+        user.id,
         None, // We don't have github_username in the auth context 
         None
     ).await {
@@ -352,17 +326,22 @@ async fn set_default_repo(
 }
 
 async fn get_tasks(
-    Extension(user): Extension<AuthenticatedUser>,
-    State(_app_state): State<AppState>,
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
     
     // Return mock tasks for now
     // In the full implementation, this would query the database for user's tasks
     Ok(Json(json!({
         "tasks": [],
         "count": 0,
-        "user_id": user.user_id
+        "user_id": user.id
     })))
 }
 
@@ -374,11 +353,16 @@ struct CreateTaskRequest {
 }
 
 async fn create_task(
-    Extension(user): Extension<AuthenticatedUser>,
-    State(_app_state): State<AppState>,
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
     Json(payload): Json<CreateTaskRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
     
     // Create mock task for now
     // In the full implementation, this would:
@@ -393,7 +377,7 @@ async fn create_task(
             "title": payload.title,
             "description": payload.description,
             "repository_id": payload.repository_id,
-            "user_id": user.user_id,
+            "user_id": user.id,
             "status": "pending",
             "created_at": chrono::Utc::now().to_rfc3339()
         }
