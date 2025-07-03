@@ -1,12 +1,10 @@
-services:
-  # PostgreSQL Database
-  - type: pserv
-    name: swarm-database
-    env: postgresql
-    plan: starter
+databases:
+  - name: swarm-database
     databaseName: swarm
-    databaseUser: swarm_user
+    user: swarm_user
+    plan: starter
 
+services:
   # Rust Backend API
   - type: web
     name: swarm-backend
