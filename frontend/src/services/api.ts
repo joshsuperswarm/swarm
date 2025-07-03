@@ -113,4 +113,11 @@ export class ApiService {
       body: JSON.stringify({ repository_id: repositoryId }),
     });
   }
+
+  static async setGithubToken(jwt: string, githubToken: string): Promise<{ success: boolean }> {
+    return this.authenticatedRequest('/api/auth/github-token', jwt, {
+      method: 'POST',
+      body: JSON.stringify({ access_token: githubToken })
+    });
+  }
 }
