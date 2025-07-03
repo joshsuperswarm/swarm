@@ -43,6 +43,7 @@ impl GitHubClient {
         Ok(Self { client })
     }
 
+    #[allow(dead_code)]
     pub async fn get_current_user(&self) -> Result<GitHubUser, octocrab::Error> {
         let user = self.client.current().user().await?;
         
@@ -124,6 +125,7 @@ impl GitHubClient {
         Ok(repositories)
     }
 
+    #[allow(dead_code)]
     pub async fn check_repository_access(&self, owner: &str, repo: &str) -> Result<bool, octocrab::Error> {
         match self.client.repos(owner, repo).get().await {
             Ok(_) => Ok(true),
@@ -141,6 +143,7 @@ impl GitHubClient {
 }
 
 // Helper function to extract repo owner and name from full name
+#[allow(dead_code)]
 pub fn parse_repo_full_name(full_name: &str) -> Option<(String, String)> {
     let parts: Vec<&str> = full_name.split('/').collect();
     if parts.len() == 2 {

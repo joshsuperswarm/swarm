@@ -353,7 +353,7 @@ async fn set_default_repo(
 
 async fn get_tasks(
     Extension(user): Extension<AuthenticatedUser>,
-    State(app_state): State<AppState>,
+    State(_app_state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
     
@@ -375,7 +375,7 @@ struct CreateTaskRequest {
 
 async fn create_task(
     Extension(user): Extension<AuthenticatedUser>,
-    State(app_state): State<AppState>,
+    State(_app_state): State<AppState>,
     Json(payload): Json<CreateTaskRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
