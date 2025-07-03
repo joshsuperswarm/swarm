@@ -40,9 +40,6 @@ services:
       - key: VITE_CLERK_PUBLISHABLE_KEY
         sync: false
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: swarm-backend
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://api.superswarm.dev
     domains:
       - app.superswarm.dev
