@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { ApiService } from '@/services/api';
 import { getBackendJwt } from '@/lib/authToken';
-import type { RepositoryWithTasks } from '@/types/generated';
+import type { RepositoryWithTasks } from '@/types/generated/RepositoryWithTasks';
 
 interface CreateTaskData {
   title: string;

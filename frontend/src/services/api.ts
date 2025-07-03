@@ -1,6 +1,8 @@
 // API service for backend communication
 import { getBackendJwt } from "@/lib/authToken";
-import type { User, RepositoryWithTasks, Task } from "@/types/generated";
+import type { User } from "@/types/generated/User";
+import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks";
+import type { Task } from "@/types/generated/Task";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
