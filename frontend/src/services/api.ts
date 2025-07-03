@@ -1,5 +1,6 @@
 // API service for backend communication
 import { getBackendJwt } from "@/lib/authToken";
+import type { User, RepositoryWithTasks, Task } from "@/types/generated";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -7,36 +8,6 @@ interface HealthResponse {
   status: string;
   message: string;
   timestamp: string;
-}
-
-interface UserProfile {
-  id: number;
-  clerk_user_id: string;
-  github_username?: string;
-  email?: string;
-  default_repo_id?: number;
-  created_at: string;
-}
-
-interface Repository {
-  id: number;
-  github_repo_id: number;
-  owner: string;
-  name: string;
-  full_name: string;
-  is_private: boolean;
-  task_count: number;
-  created_at?: string;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: string;
-  repository_id: number;
-  user_id: number;
-  created_at: string;
 }
 
 interface CreateTaskRequest {
@@ -90,11 +61,11 @@ export class ApiService {
   }
 
   // Authenticated endpoints
-  static async getUserProfile(): Promise<UserProfile> {
-    return this.authenticatedRequest<UserProfile>('/api/user/profile');
+  static async getUserProfile(): Promise<User> {
+    return this.authenticatedRequest<User>('/api/user/profile');
   }
 
-  static async getUserRepositories(): Promise<{ repositories: Repository[]; count: number; message?: string }> {
+  static async getUserRepositories(): Promise<{ repositories: RepositoryWithTasks[]; count: number; message?: string }> {
     return this.authenticatedRequest('/api/user/repos');
   }
 

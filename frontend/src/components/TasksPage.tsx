@@ -45,9 +45,9 @@ export function TasksPage() {
       
       // Convert backend tasks to frontend format
       const frontendTasks: Task[] = response.tasks.map(task => ({
-        id: task.id,
+        id: task.id.toString(),
         title: task.title,
-        status: task.status as any, // Backend might use different status values
+        status: (task.status as "backlog" | "todo" | "in progress" | "done" | "canceled") || "todo", // Backend might use different status values
         label: "feature", // Default label - could be determined from task data
         priority: "medium", // Default priority - could be determined from task data
       }))
@@ -82,8 +82,13 @@ export function TasksPage() {
     setIsCreateTaskModalOpen(false)
   }
 
-  const handleTaskCreated = async (taskData: any) => {
+  const handleTaskCreated = async (taskData: { title: string; description: string; repositoryId: number | null; priority: string }) => {
     try {
+      if (!taskData.repositoryId) {
+        console.error('Repository ID is required');
+        return;
+      }
+      
       await ApiService.createTask({
         title: taskData.title,
         description: taskData.description,

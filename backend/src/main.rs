@@ -6,29 +6,31 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use serde_json::{json, Value};
-use tower_http::cors::{Any, CorsLayer};
-use std::env;
-use sqlx::PgPool;
 use serde::Deserialize;
+use serde_json::{json, Value};
+use sqlx::PgPool;
+use tower_http::cors::{Any, CorsLayer};
 
-mod models;
-mod database_working;
-mod github;
 mod auth;
 mod clerk_api;
+mod config;
+mod database;
+mod error;
+mod github;
+mod models;
 
-use database_working::Database;
-use github::GitHubClient;
-use models::{CreateRepository, CreateUser, CreateGitHubToken};
 use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
+use config::Config;
+use database::Database;
+use error::{AppError, AppResult};
+use github::GitHubClient;
+use models::{CreateGitHubToken, CreateRepository, CreateUser};
 
 #[derive(Clone)]
 pub struct AppState {
     pub database: Database,
-    pub clerk_secret: String,
+    pub config: Config,
 }
-
 
 async fn get_or_create_user(
     database: &Database,
@@ -38,7 +40,7 @@ async fn get_or_create_user(
     if let Ok(Some(user)) = database.get_user_by_clerk_id(clerk_user_id).await {
         return Ok(user);
     }
-    
+
     // Create new user if doesn't exist
     let create_user = CreateUser {
         clerk_user_id: clerk_user_id.to_string(),
@@ -46,8 +48,10 @@ async fn get_or_create_user(
         github_user_id: None,
         email: None,
     };
-    
-    database.create_user(create_user).await
+
+    database
+        .create_user(create_user)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
@@ -56,78 +60,82 @@ async fn store_github_token(
     State(app_state): State<AppState>,
     Json(body): Json<GitHubTokenBody>,
 ) -> Result<Json<Value>, StatusCode> {
-    println!("Storing GitHub token for user: {}, token length: {}", user.id, body.access_token.len());
-    
+    tracing::info!(
+        "Storing GitHub token for user: {}, token length: {}",
+        user.id,
+        body.access_token.len()
+    );
+
     // Upsert Swarm user (helper re-uses existing DB methods)
     let db_user = match get_or_create_user(&app_state.database, &user.id).await {
         Ok(u) => {
-            println!("Found/created DB user with ID: {}", u.id);
+            tracing::debug!("Found/created DB user with ID: {}", u.id);
             u
-        },
+        }
         Err(e) => {
-            eprintln!("Error getting/creating user: {:?}", e);
+            tracing::error!("Error getting/creating user: {:?}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        },
+        }
     };
 
-    match app_state.database.store_github_token(CreateGitHubToken {
-        user_id: db_user.id,
-        access_token: body.access_token,
-        token_type: "bearer".into(),
-        scope: Some("repo".into()),
-    }).await {
+    match app_state
+        .database
+        .store_github_token(CreateGitHubToken {
+            user_id: db_user.id,
+            access_token: body.access_token,
+            token_type: "bearer".into(),
+            scope: Some("repo".into()),
+        })
+        .await
+    {
         Ok(_) => {
-            println!("Successfully stored GitHub token for user {}", db_user.id);
+            tracing::info!("Successfully stored GitHub token for user {}", db_user.id);
             Ok(Json(json!({ "success": true })))
-        },
+        }
         Err(e) => {
-            eprintln!("Error storing GitHub token: {:?}", e);
+            tracing::error!("Error storing GitHub token: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
 #[tokio::main]
-async fn main() {
-    // Load environment variables from .env file
-    dotenvy::dotenv().ok();
-    
-    // Initialize logging
-    env_logger::init();
-    
-    // Get port from environment or default to 3001
-    let port = env::var("PORT").unwrap_or_else(|_| "3001".to_string());
-    
-    // Get database URL from environment
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://swarm:password@localhost:5432/swarm".to_string());
-    
+async fn main() -> AppResult<()> {
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
+    // Load configuration
+    let config = Config::from_env()?;
+
     // Connect to database
-    let pool = match PgPool::connect(&database_url).await {
+    let pool = match PgPool::connect(&config.database_url).await {
         Ok(pool) => {
-            println!("✓ Connected to database");
+            tracing::info!("Connected to database successfully");
             pool
         }
         Err(e) => {
-            println!("✗ Failed to connect to database: {}", e);
-            println!("Make sure PostgreSQL is running and DATABASE_URL is correct");
-            std::process::exit(1);
+            tracing::error!("Failed to connect to database: {}", e);
+            tracing::error!("Make sure PostgreSQL is running and DATABASE_URL is correct");
+            return Err(AppError::Database(e));
         }
     };
-    
+
     // Run database migrations (skip if already exist)
     match sqlx::migrate!("./migrations").run(&pool).await {
-        Ok(_) => println!("✓ Database migrations completed"),
+        Ok(_) => tracing::info!("Database migrations completed successfully"),
         Err(e) => {
-            println!("⚠ Migration warning (likely tables already exist): {}", e);
-            println!("✓ Continuing with existing database schema");
+            tracing::warn!("Migration warning (likely tables already exist): {}", e);
+            tracing::info!("Continuing with existing database schema");
         }
     }
-    
-    let clerk_secret = env::var("CLERK_SECRET_KEY")
-        .expect("CLERK_SECRET_KEY missing – set it in .env");
+
     let database = Database::new(pool);
-    let app_state = AppState { database, clerk_secret };
+    let app_state = AppState {
+        database,
+        config: config.clone(),
+    };
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -148,11 +156,20 @@ async fn main() {
         .layer(cors)
         .with_state(app_state);
 
-    let bind_address = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
-    println!("Server running on {}", bind_address);
-    
-    axum::serve(listener, app).await.unwrap();
+    let bind_address = format!("0.0.0.0:{}", config.port);
+    let listener = tokio::net::TcpListener::bind(&bind_address)
+        .await
+        .map_err(|e| {
+            AppError::Internal(format!("Failed to bind to address {}: {}", bind_address, e))
+        })?;
+
+    tracing::info!("Server running on {}", bind_address);
+
+    axum::serve(listener, app)
+        .await
+        .map_err(|e| AppError::Internal(format!("Server error: {}", e)))?;
+
+    Ok(())
 }
 
 async fn health_check() -> Result<Json<Value>, StatusCode> {
@@ -177,16 +194,14 @@ async fn get_user_profile(
 ) -> Result<Json<Value>, StatusCode> {
     // Get full user data from database
     match app_state.database.get_user_by_clerk_id(&user.id).await {
-        Ok(Some(db_user)) => {
-            Ok(Json(json!({
-                "id": db_user.id,
-                "clerk_user_id": db_user.clerk_user_id,
-                "github_username": db_user.github_username,
-                "email": db_user.email,
-                "default_repo_id": db_user.default_repo_id,
-                "created_at": db_user.created_at
-            })))
-        },
+        Ok(Some(db_user)) => Ok(Json(json!({
+            "id": db_user.id,
+            "clerk_user_id": db_user.clerk_user_id,
+            "github_username": db_user.github_username,
+            "email": db_user.email,
+            "default_repo_id": db_user.default_repo_id,
+            "created_at": db_user.created_at
+        }))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -202,26 +217,29 @@ async fn get_user_repos(
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    
+
     // Step 1: look in DB, else ask Clerk, else fall back
     let github_token = if let Ok(Some(t)) = app_state.database.get_github_token(user.id).await {
         t.access_token
     } else {
-        match clerk_api::fetch_github_token(&clerk_user.id, &app_state.clerk_secret).await {
+        match clerk_api::fetch_github_token(&clerk_user.id, &app_state.config.clerk_secret_key).await {
             Ok(token) => {
                 // cache for next time (ignore errors)
-                let _ = app_state.database.store_github_token(CreateGitHubToken {
-                    user_id: user.id,
-                    access_token: token.clone(),
-                    token_type: "bearer".into(),
-                    scope: Some("repo".into()),
-                }).await;
+                let _ = app_state
+                    .database
+                    .store_github_token(CreateGitHubToken {
+                        user_id: user.id,
+                        access_token: token.clone(),
+                        token_type: "bearer".into(),
+                        scope: Some("repo".into()),
+                    })
+                    .await;
                 token
             }
             Err(_) => {
                 // final fallback - return demo repos if no valid token available
-                if let Ok(env_token) = std::env::var("GITHUB_TOKEN") {
-                    env_token
+                if let Some(env_token) = &app_state.config.github_token {
+                    env_token.clone()
                 } else {
                     // Return demo repositories when no GitHub token is available
                     return Ok(Json(json!({
@@ -230,7 +248,7 @@ async fn get_user_repos(
                                 "id": 1,
                                 "github_repo_id": 123456789,
                                 "owner": "demo-user",
-                                "name": "demo-repo", 
+                                "name": "demo-repo",
                                 "full_name": "demo-user/demo-repo",
                                 "is_private": false,
                                 "task_count": 0,
@@ -259,7 +277,7 @@ async fn get_user_repos(
     let github_client = match GitHubClient::new(&github_token) {
         Ok(client) => client,
         Err(e) => {
-            eprintln!("Error creating GitHub client: {}", e);
+            tracing::error!("Error creating GitHub client: {}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -267,18 +285,16 @@ async fn get_user_repos(
     let github_repos = match github_client.get_user_repositories(50).await {
         Ok(repos) => repos,
         Err(e) => {
-            eprintln!("Error fetching repositories from GitHub: {:?}", e);
-            eprintln!("GitHub API error details: {}", e);
+            tracing::error!("Error fetching repositories from GitHub: {:?}", e);
+            tracing::error!("GitHub API error details: {}", e);
             // Fallback to cached repositories
             return match app_state.database.get_user_repositories(user.id).await {
-                Ok(cached_repos) => {
-                    Ok(Json(json!({
-                        "repositories": cached_repos,
-                        "count": cached_repos.len(),
-                        "message": "GitHub API error - showing cached repositories"
-                    })))
-                }
-                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
+                Ok(cached_repos) => Ok(Json(json!({
+                    "repositories": cached_repos,
+                    "count": cached_repos.len(),
+                    "message": "GitHub API error - showing cached repositories"
+                }))),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
             };
         }
     };
@@ -296,25 +312,27 @@ async fn get_user_repos(
         })
         .collect();
 
-    match app_state.database.sync_repositories(user.id, create_repos).await {
+    match app_state
+        .database
+        .sync_repositories(user.id, create_repos)
+        .await
+    {
         Ok(_) => {
             // Return fresh data from database after sync
             match app_state.database.get_user_repositories(user.id).await {
-                Ok(synced_repos) => {
-                    Ok(Json(json!({
-                        "repositories": synced_repos,
-                        "count": synced_repos.len(),
-                        "message": format!("Successfully synced {} repositories from GitHub", github_repos.len())
-                    })))
-                }
+                Ok(synced_repos) => Ok(Json(json!({
+                    "repositories": synced_repos,
+                    "count": synced_repos.len(),
+                    "message": format!("Successfully synced {} repositories from GitHub", github_repos.len())
+                }))),
                 Err(e) => {
-                    eprintln!("Database error after sync: {}", e);
+                    tracing::error!("Database error after sync: {}", e);
                     Err(StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }
         }
         Err(e) => {
-            eprintln!("Error syncing repositories to database: {}", e);
+            tracing::error!("Error syncing repositories to database: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -336,25 +354,24 @@ async fn set_default_repo(
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    
-    match app_state.database.update_user_github_info(
-        user.id,
-        None, // We don't have github_username in the auth context 
-        None
-    ).await {
-        Ok(updated_user) => {
-            Ok(Json(json!({
-                "success": true,
-                "default_repo_id": payload.repository_id,
-                "user": {
-                    "id": updated_user.id,
-                    "github_username": updated_user.github_username
-                }
-            })))
-        },
-        Err(_) => {
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+
+    match app_state
+        .database
+        .update_user_github_info(
+            user.id, None, // We don't have github_username in the auth context
+            None,
+        )
+        .await
+    {
+        Ok(updated_user) => Ok(Json(json!({
+            "success": true,
+            "default_repo_id": payload.repository_id,
+            "user": {
+                "id": updated_user.id,
+                "github_username": updated_user.github_username
+            }
+        }))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -368,7 +385,7 @@ async fn get_tasks(
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    
+
     // Return mock tasks for now
     // In the full implementation, this would query the database for user's tasks
     Ok(Json(json!({
@@ -396,13 +413,13 @@ async fn create_task(
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    
+
     // Create mock task for now
     // In the full implementation, this would:
     // 1. Validate repository access
     // 2. Create task in database
     // 3. Trigger sandbox creation and Claude Code execution
-    
+
     Ok(Json(json!({
         "success": true,
         "task": {
@@ -425,7 +442,7 @@ async fn connect_github(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match clerk_api::fetch_github_token(&clerk_user.id, &app_state.clerk_secret).await {
+    match clerk_api::fetch_github_token(&clerk_user.id, &app_state.config.clerk_secret_key).await {
         Ok(token) => {
             app_state
                 .database
@@ -440,13 +457,13 @@ async fn connect_github(
             Ok(Json(json!({ "success": true })))
         }
         Err(e) => {
-            eprintln!("Clerk token fetch failed: {e}");
+            tracing::error!("Clerk token fetch failed: {e}");
             // 404 means GitHub not connected to Clerk account
             if e.to_string().contains("404") {
-                Ok(Json(json!({ 
-                    "success": false, 
+                Ok(Json(json!({
+                    "success": false,
                     "error": "github_not_connected",
-                    "message": "GitHub account not connected to Clerk. Please connect GitHub in your account settings." 
+                    "message": "GitHub account not connected to Clerk. Please connect GitHub in your account settings."
                 })))
             } else {
                 Err(StatusCode::BAD_GATEWAY)

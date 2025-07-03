@@ -32,7 +32,7 @@ pub struct Repository {
     pub name: String,
     pub full_name: String,
     pub user_id: i32,
-    pub is_private: bool,
+    pub is_private: Option<bool>,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -52,7 +52,7 @@ pub struct GitHubToken {
     pub id: i32,
     pub user_id: i32,
     pub access_token: String,
-    pub token_type: String,
+    pub token_type: Option<String>,
     pub scope: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -74,7 +74,7 @@ pub struct Task {
     pub repository_id: i32,
     pub title: String,
     pub description: Option<String>,
-    pub status: String,
+    pub status: Option<String>,
     pub github_pr_url: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -107,7 +107,7 @@ pub struct RepositoryWithTasks {
     pub owner: String,
     pub name: String,
     pub full_name: String,
-    pub is_private: bool,
+    pub is_private: Option<bool>,
     pub task_count: i64,
     pub created_at: Option<DateTime<Utc>>,
 }

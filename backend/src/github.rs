@@ -46,7 +46,7 @@ impl GitHubClient {
     #[allow(dead_code)]
     pub async fn get_current_user(&self) -> Result<GitHubUser, octocrab::Error> {
         let user = self.client.current().user().await?;
-        
+
         Ok(GitHubUser {
             login: user.login,
             id: user.id.0 as i64, // Convert u64 to i64
@@ -54,7 +54,10 @@ impl GitHubClient {
         })
     }
 
-    pub async fn get_user_repositories(&self, per_page: u8) -> Result<Vec<GitHubRepository>, octocrab::Error> {
+    pub async fn get_user_repositories(
+        &self,
+        per_page: u8,
+    ) -> Result<Vec<GitHubRepository>, octocrab::Error> {
         let mut repositories = Vec::new();
         let mut page = 1u8;
 
@@ -75,27 +78,30 @@ impl GitHubClient {
             }
 
             let items_count = repos_page.items.len();
-            
+
             for repo in repos_page.items {
                 // Handle owner safely
-                let owner_login = repo.owner.as_ref()
+                let owner_login = repo
+                    .owner
+                    .as_ref()
                     .map(|o| o.login.clone())
                     .unwrap_or_else(|| "unknown".to_string());
-                
-                let owner_id = repo.owner.as_ref()
-                    .map(|o| o.id.0 as i64)
-                    .unwrap_or(0);
 
-                let owner_url = repo.owner.as_ref()
+                let owner_id = repo.owner.as_ref().map(|o| o.id.0 as i64).unwrap_or(0);
+
+                let owner_url = repo
+                    .owner
+                    .as_ref()
                     .map(|o| format!("https://github.com/{}", o.login))
                     .unwrap_or_default();
 
                 repositories.push(GitHubRepository {
                     id: repo.id.0 as i64, // Convert u64 to i64
                     name: repo.name.clone(),
-                    full_name: repo.full_name.clone().unwrap_or_else(|| {
-                        format!("{}/{}", owner_login, repo.name)
-                    }),
+                    full_name: repo
+                        .full_name
+                        .clone()
+                        .unwrap_or_else(|| format!("{}/{}", owner_login, repo.name)),
                     owner: GitHubUser {
                         login: owner_login,
                         id: owner_id,
@@ -105,7 +111,10 @@ impl GitHubClient {
                     html_url: repo.html_url.map(|u| u.to_string()).unwrap_or_default(),
                     description: repo.description.clone(),
                     language: repo.language.as_ref().map(|v| v.to_string()),
-                    updated_at: repo.updated_at.map(|dt| dt.to_rfc3339()).unwrap_or_default(),
+                    updated_at: repo
+                        .updated_at
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_default(),
                 });
             }
 
@@ -115,7 +124,7 @@ impl GitHubClient {
             }
 
             page += 1;
-            
+
             // Safety limit to prevent infinite loops
             if page > 100 {
                 break;
@@ -126,15 +135,23 @@ impl GitHubClient {
     }
 
     #[allow(dead_code)]
-    pub async fn check_repository_access(&self, owner: &str, repo: &str) -> Result<bool, octocrab::Error> {
+    pub async fn check_repository_access(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> Result<bool, octocrab::Error> {
         match self.client.repos(owner, repo).get().await {
             Ok(_) => Ok(true),
             Err(octocrab::Error::GitHub { source, .. }) => {
-                if source.status_code == http::StatusCode::NOT_FOUND 
-                   || source.status_code == http::StatusCode::FORBIDDEN {
+                if source.status_code == http::StatusCode::NOT_FOUND
+                    || source.status_code == http::StatusCode::FORBIDDEN
+                {
                     Ok(false)
                 } else {
-                    Err(octocrab::Error::GitHub { source, backtrace: std::backtrace::Backtrace::disabled() })
+                    Err(octocrab::Error::GitHub {
+                        source,
+                        backtrace: std::backtrace::Backtrace::disabled(),
+                    })
                 }
             }
             Err(e) => Err(e),
@@ -156,8 +173,8 @@ pub fn parse_repo_full_name(full_name: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
-    use wiremock::matchers::{method, path, header};
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_parse_repo_full_name() {
@@ -186,8 +203,9 @@ mod tests {
         };
 
         let json = serde_json::to_string(&user).expect("Failed to serialize user");
-        let deserialized: GitHubUser = serde_json::from_str(&json).expect("Failed to deserialize user");
-        
+        let deserialized: GitHubUser =
+            serde_json::from_str(&json).expect("Failed to deserialize user");
+
         assert_eq!(deserialized.login, "testuser");
         assert_eq!(deserialized.id, 12345);
         assert_eq!(deserialized.html_url, "https://github.com/testuser");
@@ -212,8 +230,9 @@ mod tests {
         };
 
         let json = serde_json::to_string(&repo).expect("Failed to serialize repository");
-        let deserialized: GitHubRepository = serde_json::from_str(&json).expect("Failed to deserialize repository");
-        
+        let deserialized: GitHubRepository =
+            serde_json::from_str(&json).expect("Failed to deserialize repository");
+
         assert_eq!(deserialized.name, "test-repo");
         assert_eq!(deserialized.owner.login, "owner");
         assert_eq!(deserialized.private, false);
@@ -223,23 +242,21 @@ mod tests {
     async fn test_github_mock_api_response() {
         // This test demonstrates how to mock GitHub API responses
         // Useful for testing without hitting the real GitHub API
-        
+
         let mock_server = MockServer::start().await;
-        
+
         Mock::given(method("GET"))
             .and(path("/user"))
             .and(header("authorization", "token test_token"))
-            .respond_with(ResponseTemplate::new(200)
-                .set_body_json(serde_json::json!({
-                    "login": "testuser",
-                    "id": 12345,
-                    "html_url": "https://github.com/testuser"
-                }))
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "login": "testuser",
+                "id": 12345,
+                "html_url": "https://github.com/testuser"
+            })))
             .mount(&mock_server)
             .await;
 
-        // This is a demonstration - actual implementation would require 
+        // This is a demonstration - actual implementation would require
         // configuring octocrab to use the mock server URL
         assert!(true); // Placeholder assertion
     }
@@ -277,6 +294,7 @@ mod tests {
 
         // Test that None values serialize/deserialize properly
         let json = serde_json::to_string(&repo).expect("Failed to serialize");
-        let _deserialized: GitHubRepository = serde_json::from_str(&json).expect("Failed to deserialize");
+        let _deserialized: GitHubRepository =
+            serde_json::from_str(&json).expect("Failed to deserialize");
     }
 }

@@ -1,12 +1,12 @@
 use axum::{
     async_trait,
     extract::{FromRequestParts, Request},
-    http::{header, StatusCode},
+    http::StatusCode,
     middleware::Next,
     response::Response,
 };
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClerkUser {
@@ -22,48 +22,41 @@ pub struct GitHubTokenBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ClerkClaims {
-    sub: String,           // Clerk user ID
+    sub: String, // Clerk user ID
     email: Option<String>,
-    exp: usize,           // Expiration time
-    iss: String,          // Issuer (should be Clerk)
-    aud: Option<String>,  // Audience
+    exp: usize,          // Expiration time
+    iss: String,         // Issuer (should be Clerk)
+    aud: Option<String>, // Audience
 }
 
-pub async fn clerk_middleware(
-    mut req: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn clerk_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
     // Skip authentication for health endpoint
     if req.uri().path() == "/health" {
         return Ok(next.run(req).await);
     }
 
+    // Extract Bearer token using typed header
     let auth_header = req
         .headers()
-        .get(header::AUTHORIZATION)
+        .get("authorization")
         .and_then(|header| header.to_str().ok())
         .and_then(|header| header.strip_prefix("Bearer "));
 
     let token = match auth_header {
         Some(token) => token,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => {
+            tracing::warn!("Missing or invalid Authorization header");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     };
 
-    // Note: Clerk secret key is available if needed for future verification
-    let _clerk_secret = std::env::var("CLERK_SECRET_KEY")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
     // Validate JWT token
-    let mut validation = Validation::new(Algorithm::RS256);
-    validation.validate_exp = true;
-    validation.validate_aud = false; // Clerk JWTs may not have audience
-    
-    // For Clerk JWTs, we need to decode without verification first to check if it's a valid JWT
-    // In production, you'd want to fetch Clerk's public keys from their JWKS endpoint
-    // For now, we'll do a basic decode to extract the user ID
     let claims = match decode_clerk_jwt(token) {
         Ok(claims) => claims,
-        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+        Err(e) => {
+            tracing::warn!("Failed to decode JWT: {}", e);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     };
 
     let user = ClerkUser {
@@ -81,13 +74,13 @@ fn decode_clerk_jwt(token: &str) -> Result<ClerkClaims, jsonwebtoken::errors::Er
     let mut validation = Validation::new(Algorithm::RS256);
     validation.insecure_disable_signature_validation();
     validation.validate_exp = false; // Disable for now to avoid clock skew issues
-    
+
     let decoded = decode::<ClerkClaims>(
         token,
         &DecodingKey::from_secret(&[]), // Empty key since we disabled verification
         &validation,
     )?;
-    
+
     Ok(decoded.claims)
 }
 

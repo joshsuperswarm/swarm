@@ -103,7 +103,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         setLoading(false);
       }, 1500);
       
-    } catch (error) {
+    } catch {
       setError('Failed to send message');
       setLoading(false);
     }

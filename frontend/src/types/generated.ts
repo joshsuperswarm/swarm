@@ -16,7 +16,7 @@ export interface GitHubToken {
   id: number;
   user_id: number;
   access_token: string;
-  token_type: string;
+  token_type?: string;
   scope?: string;
   created_at?: string;
   updated_at?: string;
@@ -28,7 +28,7 @@ export interface Task {
   repository_id: number;
   title: string;
   description?: string;
-  status: string;
+  status?: string;
   github_pr_url?: string;
   created_at?: string;
   updated_at?: string;
@@ -40,7 +40,7 @@ export interface RepositoryWithTasks {
   owner: string;
   name: string;
   full_name: string;
-  is_private: boolean;
+  is_private?: boolean;
   task_count: number;
   created_at?: string;
 }

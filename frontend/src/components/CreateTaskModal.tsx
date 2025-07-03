@@ -2,14 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { ApiService } from '@/services/api';
 import { getBackendJwt } from '@/lib/authToken';
-
-interface Repository {
-  id: number;
-  name: string;
-  full_name: string;
-  owner: string;
-  private: boolean;
-}
+import type { RepositoryWithTasks } from '@/types/generated';
 
 interface CreateTaskData {
   title: string;
@@ -36,7 +29,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     priority: 'medium'
   });
   
-  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [repositories, setRepositories] = useState<RepositoryWithTasks[]>([]);
   const [loading, setLoading] = useState(false);
   const [repositoriesLoading, setRepositoriesLoading] = useState(false);
 
@@ -63,17 +56,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       setRepositoriesLoading(true);
 
       const response = await ApiService.getUserRepositories();
-      
-      // Convert backend repositories to frontend format
-      const frontendRepos: Repository[] = response.repositories.map(repo => ({
-        id: repo.id,
-        name: repo.name,
-        full_name: repo.full_name,
-        owner: repo.owner,
-        private: repo.is_private
-      }));
-      
-      setRepositories(frontendRepos);
+      setRepositories(response.repositories);
     } catch (err) {
       console.error('Failed to load repositories:', err);
       
@@ -153,7 +136,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                 </option>
                 {repositories.map((repo) => (
                   <option key={repo.id} value={repo.id}>
-                    {repo.full_name} {repo.private ? '(Private)' : '(Public)'}
+                    {repo.full_name} {repo.is_private ? '(Private)' : '(Public)'}
                   </option>
                 ))}
               </select>
