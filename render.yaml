@@ -15,7 +15,7 @@ services:
       - key: PORT
         value: 10000
     healthCheckPath: /health
-    
+
   # React Frontend
   - type: web
     name: swarm-frontend
