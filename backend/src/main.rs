@@ -24,7 +24,7 @@ use config::Config;
 use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
-use models::{CreateGitHubToken, CreateRepository, CreateUser};
+use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -386,13 +386,34 @@ async fn get_tasks(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Return mock tasks for now
-    // In the full implementation, this would query the database for user's tasks
-    Ok(Json(json!({
-        "tasks": [],
-        "count": 0,
-        "user_id": user.id
-    })))
+    // Get user's tasks from database
+    match app_state.database.get_user_tasks(user.id).await {
+        Ok(tasks) => {
+            let task_responses: Vec<_> = tasks.into_iter().map(|task| {
+                json!({
+                    "id": task.id,
+                    "title": task.title,
+                    "description": task.description,
+                    "repository_id": task.repository_id,
+                    "user_id": task.user_id,
+                    "status": task.status.unwrap_or_else(|| "pending".to_string()),
+                    "github_pr_url": task.github_pr_url,
+                    "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
+                    "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
+                })
+            }).collect();
+
+            Ok(Json(json!({
+                "tasks": task_responses,
+                "count": task_responses.len(),
+                "user_id": user.id
+            })))
+        },
+        Err(e) => {
+            tracing::error!("Error fetching tasks for user {}: {}", user.id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -414,24 +435,50 @@ async fn create_task(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Create mock task for now
-    // In the full implementation, this would:
-    // 1. Validate repository access
-    // 2. Create task in database
-    // 3. Trigger sandbox creation and Claude Code execution
-
-    Ok(Json(json!({
-        "success": true,
-        "task": {
-            "id": 1,
-            "title": payload.title,
-            "description": payload.description,
-            "repository_id": payload.repository_id,
-            "user_id": user.id,
-            "status": "pending",
-            "created_at": chrono::Utc::now().to_rfc3339()
+    // Validate repository access
+    let _repository = match app_state.database.get_repository_by_id(payload.repository_id, user.id).await {
+        Ok(Some(repo)) => repo,
+        Ok(None) => {
+            tracing::warn!("User {} attempted to create task for repository {} they don't have access to", user.id, payload.repository_id);
+            return Err(StatusCode::FORBIDDEN);
+        },
+        Err(e) => {
+            tracing::error!("Database error checking repository access: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
-    })))
+    };
+
+    // Create task in database
+    let create_task = CreateTask {
+        user_id: user.id,
+        repository_id: payload.repository_id,
+        title: payload.title,
+        description: payload.description,
+    };
+
+    match app_state.database.create_task(create_task).await {
+        Ok(task) => {
+            tracing::info!("Created task {} for user {}", task.id, user.id);
+            Ok(Json(json!({
+                "success": true,
+                "task": {
+                    "id": task.id,
+                    "title": task.title,
+                    "description": task.description,
+                    "repository_id": task.repository_id,
+                    "user_id": task.user_id,
+                    "status": task.status.unwrap_or_else(|| "pending".to_string()),
+                    "github_pr_url": task.github_pr_url,
+                    "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
+                    "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
+                }
+            })))
+        },
+        Err(e) => {
+            tracing::error!("Error creating task: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 async fn connect_github(
