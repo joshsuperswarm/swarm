@@ -55,6 +55,7 @@ docker-compose down -v  # Reset database (deletes all data)
 - **GitHub integration**: Ready for GitHub OAuth and repository access
 - **Git Hook**: Pre-commit hook runs both `cargo check` and `npm run build`
 - **Linting**: Run `npm run lint` in frontend before commits
+- **Logging**: Console logs use unicode characters (✓ ✗ ⚠ →) instead of emojis for clean output
 
 ## Project Structure
 ```

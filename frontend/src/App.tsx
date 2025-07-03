@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useUser } from '@clerk/clerk-react'
 import { TasksPage } from './components/TasksPage'
 import { CreateSessionModal } from './components/CreateSessionModal'
 import { ApiService } from './services/api'
+import { setBackendJwt } from '@/lib/authToken'
 import './App.css'
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const { isSignedIn, getToken } = useAuth()
+  const { user } = useUser()
 
   // Test backend connection on app load
   useEffect(() => {
@@ -21,6 +24,42 @@ function App() {
     
     testConnection()
   }, [])
+
+  // Handle Clerk authentication and GitHub token storage
+  useEffect(() => {
+    (async () => {
+      if (!isSignedIn || !user) {
+        // Clear JWT when signed out
+        setBackendJwt(null)
+        return
+      }
+
+      try {
+        // 1. Save Clerk session JWT for later API calls
+        const jwt = await getToken()
+        setBackendJwt(jwt ?? null)
+
+        // 2. Try to connect GitHub via backend (uses Clerk Management API)
+        try {
+          const githubAccount = user.externalAccounts?.find(account => account.provider === 'github')
+          console.log('GitHub account found:', !!githubAccount)
+          
+          if (githubAccount) {
+            console.log('→ Connecting GitHub via backend...')
+            await ApiService.connectGitHub()
+            console.log('✓ GitHub token retrieved and cached successfully')
+          } else {
+            console.log('ℹ No GitHub account connected - will show demo repositories')
+          }
+        } catch (tokenError) {
+          console.log('⚠ Could not retrieve GitHub token:', tokenError)
+          console.log('Will fall back to demo repositories')
+        }
+      } catch (error) {
+        console.error('✗ Failed to handle authentication:', error)
+      }
+    })()
+  }, [isSignedIn, getToken, user])
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">

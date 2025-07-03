@@ -22,8 +22,8 @@ interface SessionStore {
   setError: (error: string | null) => void;
 }
 
-// Mock session for development (simplified)
-const mockSession: Session = {
+// Mock session for development (simplified) - only in dev mode
+const mockSession: Session | null = process.env.NODE_ENV === 'production' ? null : {
   id: '1',
   title: 'Frontend Redesign Project',
   agentType: 'claude_code',

@@ -6,9 +6,10 @@ import { DataTable } from "@/components/data-table/data-table"
 import { TaskDetailModal } from "@/components/TaskDetailModal"
 import { CreateTaskModal } from "@/components/CreateTaskModal"
 import { ApiService } from "@/services/api"
+import { getBackendJwt } from "@/lib/authToken"
 
 export function TasksPage() {
-  const { getToken, isLoaded } = useAuth()
+  const { isLoaded } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -16,10 +17,22 @@ export function TasksPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false)
 
-  // Load tasks on component mount
+  // Load tasks when auth is ready and JWT is available
   useEffect(() => {
     if (isLoaded) {
-      loadTasks()
+      // Add a small delay to ensure JWT has been set in the auth store
+      const timeoutId = setTimeout(() => {
+        const jwt = getBackendJwt()
+        if (jwt) {
+          loadTasks()
+        } else {
+          console.log('Waiting for JWT to be available...')
+          // Try again in a moment
+          setTimeout(loadTasks, 1000)
+        }
+      }, 100)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [isLoaded])
 
@@ -27,13 +40,8 @@ export function TasksPage() {
     try {
       setLoading(true)
       setError(null)
-      
-      const token = await getToken()
-      if (!token) {
-        throw new Error('No authentication token available')
-      }
 
-      const response = await ApiService.getTasks(token)
+      const response = await ApiService.getTasks()
       
       // Convert backend tasks to frontend format
       const frontendTasks: Task[] = response.tasks.map(task => ({
@@ -49,16 +57,8 @@ export function TasksPage() {
       console.error('Failed to load tasks:', err)
       setError(err instanceof Error ? err.message : 'Failed to load tasks')
       
-      // Show mock data as fallback for development
-      setTasks([
-        {
-          id: "SWARM-DEMO",
-          title: "Demo task - backend not fully connected",
-          status: "todo",
-          label: "demo",
-          priority: "low",
-        }
-      ])
+      // Show empty state when API fails
+      setTasks([])
     } finally {
       setLoading(false)
     }
@@ -84,12 +84,7 @@ export function TasksPage() {
 
   const handleTaskCreated = async (taskData: any) => {
     try {
-      const token = await getToken()
-      if (!token) {
-        throw new Error('No authentication token available')
-      }
-
-      await ApiService.createTask(token, {
+      await ApiService.createTask({
         title: taskData.title,
         description: taskData.description,
         repository_id: taskData.repositoryId,

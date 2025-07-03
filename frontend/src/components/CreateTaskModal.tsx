@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from "@clerk/clerk-react"
 import { X } from 'lucide-react';
 import { ApiService } from '@/services/api';
+import { getBackendJwt } from '@/lib/authToken';
 
 interface Repository {
   id: number;
@@ -29,7 +29,6 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   onClose, 
   onCreateTask 
 }) => {
-  const { getToken } = useAuth()
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -41,22 +40,29 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [repositoriesLoading, setRepositoriesLoading] = useState(false);
 
-  // Load repositories when modal opens
+  // Load repositories when modal opens and JWT is available
   useEffect(() => {
     if (isOpen) {
-      loadRepositories();
+      const jwt = getBackendJwt()
+      if (jwt) {
+        loadRepositories();
+      } else {
+        console.log('Waiting for JWT before loading repositories...')
+        // Try again in a moment
+        setTimeout(() => {
+          if (getBackendJwt()) {
+            loadRepositories();
+          }
+        }, 500)
+      }
     }
   }, [isOpen]);
 
   const loadRepositories = async () => {
     try {
       setRepositoriesLoading(true);
-      const token = await getToken();
-      if (!token) {
-        throw new Error('No authentication token available');
-      }
 
-      const response = await ApiService.getUserRepositories(token);
+      const response = await ApiService.getUserRepositories();
       
       // Convert backend repositories to frontend format
       const frontendRepos: Repository[] = response.repositories.map(repo => ({
@@ -71,16 +77,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     } catch (err) {
       console.error('Failed to load repositories:', err);
       
-      // Show mock data as fallback for development
-      setRepositories([
-        {
-          id: 1,
-          name: 'demo-repo',
-          full_name: 'user/demo-repo',
-          owner: 'user',
-          private: false
-        }
-      ]);
+      // Show empty list when API fails - user will see "Connect GitHub" message
+      setRepositories([]);
     } finally {
       setRepositoriesLoading(false);
     }
@@ -135,23 +133,31 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <label htmlFor="repository" className="block text-sm font-medium text-gray-700 mb-1">
               GitHub Repository *
             </label>
-            <select
-              id="repository"
-              required
-              value={formData.repositoryId || ''}
-              onChange={handleChange('repositoryId')}
-              disabled={repositoriesLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-            >
-              <option value="">
-                {repositoriesLoading ? 'Loading repositories...' : 'Select a repository...'}
-              </option>
-              {repositories.map((repo) => (
-                <option key={repo.id} value={repo.id}>
-                  {repo.full_name} {repo.private ? '(Private)' : '(Public)'}
+            {repositories.length === 0 && !repositoriesLoading ? (
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                <p className="text-gray-500 text-sm">
+                  No repositories available. Please connect your GitHub account and ensure you have repository access.
+                </p>
+              </div>
+            ) : (
+              <select
+                id="repository"
+                required
+                value={formData.repositoryId || ''}
+                onChange={handleChange('repositoryId')}
+                disabled={repositoriesLoading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              >
+                <option value="">
+                  {repositoriesLoading ? 'Loading repositories...' : 'Select a repository...'}
                 </option>
-              ))}
-            </select>
+                {repositories.map((repo) => (
+                  <option key={repo.id} value={repo.id}>
+                    {repo.full_name} {repo.private ? '(Private)' : '(Public)'}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
