@@ -81,7 +81,7 @@ impl DaytonaProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             error!("Failed to create sandbox: {} - {}", status, error_text);
-            return Err(SandboxError::WorkspaceError(format!(
+            return Err(SandboxError::SandboxOperationError(format!(
                 "Failed to create sandbox: {} - {}",
                 status,
                 error_text
@@ -107,7 +107,7 @@ impl DaytonaProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             error!("Failed to get sandbox {}: {} - {}", sandbox_id, status, error_text);
-            return Err(SandboxError::WorkspaceError(format!(
+            return Err(SandboxError::SandboxOperationError(format!(
                 "Failed to get sandbox: {} - {}",
                 status,
                 error_text
@@ -142,7 +142,7 @@ impl DaytonaProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             error!("Failed to start sandbox command for {}: {} - {}", sandbox_id, status, error_text);
-            return Err(SandboxError::WorkspaceError(format!(
+            return Err(SandboxError::SandboxOperationError(format!(
                 "Failed to start sandbox command: {} - {}",
                 status,
                 error_text
@@ -167,7 +167,7 @@ impl DaytonaProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             error!("Failed to delete sandbox {}: {} - {}", sandbox_id, status, error_text);
-            return Err(SandboxError::WorkspaceError(format!(
+            return Err(SandboxError::SandboxOperationError(format!(
                 "Failed to delete sandbox: {} - {}",
                 status,
                 error_text
@@ -215,19 +215,46 @@ impl SandboxProvider for DaytonaProvider {
         
         // Wait for sandbox to be ready with retry logic
         info!("Waiting for sandbox {} to be ready", sandbox.id);
-        let retry_strategy = ExponentialBackoff::from_millis(1000).max_delay(Duration::from_secs(10));
+        let retry_strategy = ExponentialBackoff::from_millis(1000)
+            .max_delay(Duration::from_secs(10))
+            .take(30); // Limit to 30 retries (about 5 minutes total)
         let sandbox_id = sandbox.id.clone();
         
-        let ready_sandbox = Retry::spawn(retry_strategy, || async {
+        let ready_sandbox = timeout(Duration::from_secs(10 * 60), Retry::spawn(retry_strategy, || async {
             let sb = self.get_sandbox(&sandbox_id).await?;
-            if sb.host_name.is_some() {
-                Ok(sb)
+            
+            // Check if sandbox is in a running state (rather than waiting for hostname)
+            if let Some(ref status) = sb.status {
+                let sandbox_status = Self::map_daytona_status(&status.phase);
+                match sandbox_status {
+                    WorkspaceStatus::Running => {
+                        info!("Sandbox {} is running (hostname: {:?}, ip: {:?})", 
+                              sandbox_id, sb.host_name, sb.public_ipv4);
+                        Ok(sb)
+                    }
+                    WorkspaceStatus::Failed => {
+                        error!("Sandbox {} failed to start", sandbox_id);
+                        Err(SandboxError::SandboxOperationError("Sandbox failed to start".to_string()))
+                    }
+                    WorkspaceStatus::Starting => {
+                        debug!("Sandbox {} still starting (status: {}), retrying...", sandbox_id, status.phase);
+                        Err(SandboxError::SandboxOperationError("Sandbox still starting".to_string()))
+                    }
+                    WorkspaceStatus::Stopped => {
+                        error!("Sandbox {} stopped unexpectedly", sandbox_id);
+                        Err(SandboxError::SandboxOperationError("Sandbox stopped unexpectedly".to_string()))
+                    }
+                }
             } else {
-                debug!("Sandbox {} hostname not ready yet, retrying...", sandbox_id);
-                Err(SandboxError::WorkspaceError("Sandbox hostname not ready".to_string()))
+                debug!("Sandbox {} has no status yet, retrying...", sandbox_id);
+                Err(SandboxError::SandboxOperationError("Sandbox status not available".to_string()))
             }
-        })
-        .await?;
+        }))
+        .await
+        .map_err(|_| {
+            error!("Timeout waiting for sandbox {} to be ready", sandbox_id);
+            SandboxError::TimeoutError
+        })??;
 
         // Start the bootstrap command
         self.start_sandbox_command(&sandbox_id).await?;

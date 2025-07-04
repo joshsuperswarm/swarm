@@ -1,4 +1,4 @@
--- Add Daytona workspace columns to tasks table
+-- Add Daytona sandbox columns to tasks table
 ALTER TABLE tasks ADD COLUMN daytona_workspace_id TEXT;
 ALTER TABLE tasks ADD COLUMN workspace_hostname TEXT;
 

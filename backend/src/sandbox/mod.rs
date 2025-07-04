@@ -10,9 +10,9 @@ pub enum SandboxError {
     HttpError(#[from] reqwest::Error),
     #[error("JSON parsing failed: {0}")]
     JsonError(#[from] serde_json::Error),
-    #[error("Workspace operation failed: {0}")]
-    WorkspaceError(String),
-    #[error("Timeout waiting for workspace")]
+    #[error("Sandbox operation failed: {0}")]
+    SandboxOperationError(String),
+    #[error("Timeout waiting for sandbox")]
     TimeoutError,
 }
 

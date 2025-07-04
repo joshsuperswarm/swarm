@@ -211,7 +211,7 @@ impl Database {
     pub async fn update_task_workspace(
         &self,
         task_id: i32,
-        workspace_id: &str,
+        sandbox_id: &str,
         hostname: &str,
         status: &str,
     ) -> AppResult<Task> {
@@ -219,7 +219,7 @@ impl Database {
             Task,
             "sql/update_task_workspace.sql",
             task_id,
-            workspace_id,
+            sandbox_id,
             hostname,
             status
         )

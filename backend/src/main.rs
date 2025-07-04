@@ -105,13 +105,13 @@ async fn store_github_token(
     }
 }
 
-async fn workspace_poller(app_state: AppState) {
-    tracing::info!("Starting workspace status poller");
+async fn sandbox_poller(app_state: AppState) {
+    tracing::info!("Starting sandbox status poller");
     
     loop {
         sleep(Duration::from_secs(30)).await;
         
-        // Get all active tasks with workspace IDs
+        // Get all active tasks with sandbox IDs
         let active_tasks_query = sqlx::query!(
             "SELECT id, daytona_workspace_id, status FROM tasks 
              WHERE daytona_workspace_id IS NOT NULL 
@@ -127,15 +127,15 @@ async fn workspace_poller(app_state: AppState) {
         };
         
         for task in active_tasks {
-            let workspace_id = match &task.daytona_workspace_id {
+            let sandbox_id = match &task.daytona_workspace_id {
                 Some(id) => id,
                 None => continue,
             };
             
             // Check sandbox status
-            match app_state.sandbox.get_sandbox_status(&workspace_id).await {
+            match app_state.sandbox.get_sandbox_status(&sandbox_id).await {
                 Ok(WorkspaceStatus::Stopped) => {
-                    tracing::info!("Workspace {} completed for task {}", workspace_id, task.id);
+                    tracing::info!("Sandbox {} completed for task {}", sandbox_id, task.id);
                     // Mark task as completed
                     if let Err(e) = app_state.database.update_task_status(
                         task.id,
@@ -146,7 +146,7 @@ async fn workspace_poller(app_state: AppState) {
                     }
                 },
                 Ok(WorkspaceStatus::Failed) => {
-                    tracing::warn!("Workspace {} failed for task {}", workspace_id, task.id);
+                    tracing::warn!("Sandbox {} failed for task {}", sandbox_id, task.id);
                     // Mark task as failed
                     if let Err(e) = app_state.database.update_task_status(
                         task.id,
@@ -172,7 +172,7 @@ async fn workspace_poller(app_state: AppState) {
                     // Keep polling
                 },
                 Err(e) => {
-                    tracing::error!("Error checking workspace {} status: {}", workspace_id, e);
+                    tracing::error!("Error checking sandbox {} status: {}", sandbox_id, e);
                     // Don't mark as failed immediately, keep trying
                 }
             }
@@ -224,7 +224,7 @@ async fn main() -> AppResult<()> {
             config.daytona_organization_id.clone()
         ))
     } else {
-        tracing::warn!("DAYTONA_URL or DAYTONA_API_KEY not configured. Tasks will fail to start workspaces.");
+        tracing::warn!("DAYTONA_URL or DAYTONA_API_KEY not configured. Tasks will fail to start sandboxes.");
         // For now, we'll use a dummy provider that errors out
         Arc::new(DaytonaProvider::new("".to_string(), "".to_string(), None))
     };
@@ -243,7 +243,7 @@ async fn main() -> AppResult<()> {
     // Start background task poller
     let poller_app_state = app_state.clone();
     tokio::spawn(async move {
-        workspace_poller(poller_app_state).await;
+        sandbox_poller(poller_app_state).await;
     });
 
     let app = Router::new()
@@ -590,31 +590,31 @@ async fn create_task(
         }
     };
 
-    // Start workspace
+    // Start sandbox
     let repo_url = format!("https://github.com/{}", repository.full_name);
     let prompt = task.description.as_deref().unwrap_or(&task.title);
     
     match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt).await {
-        Ok(workspace_info) => {
-            // Update task with workspace information
+        Ok(sandbox_info) => {
+            // Update task with sandbox information
             match app_state.database.update_task_workspace(
                 task.id,
-                &workspace_info.id,
-                &workspace_info.hostname,
+                &sandbox_info.id,
+                &sandbox_info.hostname,
                 "spinning",
             ).await {
                 Ok(updated_task) => {
                     task = updated_task;
-                    tracing::info!("Started workspace {} for task {}", workspace_info.id, task.id);
+                    tracing::info!("Started sandbox {} for task {}", sandbox_info.id, task.id);
                 },
                 Err(e) => {
-                    tracing::error!("Error updating task with workspace info: {}", e);
-                    // Still return success since workspace was created
+                    tracing::error!("Error updating task with sandbox info: {}", e);
+                    // Still return success since sandbox was created
                 }
             }
         },
         Err(e) => {
-            tracing::error!("Failed to start workspace for task {}: {}", task.id, e);
+            tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
             // Update task status to failed
             let _ = app_state.database.update_task_status(task.id, "failed", None).await;
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
