@@ -35,8 +35,8 @@ pub enum WorkspaceStatus {
 
 #[async_trait]
 pub trait SandboxProvider: Send + Sync {
-    /// Start a new workspace with the given configuration
-    async fn start_workspace(
+    /// Start a new sandbox with the given configuration
+    async fn start_sandbox(
         &self,
         task_id: i32,
         repo_url: &str,
@@ -44,14 +44,14 @@ pub trait SandboxProvider: Send + Sync {
         prompt: &str,
     ) -> SandboxResult<WorkspaceInfo>;
 
-    /// Get the current status of a workspace
-    async fn get_workspace_status(&self, workspace_id: &str) -> SandboxResult<WorkspaceStatus>;
+    /// Get the current status of a sandbox
+    async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus>;
 
-    /// Wait for a workspace to complete (return when status is Stopped or Failed)
-    async fn wait_for_completion(&self, workspace_id: &str) -> SandboxResult<WorkspaceStatus>;
+    /// Wait for a sandbox to complete (return when status is Stopped or Failed)
+    async fn wait_for_completion(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus>;
 
-    /// Stop a workspace
-    async fn stop_workspace(&self, workspace_id: &str) -> SandboxResult<()>;
+    /// Stop a sandbox
+    async fn stop_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
 }
 
 pub type DynSandbox = Arc<dyn SandboxProvider + Send + Sync>;

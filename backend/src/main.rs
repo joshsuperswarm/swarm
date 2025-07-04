@@ -132,8 +132,8 @@ async fn workspace_poller(app_state: AppState) {
                 None => continue,
             };
             
-            // Check workspace status
-            match app_state.sandbox.get_workspace_status(&workspace_id).await {
+            // Check sandbox status
+            match app_state.sandbox.get_sandbox_status(&workspace_id).await {
                 Ok(WorkspaceStatus::Stopped) => {
                     tracing::info!("Workspace {} completed for task {}", workspace_id, task.id);
                     // Mark task as completed
@@ -594,7 +594,7 @@ async fn create_task(
     let repo_url = format!("https://github.com/{}", repository.full_name);
     let prompt = task.description.as_deref().unwrap_or(&task.title);
     
-    match app_state.sandbox.start_workspace(task.id, &repo_url, &github_token, prompt).await {
+    match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt).await {
         Ok(workspace_info) => {
             // Update task with workspace information
             match app_state.database.update_task_workspace(
