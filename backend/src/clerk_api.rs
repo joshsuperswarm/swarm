@@ -4,10 +4,14 @@ use serde::Deserialize;
 /// Response body for Clerk's *Retrieve OAuth access token* endpoint
 #[derive(Debug, Deserialize)]
 pub struct ClerkTokenResponse {
+    #[allow(dead_code)]
     pub object: String,
+    #[allow(dead_code)]
     pub external_account_id: String,
+    #[allow(dead_code)]
     pub provider_user_id: String,
     pub token: String,
+    #[allow(dead_code)]
     pub expires_at: Option<String>,
     pub provider: String,
     pub scopes: Vec<String>,
