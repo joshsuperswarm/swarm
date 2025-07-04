@@ -218,11 +218,15 @@ async fn main() -> AppResult<()> {
     let sandbox: DynSandbox = if let (Some(url), Some(api_key)) = 
         (config.daytona_url.as_ref(), config.daytona_api_key.as_ref()) {
         tracing::info!("Initializing Daytona sandbox provider");
-        Arc::new(DaytonaProvider::new(url.clone(), api_key.clone()))
+        Arc::new(DaytonaProvider::new(
+            url.clone(), 
+            api_key.clone(),
+            config.daytona_organization_id.clone()
+        ))
     } else {
         tracing::warn!("DAYTONA_URL or DAYTONA_API_KEY not configured. Tasks will fail to start workspaces.");
         // For now, we'll use a dummy provider that errors out
-        Arc::new(DaytonaProvider::new("".to_string(), "".to_string()))
+        Arc::new(DaytonaProvider::new("".to_string(), "".to_string(), None))
     };
     
     let app_state = AppState {

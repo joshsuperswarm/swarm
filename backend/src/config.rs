@@ -9,6 +9,7 @@ pub struct Config {
     pub port: u16,
     pub daytona_url: Option<String>,
     pub daytona_api_key: Option<String>,
+    pub daytona_organization_id: Option<String>,
 }
 
 impl Config {
@@ -32,6 +33,7 @@ impl Config {
 
         let daytona_url = env::var("DAYTONA_URL").ok();
         let daytona_api_key = env::var("DAYTONA_API_KEY").ok();
+        let daytona_organization_id = env::var("DAYTONA_ORGANIZATION_ID").ok();
 
         Ok(Config {
             database_url,
@@ -40,6 +42,7 @@ impl Config {
             port,
             daytona_url,
             daytona_api_key,
+            daytona_organization_id,
         })
     }
 }

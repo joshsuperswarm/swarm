@@ -13,6 +13,7 @@ pub struct DaytonaProvider {
     client: Client,
     base_url: String,
     api_key: String,
+    organization_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,21 +45,30 @@ struct CommandRequest {
 }
 
 impl DaytonaProvider {
-    pub fn new(base_url: String, api_key: String) -> Self {
+    pub fn new(base_url: String, api_key: String, organization_id: Option<String>) -> Self {
         Self {
             client: Client::new(),
             base_url,
             api_key,
+            organization_id,
         }
+    }
+
+    fn add_auth_headers(&self, request_builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        let mut builder = request_builder.bearer_auth(&self.api_key);
+        
+        if let Some(ref org_id) = self.organization_id {
+            builder = builder.header("X-Daytona-Organization-ID", org_id);
+        }
+        
+        builder
     }
 
     async fn create_workspace(&self, request: CreateSandboxRequest) -> SandboxResult<DaytonaWorkspace> {
         let url = format!("{}/sandbox", self.base_url);
         
         let response = self
-            .client
-            .post(&url)
-            .header("X-Daytona-Api-Key", &self.api_key)
+            .add_auth_headers(self.client.post(&url))
             .json(&request)
             .send()
             .await?;
@@ -81,9 +91,7 @@ impl DaytonaProvider {
         let url = format!("{}/sandbox/{}", self.base_url, workspace_id);
         
         let response = self
-            .client
-            .get(&url)
-            .header("X-Daytona-Api-Key", &self.api_key)
+            .add_auth_headers(self.client.get(&url))
             .send()
             .await?;
 
@@ -109,9 +117,7 @@ impl DaytonaProvider {
         };
 
         let response = self
-            .client
-            .post(&url)
-            .header("X-Daytona-Api-Key", &self.api_key)
+            .add_auth_headers(self.client.post(&url))
             .json(&command_request)
             .send()
             .await?;
@@ -133,9 +139,7 @@ impl DaytonaProvider {
         let url = format!("{}/sandbox/{}", self.base_url, workspace_id);
         
         let response = self
-            .client
-            .delete(&url)
-            .header("X-Daytona-Api-Key", &self.api_key)
+            .add_auth_headers(self.client.delete(&url))
             .send()
             .await?;
 
