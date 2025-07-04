@@ -32,9 +32,10 @@ struct DaytonaStatus {
 
 #[derive(Debug, Serialize)]
 struct CreateSandboxRequest {
-    language: String,
-    #[serde(rename = "envVars")]
-    env_vars: serde_json::Value,
+    #[serde(rename = "repositoryUrl")]
+    repository_url: String,
+    args: serde_json::Value,
+    secrets: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,12 +53,12 @@ impl DaytonaProvider {
     }
 
     async fn create_workspace(&self, request: CreateSandboxRequest) -> SandboxResult<DaytonaWorkspace> {
-        let url = format!("{}/sandboxes", self.base_url);
+        let url = format!("{}/sandbox", self.base_url);
         
         let response = self
             .client
             .post(&url)
-            .bearer_auth(&self.api_key)
+            .header("X-Daytona-Api-Key", &self.api_key)
             .json(&request)
             .send()
             .await?;
@@ -77,12 +78,12 @@ impl DaytonaProvider {
     }
 
     async fn get_workspace(&self, workspace_id: &str) -> SandboxResult<DaytonaWorkspace> {
-        let url = format!("{}/sandboxes/{}", self.base_url, workspace_id);
+        let url = format!("{}/sandbox/{}", self.base_url, workspace_id);
         
         let response = self
             .client
             .get(&url)
-            .bearer_auth(&self.api_key)
+            .header("X-Daytona-Api-Key", &self.api_key)
             .send()
             .await?;
 
@@ -101,7 +102,7 @@ impl DaytonaProvider {
     }
 
     async fn start_workspace_command(&self, workspace_id: &str) -> SandboxResult<()> {
-        let url = format!("{}/sandboxes/{}/command", self.base_url, workspace_id);
+        let url = format!("{}/sandbox/{}/command", self.base_url, workspace_id);
         
         let command_request = CommandRequest {
             command: "/runner/entrypoint.sh".to_string(),
@@ -110,7 +111,7 @@ impl DaytonaProvider {
         let response = self
             .client
             .post(&url)
-            .bearer_auth(&self.api_key)
+            .header("X-Daytona-Api-Key", &self.api_key)
             .json(&command_request)
             .send()
             .await?;
@@ -129,12 +130,12 @@ impl DaytonaProvider {
     }
 
     async fn delete_workspace(&self, workspace_id: &str) -> SandboxResult<()> {
-        let url = format!("{}/sandboxes/{}", self.base_url, workspace_id);
+        let url = format!("{}/sandbox/{}", self.base_url, workspace_id);
         
         let response = self
             .client
             .delete(&url)
-            .bearer_auth(&self.api_key)
+            .header("X-Daytona-Api-Key", &self.api_key)
             .send()
             .await?;
 
@@ -172,12 +173,13 @@ impl SandboxProvider for DaytonaProvider {
         prompt: &str,
     ) -> SandboxResult<WorkspaceInfo> {
         let create_request = CreateSandboxRequest {
-            language: "typescript".to_string(),
-            env_vars: json!({
-                "GIT_REPO": repo_url,
-                "GITHUB_TOKEN": github_token,
-                "PROMPT": prompt,
-                "TASK_ID": task_id.to_string()
+            repository_url: repo_url.to_string(),
+            args: json!({
+                "TASK_ID": task_id.to_string(),
+                "PROMPT": prompt
+            }),
+            secrets: json!({
+                "GITHUB_TOKEN": github_token
             }),
         };
 
