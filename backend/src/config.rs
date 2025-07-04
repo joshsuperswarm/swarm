@@ -7,6 +7,8 @@ pub struct Config {
     pub clerk_secret_key: String,
     pub github_token: Option<String>,
     pub port: u16,
+    pub daytona_url: Option<String>,
+    pub daytona_api_key: Option<String>,
 }
 
 impl Config {
@@ -28,11 +30,16 @@ impl Config {
             .parse::<u16>()
             .map_err(|_| AppError::Internal("Invalid PORT value".to_string()))?;
 
+        let daytona_url = env::var("DAYTONA_URL").ok();
+        let daytona_api_key = env::var("DAYTONA_API_KEY").ok();
+
         Ok(Config {
             database_url,
             clerk_secret_key,
             github_token,
             port,
+            daytona_url,
+            daytona_api_key,
         })
     }
 }

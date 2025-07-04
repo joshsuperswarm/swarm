@@ -207,6 +207,27 @@ impl Database {
 
         Ok(task)
     }
+
+    pub async fn update_task_workspace(
+        &self,
+        task_id: i32,
+        workspace_id: &str,
+        hostname: &str,
+        status: &str,
+    ) -> AppResult<Task> {
+        let task = sqlx::query_file_as!(
+            Task,
+            "sql/update_task_workspace.sql",
+            task_id,
+            workspace_id,
+            hostname,
+            status
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(task)
+    }
 }
 
 #[cfg(test)]

@@ -76,6 +76,8 @@ pub struct Task {
     pub description: Option<String>,
     pub status: Option<String>,
     pub github_pr_url: Option<String>,
+    pub daytona_workspace_id: Option<String>,
+    pub workspace_hostname: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }

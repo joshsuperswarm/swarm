@@ -18,6 +18,7 @@ mod database;
 mod error;
 mod github;
 mod models;
+mod sandbox;
 
 use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
 use config::Config;
@@ -25,11 +26,16 @@ use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
 use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser};
+use sandbox::{daytona::DaytonaProvider, DynSandbox, WorkspaceStatus};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Clone)]
 pub struct AppState {
     pub database: Database,
     pub config: Config,
+    pub sandbox: DynSandbox,
 }
 
 async fn get_or_create_user(
@@ -99,6 +105,81 @@ async fn store_github_token(
     }
 }
 
+async fn workspace_poller(app_state: AppState) {
+    tracing::info!("Starting workspace status poller");
+    
+    loop {
+        sleep(Duration::from_secs(30)).await;
+        
+        // Get all active tasks with workspace IDs
+        let active_tasks_query = sqlx::query!(
+            "SELECT id, daytona_workspace_id, status FROM tasks 
+             WHERE daytona_workspace_id IS NOT NULL 
+             AND status IN ('spinning', 'running')"
+        );
+        
+        let active_tasks = match active_tasks_query.fetch_all(&app_state.database.pool).await {
+            Ok(tasks) => tasks,
+            Err(e) => {
+                tracing::error!("Error fetching active tasks: {}", e);
+                continue;
+            }
+        };
+        
+        for task in active_tasks {
+            let workspace_id = match &task.daytona_workspace_id {
+                Some(id) => id,
+                None => continue,
+            };
+            
+            // Check workspace status
+            match app_state.sandbox.get_workspace_status(&workspace_id).await {
+                Ok(WorkspaceStatus::Stopped) => {
+                    tracing::info!("Workspace {} completed for task {}", workspace_id, task.id);
+                    // Mark task as completed
+                    if let Err(e) = app_state.database.update_task_status(
+                        task.id,
+                        "pr_opened",
+                        None, // PR URL will be extracted from logs in a real implementation
+                    ).await {
+                        tracing::error!("Error updating task {} status: {}", task.id, e);
+                    }
+                },
+                Ok(WorkspaceStatus::Failed) => {
+                    tracing::warn!("Workspace {} failed for task {}", workspace_id, task.id);
+                    // Mark task as failed
+                    if let Err(e) = app_state.database.update_task_status(
+                        task.id,
+                        "failed",
+                        None,
+                    ).await {
+                        tracing::error!("Error updating task {} status: {}", task.id, e);
+                    }
+                },
+                Ok(WorkspaceStatus::Running) => {
+                    // Update status to running if it was spinning
+                    if task.status.as_deref() == Some("spinning") {
+                        if let Err(e) = app_state.database.update_task_status(
+                            task.id,
+                            "running",
+                            None,
+                        ).await {
+                            tracing::error!("Error updating task {} status: {}", task.id, e);
+                        }
+                    }
+                },
+                Ok(WorkspaceStatus::Starting) => {
+                    // Keep polling
+                },
+                Err(e) => {
+                    tracing::error!("Error checking workspace {} status: {}", workspace_id, e);
+                    // Don't mark as failed immediately, keep trying
+                }
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> AppResult<()> {
     // Initialize tracing
@@ -132,15 +213,34 @@ async fn main() -> AppResult<()> {
     }
 
     let database = Database::new(pool);
+    
+    // Initialize sandbox provider
+    let sandbox: DynSandbox = if let (Some(url), Some(api_key)) = 
+        (config.daytona_url.as_ref(), config.daytona_api_key.as_ref()) {
+        tracing::info!("Initializing Daytona sandbox provider");
+        Arc::new(DaytonaProvider::new(url.clone(), api_key.clone()))
+    } else {
+        tracing::warn!("DAYTONA_URL or DAYTONA_API_KEY not configured. Tasks will fail to start workspaces.");
+        // For now, we'll use a dummy provider that errors out
+        Arc::new(DaytonaProvider::new("".to_string(), "".to_string()))
+    };
+    
     let app_state = AppState {
         database,
         config: config.clone(),
+        sandbox,
     };
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
+
+    // Start background task poller
+    let poller_app_state = app_state.clone();
+    tokio::spawn(async move {
+        workspace_poller(poller_app_state).await;
+    });
 
     let app = Router::new()
         .route("/health", get(health_check))
@@ -398,6 +498,9 @@ async fn get_tasks(
                     "user_id": task.user_id,
                     "status": task.status.unwrap_or_else(|| "pending".to_string()),
                     "github_pr_url": task.github_pr_url,
+                    "daytona_workspace_id": task.daytona_workspace_id,
+                    "workspace_hostname": task.workspace_hostname,
+                    "ssh_hostname": task.workspace_hostname,
                     "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
                     "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
                 })
@@ -436,7 +539,7 @@ async fn create_task(
     };
 
     // Validate repository access
-    let _repository = match app_state.database.get_repository_by_id(payload.repository_id, user.id).await {
+    let repository = match app_state.database.get_repository_by_id(payload.repository_id, user.id).await {
         Ok(Some(repo)) => repo,
         Ok(None) => {
             tracing::warn!("User {} attempted to create task for repository {} they don't have access to", user.id, payload.repository_id);
@@ -448,7 +551,7 @@ async fn create_task(
         }
     };
 
-    // Create task in database
+    // Create task in database first with "spinning" status
     let create_task = CreateTask {
         user_id: user.id,
         repository_id: payload.repository_id,
@@ -456,29 +559,81 @@ async fn create_task(
         description: payload.description,
     };
 
-    match app_state.database.create_task(create_task).await {
-        Ok(task) => {
-            tracing::info!("Created task {} for user {}", task.id, user.id);
-            Ok(Json(json!({
-                "success": true,
-                "task": {
-                    "id": task.id,
-                    "title": task.title,
-                    "description": task.description,
-                    "repository_id": task.repository_id,
-                    "user_id": task.user_id,
-                    "status": task.status.unwrap_or_else(|| "pending".to_string()),
-                    "github_pr_url": task.github_pr_url,
-                    "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
-                    "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
-                }
-            })))
-        },
+    let mut task = match app_state.database.create_task(create_task).await {
+        Ok(task) => task,
         Err(e) => {
             tracing::error!("Error creating task: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Get GitHub token for the user
+    let github_token = match app_state.database.get_github_token(user.id).await {
+        Ok(Some(token)) => token.access_token,
+        Ok(None) => {
+            // Try to get from Clerk
+            match clerk_api::fetch_github_token(&clerk_user.id, &app_state.config.clerk_secret_key).await {
+                Ok(token) => token,
+                Err(_) => {
+                    tracing::error!("No GitHub token available for user {}", user.id);
+                    return Err(StatusCode::BAD_REQUEST);
+                }
+            }
+        },
+        Err(e) => {
+            tracing::error!("Error fetching GitHub token: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Start workspace
+    let repo_url = format!("https://github.com/{}", repository.full_name);
+    let prompt = task.description.as_deref().unwrap_or(&task.title);
+    
+    match app_state.sandbox.start_workspace(task.id, &repo_url, &github_token, prompt).await {
+        Ok(workspace_info) => {
+            // Update task with workspace information
+            match app_state.database.update_task_workspace(
+                task.id,
+                &workspace_info.id,
+                &workspace_info.hostname,
+                "spinning",
+            ).await {
+                Ok(updated_task) => {
+                    task = updated_task;
+                    tracing::info!("Started workspace {} for task {}", workspace_info.id, task.id);
+                },
+                Err(e) => {
+                    tracing::error!("Error updating task with workspace info: {}", e);
+                    // Still return success since workspace was created
+                }
+            }
+        },
+        Err(e) => {
+            tracing::error!("Failed to start workspace for task {}: {}", task.id, e);
+            // Update task status to failed
+            let _ = app_state.database.update_task_status(task.id, "failed", None).await;
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     }
+
+    Ok(Json(json!({
+        "success": true,
+        "task": {
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "repository_id": task.repository_id,
+            "user_id": task.user_id,
+            "status": task.status.unwrap_or_else(|| "spinning".to_string()),
+            "github_pr_url": task.github_pr_url,
+            "daytona_workspace_id": task.daytona_workspace_id,
+            "workspace_hostname": task.workspace_hostname,
+            "ssh_hostname": task.workspace_hostname,
+            "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
+            "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
+        }
+    })))
 }
 
 async fn connect_github(
