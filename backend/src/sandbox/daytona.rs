@@ -8,6 +8,7 @@ use tokio::time::{sleep, timeout};
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use tracing::{debug, error, info, warn};
+use url::Url;
 
 #[derive(Debug, Clone)]
 pub struct DaytonaProvider {
@@ -24,12 +25,9 @@ struct DaytonaSandbox {
     public_ipv4: Option<String>,
     #[serde(rename = "hostName")]
     host_name: Option<String>,
-    status: Option<DaytonaStatus>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DaytonaStatus {
-    phase: String,
+    #[serde(rename = "runnerDomain")]
+    runner_domain: Option<String>,
+    state: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,9 +39,14 @@ struct CreateSandboxRequest {
 }
 
 #[derive(Debug, Serialize)]
-struct CommandRequest {
-    command: String,
+struct GitCloneRequest {
+    url: String,
+    path: String,
+    username: String,
+    password: String,
+    branch: String,
 }
+
 
 impl DaytonaProvider {
     pub fn new(base_url: String, api_key: String, organization_id: Option<String>) -> Self {
@@ -114,44 +117,20 @@ impl DaytonaProvider {
             )));
         }
 
-        let sandbox: DaytonaSandbox = response.json().await?;
-        debug!("Retrieved sandbox {}: status={:?}, hostname={:?}", 
+        // Get the raw response text for logging
+        let response_text = response.text().await?;
+        debug!("Daytona API response for sandbox {}: {}", sandbox_id, response_text);
+        
+        // Parse the JSON
+        let sandbox: DaytonaSandbox = serde_json::from_str(&response_text)?;
+        debug!("Retrieved sandbox {}: state={}, hostname={:?}, runner_domain={:?}", 
                sandbox.id, 
-               sandbox.status.as_ref().map(|s| &s.phase), 
-               sandbox.host_name);
+               sandbox.state, 
+               sandbox.host_name,
+               sandbox.runner_domain);
         Ok(sandbox)
     }
 
-    async fn start_sandbox_command(&self, sandbox_id: &str) -> SandboxResult<()> {
-        let url = format!("{}/sandbox/{}/command", self.base_url, sandbox_id);
-        
-        let command_request = CommandRequest {
-            command: "/runner/entrypoint.sh".to_string(),
-        };
-
-        info!("Starting bootstrap command for sandbox {}", sandbox_id);
-        debug!("Executing command: {}", command_request.command);
-
-        let response = self
-            .add_auth_headers(self.client.post(&url))
-            .json(&command_request)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            error!("Failed to start sandbox command for {}: {} - {}", sandbox_id, status, error_text);
-            return Err(SandboxError::SandboxOperationError(format!(
-                "Failed to start sandbox command: {} - {}",
-                status,
-                error_text
-            )));
-        }
-
-        info!("Successfully started bootstrap command for sandbox {}", sandbox_id);
-        Ok(())
-    }
 
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {
         let url = format!("{}/sandbox/{}", self.base_url, sandbox_id);
@@ -178,10 +157,77 @@ impl DaytonaProvider {
         Ok(())
     }
 
-    fn map_daytona_status(phase: &str) -> WorkspaceStatus {
-        match phase.to_lowercase().as_str() {
+    pub async fn clone_repository(
+        &self,
+        sandbox_id: &str,
+        repo_url: &str,
+        github_token: &str,
+        branch: Option<&str>,
+    ) -> SandboxResult<()> {
+        let url = format!("{}/toolbox/{}/toolbox/git/clone", self.base_url, sandbox_id);
+        
+        // Extract repository name from URL
+        let repo_name = Self::extract_repo_name(repo_url)?;
+        let workspace_path = format!("/home/daytona/{}", repo_name);
+        
+        let clone_request = GitCloneRequest {
+            url: repo_url.to_string(),
+            path: workspace_path,
+            username: "git".to_string(),
+            password: github_token.to_string(),
+            branch: branch.unwrap_or("main").to_string(),
+        };
+
+        let masked_token = format!("{}***", &github_token[..4.min(github_token.len())]);
+        info!("Cloning repository {} to sandbox {} (token: {})", repo_url, sandbox_id, masked_token);
+        debug!("Clone request: url={}, path={}, branch={}", 
+               clone_request.url, clone_request.path, clone_request.branch);
+
+        let response = self
+            .add_auth_headers(self.client.post(&url))
+            .json(&clone_request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            error!("Failed to clone repository in sandbox {}: {} - {}", sandbox_id, status, error_text);
+            return Err(SandboxError::SandboxOperationError(format!(
+                "clone failed: {} – {}",
+                status,
+                error_text
+            )));
+        }
+
+        info!("Successfully cloned repository {} in sandbox {}", repo_url, sandbox_id);
+        Ok(())
+    }
+
+    fn extract_repo_name(repo_url: &str) -> SandboxResult<String> {
+        let parsed_url = Url::parse(repo_url)
+            .map_err(|e| SandboxError::SandboxOperationError(format!("Invalid repository URL: {}", e)))?;
+        
+        let path = parsed_url.path();
+        let repo_name = path
+            .split('/')
+            .last()
+            .ok_or_else(|| SandboxError::SandboxOperationError("Cannot extract repository name from URL".to_string()))?
+            .strip_suffix(".git")
+            .unwrap_or(path.split('/').last().unwrap())
+            .to_string();
+        
+        if repo_name.is_empty() {
+            return Err(SandboxError::SandboxOperationError("Repository name is empty".to_string()));
+        }
+        
+        Ok(repo_name)
+    }
+
+    fn map_daytona_status(state: &str) -> WorkspaceStatus {
+        match state.to_lowercase().as_str() {
             "starting" | "pending" => WorkspaceStatus::Starting,
-            "running" => WorkspaceStatus::Running,
+            "started" | "running" => WorkspaceStatus::Running,
             "stopped" | "succeeded" => WorkspaceStatus::Stopped,
             "failed" | "error" => WorkspaceStatus::Failed,
             _ => WorkspaceStatus::Starting,
@@ -223,31 +269,26 @@ impl SandboxProvider for DaytonaProvider {
         let ready_sandbox = timeout(Duration::from_secs(10 * 60), Retry::spawn(retry_strategy, || async {
             let sb = self.get_sandbox(&sandbox_id).await?;
             
-            // Check if sandbox is in a running state (rather than waiting for hostname)
-            if let Some(ref status) = sb.status {
-                let sandbox_status = Self::map_daytona_status(&status.phase);
-                match sandbox_status {
-                    WorkspaceStatus::Running => {
-                        info!("Sandbox {} is running (hostname: {:?}, ip: {:?})", 
-                              sandbox_id, sb.host_name, sb.public_ipv4);
-                        Ok(sb)
-                    }
-                    WorkspaceStatus::Failed => {
-                        error!("Sandbox {} failed to start", sandbox_id);
-                        Err(SandboxError::SandboxOperationError("Sandbox failed to start".to_string()))
-                    }
-                    WorkspaceStatus::Starting => {
-                        debug!("Sandbox {} still starting (status: {}), retrying...", sandbox_id, status.phase);
-                        Err(SandboxError::SandboxOperationError("Sandbox still starting".to_string()))
-                    }
-                    WorkspaceStatus::Stopped => {
-                        error!("Sandbox {} stopped unexpectedly", sandbox_id);
-                        Err(SandboxError::SandboxOperationError("Sandbox stopped unexpectedly".to_string()))
-                    }
+            // Check if sandbox is in a running state
+            let sandbox_status = Self::map_daytona_status(&sb.state);
+            match sandbox_status {
+                WorkspaceStatus::Running => {
+                    info!("Sandbox {} is running (state: {}, hostname: {:?}, runner_domain: {:?}, ip: {:?})", 
+                          sandbox_id, sb.state, sb.host_name, sb.runner_domain, sb.public_ipv4);
+                    Ok(sb)
                 }
-            } else {
-                debug!("Sandbox {} has no status yet, retrying...", sandbox_id);
-                Err(SandboxError::SandboxOperationError("Sandbox status not available".to_string()))
+                WorkspaceStatus::Failed => {
+                    error!("Sandbox {} failed to start (state: {})", sandbox_id, sb.state);
+                    Err(SandboxError::SandboxOperationError("Sandbox failed to start".to_string()))
+                }
+                WorkspaceStatus::Starting => {
+                    debug!("Sandbox {} still starting (state: {}), retrying...", sandbox_id, sb.state);
+                    Err(SandboxError::SandboxOperationError("Sandbox still starting".to_string()))
+                }
+                WorkspaceStatus::Stopped => {
+                    error!("Sandbox {} stopped unexpectedly (state: {})", sandbox_id, sb.state);
+                    Err(SandboxError::SandboxOperationError("Sandbox stopped unexpectedly".to_string()))
+                }
             }
         }))
         .await
@@ -256,18 +297,15 @@ impl SandboxProvider for DaytonaProvider {
             SandboxError::TimeoutError
         })??;
 
-        // Start the bootstrap command
-        self.start_sandbox_command(&sandbox_id).await?;
+        // Clone the repository using the toolbox API
+        self.clone_repository(&sandbox_id, repo_url, github_token, None).await?;
 
-        let hostname = ready_sandbox.host_name.unwrap_or_else(|| {
-            ready_sandbox.public_ipv4.unwrap_or_else(|| sandbox_id.clone())
-        });
+        let hostname = ready_sandbox.runner_domain
+            .or(ready_sandbox.host_name)
+            .or(ready_sandbox.public_ipv4)
+            .unwrap_or_else(|| sandbox_id.clone());
 
-        let status = ready_sandbox
-            .status
-            .as_ref()
-            .map(|s| Self::map_daytona_status(&s.phase))
-            .unwrap_or(WorkspaceStatus::Starting);
+        let status = Self::map_daytona_status(&ready_sandbox.state);
 
         info!("Sandbox {} started successfully with hostname: {}", sandbox_id, hostname);
         Ok(WorkspaceInfo {
@@ -280,11 +318,7 @@ impl SandboxProvider for DaytonaProvider {
     async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus> {
         let sandbox = self.get_sandbox(sandbox_id).await?;
         
-        let status = sandbox
-            .status
-            .as_ref()
-            .map(|s| Self::map_daytona_status(&s.phase))
-            .unwrap_or(WorkspaceStatus::Starting);
+        let status = Self::map_daytona_status(&sandbox.state);
 
         debug!("Sandbox {} status: {:?}", sandbox_id, status);
         Ok(status)
@@ -326,5 +360,35 @@ impl SandboxProvider for DaytonaProvider {
     async fn stop_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {
         info!("Stopping sandbox {}", sandbox_id);
         self.delete_sandbox(sandbox_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_repo_name() {
+        assert_eq!(
+            DaytonaProvider::extract_repo_name("https://github.com/user/repo.git").unwrap(),
+            "repo"
+        );
+        assert_eq!(
+            DaytonaProvider::extract_repo_name("https://github.com/user/repo").unwrap(),
+            "repo"
+        );
+        assert_eq!(
+            DaytonaProvider::extract_repo_name("https://gitlab.com/group/subgroup/project.git").unwrap(),
+            "project"
+        );
+        
+        assert!(DaytonaProvider::extract_repo_name("invalid-url").is_err());
+        assert!(DaytonaProvider::extract_repo_name("https://github.com/").is_err());
+    }
+
+    #[test] 
+    fn test_error_mapping() {
+        let error = SandboxError::SandboxOperationError("clone failed: 404 – Not Found".to_string());
+        assert!(error.to_string().contains("clone failed: 404"));
     }
 }
