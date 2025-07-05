@@ -139,11 +139,9 @@ const toolboxApi = new ToolboxApi(config);
     // 5. run your prompt (async)
     let runCmd: string;
     if (useClaude) {
-      //runCmd = `claude --output-format stream-json --max-turns 2 --dangerously-skip-permissions --verbose -p "${prompt.replace(/"/g, '\\"')}"`;
-      //runCmd = `claude -v`;
-      runCmd = `touch ~/.zshrc && claude -v && claude --print "Print DONE and exit."`;
+      runCmd = `bash -c "CI=true claude -p \\"${prompt.replace(/"/g, '\\\\"')}\\" --print --verbose --output-format stream-json --max-turns 10 < /dev/null"`;
     } else {
-      runCmd = `codex exec --full-auto --quiet --no-terminal "${prompt.replace(/"/g, '\\"')}"`;
+      runCmd = `bash -c "codex exec --full-auto --quiet --no-terminal \\"${prompt.replace(/"/g, '\\\\"')}\\" < /dev/null"`;
     }
     console.log(`🚀  Running: ${runCmd}`);
     const { data: cmdResult } = await toolboxApi.executeSessionCommand(
