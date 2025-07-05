@@ -70,6 +70,23 @@ impl Database {
         Ok(user)
     }
 
+    pub async fn update_user_anthropic_key(
+        &self,
+        user_id: i32,
+        anthropic_api_key: Option<String>,
+    ) -> AppResult<User> {
+        let user = sqlx::query_file_as!(
+            User,
+            "sql/update_user_anthropic_key.sql",
+            user_id,
+            anthropic_api_key
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
     // Repository operations
     pub async fn create_repository(&self, repo: CreateRepository) -> AppResult<Repository> {
         let repository = sqlx::query_file_as!(
@@ -222,6 +239,25 @@ impl Database {
             sandbox_id,
             hostname,
             status
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(task)
+    }
+
+    pub async fn update_task_command_ids(
+        &self,
+        task_id: i32,
+        session_id: &str,
+        command_id: &str,
+    ) -> AppResult<Task> {
+        let task = sqlx::query_file_as!(
+            Task,
+            "sql/update_task_command_ids.sql",
+            task_id,
+            session_id,
+            command_id
         )
         .fetch_one(&self.pool)
         .await?;

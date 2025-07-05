@@ -23,6 +23,8 @@ pub struct WorkspaceInfo {
     pub id: String,
     pub hostname: String,
     pub status: WorkspaceStatus,
+    pub session_id: String,
+    pub command_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +44,7 @@ pub trait SandboxProvider: Send + Sync {
         repo_url: &str,
         github_token: &str,
         prompt: &str,
+        anthropic_api_key: &str,
     ) -> SandboxResult<WorkspaceInfo>;
 
     /// Get the current status of a sandbox

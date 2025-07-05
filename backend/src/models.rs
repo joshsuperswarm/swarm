@@ -12,6 +12,7 @@ pub struct User {
     pub github_user_id: Option<i32>,
     pub email: Option<String>,
     pub default_repo_id: Option<i32>,
+    pub anthropic_api_key: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -78,6 +79,8 @@ pub struct Task {
     pub github_pr_url: Option<String>,
     pub daytona_workspace_id: Option<String>,
     pub workspace_hostname: Option<String>,
+    pub daytona_session_id: Option<String>,
+    pub daytona_command_id: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -98,6 +101,7 @@ pub struct UserWithDefaultRepo {
     pub github_username: Option<String>,
     pub email: Option<String>,
     pub default_repo: Option<Repository>,
+    pub anthropic_api_key: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
 }
 

@@ -20,7 +20,7 @@ mod github;
 mod models;
 mod sandbox;
 
-use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
+use auth::{clerk_middleware, CurrentUser, GitHubTokenBody, AnthropicApiKeyBody};
 use config::Config;
 use database::Database;
 use error::{AppError, AppResult};
@@ -100,6 +100,45 @@ async fn store_github_token(
         }
         Err(e) => {
             tracing::error!("Error storing GitHub token: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn store_anthropic_key(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Json(body): Json<AnthropicApiKeyBody>,
+) -> Result<Json<Value>, StatusCode> {
+    tracing::info!(
+        "Storing Anthropic API key for user: {}, key length: {}",
+        user.id,
+        body.api_key.len()
+    );
+
+    // Get or create user
+    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+        Ok(u) => {
+            tracing::debug!("Found/created DB user with ID: {}", u.id);
+            u
+        }
+        Err(e) => {
+            tracing::error!("Error getting/creating user: {:?}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    match app_state
+        .database
+        .update_user_anthropic_key(db_user.id, Some(body.api_key))
+        .await
+    {
+        Ok(_) => {
+            tracing::info!("Successfully stored Anthropic API key for user {}", db_user.id);
+            Ok(Json(json!({ "success": true })))
+        }
+        Err(e) => {
+            tracing::error!("Error storing Anthropic API key: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -254,6 +293,7 @@ async fn main() -> AppResult<()> {
         .route("/api/user/profile", get(get_user_profile))
         .route("/api/user/repos", get(get_user_repos))
         .route("/api/user/default-repo", post(set_default_repo))
+        .route("/api/user/anthropic-key", post(store_anthropic_key))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
         .layer(middleware::from_fn(clerk_middleware))
@@ -590,11 +630,20 @@ async fn create_task(
         }
     };
 
+    // Get user's Anthropic API key
+    let anthropic_api_key = match user.anthropic_api_key {
+        Some(key) => key,
+        None => {
+            tracing::error!("No Anthropic API key available for user {}", user.id);
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
     // Start sandbox
     let repo_url = format!("https://github.com/{}", repository.full_name);
     let prompt = task.description.as_deref().unwrap_or(&task.title);
     
-    match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt).await {
+    match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt, &anthropic_api_key).await {
         Ok(sandbox_info) => {
             // Update task with sandbox information
             match app_state.database.update_task_workspace(
@@ -611,6 +660,15 @@ async fn create_task(
                     tracing::error!("Error updating task with sandbox info: {}", e);
                     // Still return success since sandbox was created
                 }
+            }
+
+            // Store command IDs for log streaming
+            if let Err(e) = app_state.database.update_task_command_ids(
+                task.id,
+                &sandbox_info.session_id,
+                &sandbox_info.command_id,
+            ).await {
+                tracing::error!("Error storing command IDs: {}", e);
             }
         },
         Err(e) => {
