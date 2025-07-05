@@ -82,15 +82,15 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Description</h3>
             <div className="prose prose-sm max-w-none">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                This task is currently using mock data. In a real implementation, 
-                this would contain the full task description, requirements, 
-                acceptance criteria, comments, attachments, and other relevant details.
-              </p>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                You could also include subtasks, time tracking, assignees, 
-                due dates, and integration with your project management workflow.
-              </p>
+              {task.description ? (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {task.description}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  No description provided.
+                </p>
+              )}
             </div>
           </div>
 

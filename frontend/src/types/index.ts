@@ -12,6 +12,7 @@ export const taskSchema = z.object({
   status: z.enum(["backlog", "todo", "in progress", "done", "canceled"]),
   label: z.enum(["bug", "feature", "documentation", "improvement", "demo"]),
   priority: z.enum(["low", "medium", "high", "urgent"]),
+  description: z.string().optional(),
 });
 
 export type Task = z.infer<typeof taskSchema>;

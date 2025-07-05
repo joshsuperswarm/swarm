@@ -50,6 +50,7 @@ export function TasksPage() {
         status: (task.status as "backlog" | "todo" | "in progress" | "done" | "canceled") || "todo", // Backend might use different status values
         label: "feature", // Default label - could be determined from task data
         priority: "medium", // Default priority - could be determined from task data
+        description: task.description || undefined, // Pass through the description
       }))
       
       setTasks(frontendTasks)
