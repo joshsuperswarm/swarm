@@ -45,6 +45,7 @@ pub trait SandboxProvider: Send + Sync {
         github_token: &str,
         prompt: &str,
         anthropic_api_key: &str,
+        openai_api_key: Option<&str>,
     ) -> SandboxResult<WorkspaceInfo>;
 
     /// Get the current status of a sandbox

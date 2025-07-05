@@ -332,6 +332,73 @@ impl DaytonaProvider {
         Ok(())
     }
 
+    /// Install Node.js and OpenAI Codex CLI in the sandbox
+    async fn install_codex_cli(&self, sandbox_id: &str) -> SandboxResult<()> {
+        #[derive(Serialize)]
+        struct ExecBody {
+            command: String,
+            cwd: String,
+            #[serde(rename = "runAsync")]
+            run_async: bool,
+        }
+
+        // 1. Create process session
+        let session_id = Uuid::new_v4().to_string();
+        let response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session",
+                self.base_url, sandbox_id
+            )))
+            .json(&serde_json::json!({
+                "SessionId": session_id
+            }))
+            .send()
+            .await?;
+
+        let response_text = response.text().await?;
+        debug!(
+            "Process session response for codex install: {}",
+            response_text
+        );
+
+        // If response is empty, use the session ID we generated
+        let returned_session_id = if response_text.is_empty() {
+            session_id.clone()
+        } else {
+            let sess: serde_json::Value = serde_json::from_str(&response_text)?;
+            sess["id"]
+                .as_str()
+                .or_else(|| sess["SessionId"].as_str())
+                .or_else(|| sess["sessionId"].as_str())
+                .unwrap_or(&session_id)
+                .to_owned()
+        };
+
+        // 2. Install Node.js 20 and OpenAI Codex CLI
+        let install_cmd = "bash -lc 'curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs && npm install -g @openai/codex'";
+
+        info!("Installing OpenAI Codex CLI in sandbox {}", sandbox_id);
+
+        self.add_auth_headers(self.client.post(format!(
+            "{}/toolbox/{}/toolbox/process/session/{}/exec",
+            self.base_url, sandbox_id, returned_session_id
+        )))
+        .json(&ExecBody {
+            command: install_cmd.to_string(),
+            cwd: "/home/daytona".to_string(),
+            run_async: false, // Wait for installation to complete
+        })
+        .send()
+        .await?
+        .error_for_status()?;
+
+        info!(
+            "Successfully installed OpenAI Codex CLI in sandbox {}",
+            sandbox_id
+        );
+        Ok(())
+    }
+
     /// Execute Claude Code with the given task prompt
     pub async fn exec_claude_code(
         &self,
@@ -444,6 +511,111 @@ impl DaytonaProvider {
         // Return session and command IDs for polling
         Ok((returned_session_id, command_id.to_string()))
     }
+
+    /// Execute OpenAI Codex CLI with the given task prompt
+    async fn exec_codex_cli(
+        &self,
+        sandbox_id: &str,
+        repo_path: &str,
+        prompt: &str,
+        task_id: i32,
+    ) -> SandboxResult<(String, String)> {
+        #[derive(Serialize)]
+        struct ExecBody {
+            command: String,
+            cwd: String,
+            #[serde(rename = "runAsync")]
+            run_async: bool,
+        }
+
+        // 1. Create process session
+        let session_id = Uuid::new_v4().to_string();
+        let response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session",
+                self.base_url, sandbox_id
+            )))
+            .json(&serde_json::json!({
+                "SessionId": session_id.clone()
+            }))
+            .send()
+            .await?;
+
+        let response_text = response.text().await?;
+
+        // If response is empty, use the session ID we generated
+        let returned_session_id = if response_text.is_empty() {
+            session_id
+        } else {
+            let sess: serde_json::Value = serde_json::from_str(&response_text)?;
+            sess["id"]
+                .as_str()
+                .or_else(|| sess["SessionId"].as_str())
+                .or_else(|| sess["sessionId"].as_str())
+                .unwrap_or(&session_id)
+                .to_owned()
+        };
+
+        // 2. Execute Codex CLI with the task prompt
+        let cmd = format!(
+            "codex exec --full-auto --quiet --no-terminal \"{}\"",
+            prompt.replace('"', "\\\"")
+        );
+
+        info!(
+            "Executing Codex CLI in sandbox {} for task {}",
+            sandbox_id, task_id
+        );
+
+        let exec_response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session/{}/exec",
+                self.base_url, sandbox_id, returned_session_id
+            )))
+            .json(&ExecBody {
+                command: cmd.to_string(),
+                cwd: repo_path.to_string(),
+                run_async: true,
+            })
+            .send()
+            .await?;
+
+        let status = exec_response.status();
+        let exec_text = exec_response.text().await?;
+        debug!(
+            "Codex exec response status: {}, body: {}",
+            status, exec_text
+        );
+
+        // Handle async execution - expect 202 (Accepted) response
+        if status != 202 {
+            error!(
+                "Expected 202 (Accepted) response for async execution, got: {}",
+                status
+            );
+            return Err(SandboxError::SandboxOperationError(format!(
+                "Async execution failed: {} - {}",
+                status, exec_text
+            )));
+        }
+
+        // Extract command ID from response
+        let exec_json: serde_json::Value =
+            serde_json::from_str(&exec_text).unwrap_or_else(|_| json!({"cmdId": "unknown"}));
+        let command_id = exec_json["cmdId"]
+            .as_str()
+            .or_else(|| exec_json["commandId"].as_str())
+            .or_else(|| exec_json["id"].as_str())
+            .unwrap_or("unknown");
+
+        info!(
+            "Successfully launched Codex CLI asynchronously in sandbox {} with command ID {}",
+            sandbox_id, command_id
+        );
+
+        // Return session and command IDs for polling
+        Ok((returned_session_id, command_id.to_string()))
+    }
 }
 
 #[async_trait]
@@ -455,18 +627,26 @@ impl SandboxProvider for DaytonaProvider {
         github_token: &str,
         prompt: &str,
         anthropic_api_key: &str,
+        openai_api_key: Option<&str>,
     ) -> SandboxResult<WorkspaceInfo> {
         info!(
             "Starting sandbox for task {}, repository: {}",
             task_id, repo_url
         );
 
+        let mut env_vars = json!({
+            "GITHUB_TOKEN": github_token,
+            "ANTHROPIC_API_KEY": anthropic_api_key
+        });
+
+        // Add OPENAI_API_KEY if provided
+        if let Some(openai_key) = openai_api_key {
+            env_vars["OPENAI_API_KEY"] = json!(openai_key);
+        }
+
         let create_request = CreateSandboxRequest {
             repository_url: repo_url.to_string(),
-            env: json!({
-                "GITHUB_TOKEN": github_token,
-                "ANTHROPIC_API_KEY": anthropic_api_key
-            }),
+            env: env_vars,
             target: self.region.clone(),
         };
 
@@ -514,15 +694,21 @@ impl SandboxProvider for DaytonaProvider {
         self.clone_repository(&sandbox_id, repo_url, github_token, None)
             .await?;
 
-        // Install Claude Code
-        self.install_claude_code(&sandbox_id).await?;
+        // Install Codex CLI (now default path)
+        self.install_codex_cli(&sandbox_id).await?;
 
-        // Launch Claude Code with the task
+        // Launch Codex CLI with the task
         let repo_name = Self::extract_repo_name(repo_url)?;
         let repo_path = format!("/home/daytona/{}", repo_name);
         let (session_id, command_id) = self
-            .exec_claude_code(&sandbox_id, &repo_path, prompt, task_id)
+            .exec_codex_cli(&sandbox_id, &repo_path, prompt, task_id)
             .await?;
+
+        // Commented out - Claude Code path (kept for easy fallback)
+        // self.install_claude_code(&sandbox_id).await?;
+        // let (session_id, command_id) = self
+        //     .exec_claude_code(&sandbox_id, &repo_path, prompt, task_id)
+        //     .await?;
 
         let hostname = ready_sandbox
             .runner_domain
@@ -533,7 +719,7 @@ impl SandboxProvider for DaytonaProvider {
         let status = Self::map_daytona_status(&ready_sandbox.state);
 
         info!(
-            "Sandbox {} started successfully with hostname: {} and Claude Code running",
+            "Sandbox {} started successfully with hostname: {} and Codex CLI running",
             sandbox_id, hostname
         );
         Ok(WorkspaceInfo {

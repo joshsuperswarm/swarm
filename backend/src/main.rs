@@ -644,7 +644,7 @@ async fn create_task(
     let repo_url = format!("https://github.com/{}", repository.full_name);
     let prompt = task.description.as_deref().unwrap_or(&task.title);
     
-    match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt, &anthropic_api_key).await {
+    match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt, &anthropic_api_key, app_state.config.openai_api_key.as_deref()).await {
         Ok(sandbox_info) => {
             // Update task with sandbox information
             match app_state.database.update_task_workspace(
