@@ -27,6 +27,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio-retry = "0.3"
 async-trait = "0.1"
 url = "2.5"
+shell-escape = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"

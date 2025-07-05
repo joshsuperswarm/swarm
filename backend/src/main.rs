@@ -260,12 +260,13 @@ async fn main() -> AppResult<()> {
         Arc::new(DaytonaProvider::new(
             url.clone(), 
             api_key.clone(),
-            config.daytona_organization_id.clone()
+            config.daytona_organization_id.clone(),
+            config.daytona_region.clone()
         ))
     } else {
         tracing::warn!("DAYTONA_URL or DAYTONA_API_KEY not configured. Tasks will fail to start sandboxes.");
         // For now, we'll use a dummy provider that errors out
-        Arc::new(DaytonaProvider::new("".to_string(), "".to_string(), None))
+        Arc::new(DaytonaProvider::new("".to_string(), "".to_string(), None, "us".to_string()))
     };
     
     let app_state = AppState {

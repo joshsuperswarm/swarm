@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use shell_escape::unix::escape;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 use tokio_retry::strategy::ExponentialBackoff;
@@ -17,6 +18,7 @@ pub struct DaytonaProvider {
     base_url: String,
     api_key: String,
     organization_id: Option<String>,
+    region: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,6 +39,8 @@ struct CreateSandboxRequest {
     repository_url: String,
     /// Environment variables that get injected inside the container
     env: serde_json::Value,
+    /// Target region for the sandbox (us, eu, asia)
+    target: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,12 +53,18 @@ struct GitCloneRequest {
 }
 
 impl DaytonaProvider {
-    pub fn new(base_url: String, api_key: String, organization_id: Option<String>) -> Self {
+    pub fn new(
+        base_url: String,
+        api_key: String,
+        organization_id: Option<String>,
+        region: String,
+    ) -> Self {
         Self {
             client: Client::new(),
             base_url,
             api_key,
             organization_id,
+            region,
         }
     }
 
@@ -369,14 +379,18 @@ impl DaytonaProvider {
         // 2. Execute Claude Code with the task prompt
         let claude_prompt = format!(
             "Please work on task ID {}: {}. Analyze the codebase and suggest improvements.",
-            task_id,
-            prompt.replace('\"', "\\\"")
+            task_id, prompt
         );
 
+        /*
         let cmd = format!(
-            "claude -p {} --output-format stream-json --max-turns 10 --dangerously-skip-permissions",
-            claude_prompt
+            "bash -lc 'ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY claude -p 'clean up any unused rust code' --output-format stream-json --max-turns 2 --dangerously-skip-permissions --verbose",
+            // escape(claude_prompt.into())
         );
+        */
+        //let cmd = "pwd";
+        let cmd = "claude --verbose --output-format stream-json -p 'clean up any unused rust code'";
+        let cmd = "claude --help";
 
         info!(
             "Executing Claude Code in sandbox {} for task {}",
@@ -389,8 +403,9 @@ impl DaytonaProvider {
                 self.base_url, sandbox_id, returned_session_id
             )))
             .json(&ExecBody {
-                command: cmd,
-                cwd: repo_path.to_string(),
+                command: cmd.to_string(),
+                cwd: "/home/daytona/swarm".to_string(),
+                //cwd: repo_path.to_string(),
                 run_async: true,
             })
             .send()
@@ -449,11 +464,10 @@ impl SandboxProvider for DaytonaProvider {
         let create_request = CreateSandboxRequest {
             repository_url: repo_url.to_string(),
             env: json!({
-                "TASK_ID": task_id.to_string(),
-                "PROMPT": prompt,
                 "GITHUB_TOKEN": github_token,
                 "ANTHROPIC_API_KEY": anthropic_api_key
             }),
+            target: self.region.clone(),
         };
 
         let sandbox = self.create_sandbox(create_request).await?;

@@ -1,9 +1,9 @@
 ---
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git log:*)
+allowed-tools: Bash
 description: Stage changes and create a commit (no push)
 ---
 
-# Git Commit Only
+# Git Commit
 
 ## Current Status
 !`git status`
