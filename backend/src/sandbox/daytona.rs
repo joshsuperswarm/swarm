@@ -376,17 +376,15 @@ impl DaytonaProvider {
         };
 
         // 2. Execute Claude Code with the task prompt
-        let claude_prompt = format!(
-            "Please work on task ID {}: {}. Analyze the codebase and suggest improvements.",
-            task_id, prompt
-        );
+        let claude_prompt = format!("Please work on this task {}: {}.", task_id, prompt);
 
+        // TODO: Remove max turns once I'm confident in the setup
         let cmd = format!(
             r#"bash -c '
                 claude -p "{}" \
                     --verbose \
                     --output-format stream-json \
-                    --max-turns 1 \
+                    --max-turns 100 \
                     --dangerously-skip-permissions \
                     < /dev/null
             '"#,
@@ -443,6 +441,163 @@ impl DaytonaProvider {
 
         // Return session and command IDs for polling
         Ok((returned_session_id, command_id.to_string()))
+    }
+
+    /// Stream command logs from Daytona and store them in the database
+    pub async fn stream_command_logs(
+        &self,
+        db: &crate::database::Database,
+        task_id: i32,
+        sandbox_id: &str,
+        session_id: &str,
+        command_id: &str,
+    ) -> SandboxResult<()> {
+        // Note: For true streaming, we would need to use a streaming HTTP client
+        // For now, we fetch the full response and process line by line
+
+        let url = format!(
+            "{}/toolbox/{}/toolbox/process/session/{}/command/{}/logs",
+            self.base_url, sandbox_id, session_id, command_id
+        );
+
+        info!("→ Starting log stream for task {} from URL: {}", task_id, url);
+        info!("   Request details - sandbox: {}, session: {}, command: {}", 
+            sandbox_id, session_id, command_id);
+
+        let response = self.add_auth_headers(self.client.get(&url)).send().await?;
+
+        let status = response.status();
+        info!("← HTTP response received - status: {}", status);
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            error!("✗ Failed to start log stream for task {}", task_id);
+            error!("   Status: {}", status);
+            error!("   Response: {}", error_text);
+            return Err(SandboxError::SandboxOperationError(format!(
+                "Failed to start log stream: {} - {}",
+                status, error_text
+            )));
+        }
+
+        info!("✓ HTTP request successful, reading response body...");
+        
+        // Read response body in chunks
+        let body = response.text().await?;
+        let body_size = body.len();
+        info!("   Response body received - size: {} bytes", body_size);
+        
+        if body.is_empty() {
+            warn!("⚠ Response body is empty for task {}", task_id);
+            return Ok(());
+        }
+        
+        let lines: Vec<&str> = body.lines().collect();
+        info!("   Processing {} lines from response for task {}", lines.len(), task_id);
+        
+        let mut task_completed = false;
+        let mut lines_processed = 0;
+        let mut lines_stored = 0;
+        let mut json_lines = 0;
+
+        for (line_num, line_str) in lines.iter().enumerate() {
+            let line_str = line_str.trim();
+            lines_processed += 1;
+            
+            if line_num < 5 {
+                // Log first few lines for debugging
+                info!("   Line {}: {}", line_num + 1, 
+                    if line_str.len() > 100 { 
+                        format!("{}...", &line_str[..100]) 
+                    } else { 
+                        line_str.to_string() 
+                    });
+            }
+            
+            if !line_str.is_empty() {
+                // Store the log line in database
+                match db.insert_task_log(task_id, line_str).await {
+                    Ok(_) => {
+                        lines_stored += 1;
+                        if lines_stored % 10 == 0 {
+                            info!("   Stored {} log lines for task {}", lines_stored, task_id);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("✗ Failed to store log line {} for task {}: {}", line_num + 1, task_id, e);
+                        warn!("   Line content: {}", if line_str.len() > 200 { 
+                            format!("{}...", &line_str[..200]) 
+                        } else { 
+                            line_str.to_string() 
+                        });
+                    }
+                }
+
+                // Check if this is a JSON line indicating completion
+                if line_str.starts_with('{') {
+                    json_lines += 1;
+                    match serde_json::from_str::<serde_json::Value>(line_str) {
+                        Ok(json_value) => {
+                            if let Some(msg_type) = json_value.get("type").and_then(|t| t.as_str()) {
+                                info!("   JSON message type: {}", msg_type);
+                                if msg_type == "done" {
+                                    info!("✓ Task {} completed successfully (received 'done' event)", task_id);
+                                    task_completed = true;
+                                    
+                                    // Update task status to done
+                                    match db.update_task_status(task_id, "done", None).await {
+                                        Ok(_) => {
+                                            info!("✓ Task {} status updated to 'done'", task_id);
+                                        }
+                                        Err(e) => {
+                                            error!("✗ Failed to update task {} status to done: {}", task_id, e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!("⚠ Failed to parse JSON line {} for task {}: {}", line_num + 1, task_id, e);
+                            warn!("   Line: {}", if line_str.len() > 200 { 
+                                format!("{}...", &line_str[..200]) 
+                            } else { 
+                                line_str.to_string() 
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        info!("▬ Log processing summary for task {}:", task_id);
+        info!("   Total lines processed: {}", lines_processed);
+        info!("   Lines stored in DB: {}", lines_stored);
+        info!("   JSON lines found: {}", json_lines);
+        info!("   Task completed: {}", task_completed);
+
+        // If stream ended without a done event, check sandbox status
+        if !task_completed {
+            match self.get_sandbox_status(sandbox_id).await {
+                Ok(WorkspaceStatus::Stopped) => {
+                    info!(
+                        "Task {} sandbox stopped without 'done' event, marking as failed",
+                        task_id
+                    );
+                    if let Err(e) = db.update_task_status(task_id, "failed", None).await {
+                        error!("Failed to update task {} status to failed: {}", task_id, e);
+                    }
+                }
+                Ok(status) => {
+                    debug!("Task {} ended with sandbox status: {:?}", task_id, status);
+                }
+                Err(e) => {
+                    warn!("Failed to check sandbox status for task {}: {}", task_id, e);
+                }
+            }
+        }
+
+        info!("Log stream ended for task {}", task_id);
+        Ok(())
     }
 }
 

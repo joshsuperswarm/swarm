@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
     CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken, Repository,
-    RepositoryWithTasks, Task, User,
+    RepositoryWithTasks, Task, User, TaskLog,
 };
 use sqlx::PgPool;
 
@@ -263,6 +263,87 @@ impl Database {
         .await?;
 
         Ok(task)
+    }
+
+    // Task log operations
+    pub async fn insert_task_log(&self, task_id: i32, log_line: &str) -> AppResult<()> {
+        tracing::debug!("→ Inserting log line for task {} (length: {} chars)", task_id, log_line.len());
+        
+        match sqlx::query!(
+            "INSERT INTO task_logs (task_id, log_line) VALUES ($1, $2)",
+            task_id,
+            log_line
+        )
+        .execute(&self.pool)
+        .await {
+            Ok(result) => {
+                tracing::debug!("✓ Successfully inserted log line for task {}, rows affected: {}", 
+                    task_id, result.rows_affected());
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("✗ Database error inserting log line for task {}: {}", task_id, e);
+                tracing::error!("   Line preview: {}", 
+                    if log_line.len() > 100 { 
+                        format!("{}...", &log_line[..100]) 
+                    } else { 
+                        log_line.to_string() 
+                    });
+                Err(e.into())
+            }
+        }
+    }
+
+    pub async fn get_task_logs(&self, task_id: i32) -> AppResult<Vec<TaskLog>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, task_id, log_line, created_at
+            FROM task_logs
+            WHERE task_id = $1
+            ORDER BY id ASC
+            "#,
+            task_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        
+        let logs = rows.into_iter().map(|row| TaskLog {
+            id: row.id,
+            task_id: row.task_id.expect("task_id should not be null"),
+            log_line: row.log_line,
+            created_at: row.created_at,
+        }).collect();
+        
+        Ok(logs)
+    }
+
+    pub async fn stream_task_logs(
+        &self,
+        task_id: i32,
+        after_id: Option<i64>,
+    ) -> AppResult<Vec<TaskLog>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, task_id, log_line, created_at
+            FROM task_logs
+            WHERE task_id = $1 AND ($2::BIGINT IS NULL OR id > $2)
+            ORDER BY id ASC
+            LIMIT 100
+            "#,
+            task_id,
+            after_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        
+        let logs = rows.into_iter().map(|row| TaskLog {
+            id: row.id,
+            task_id: row.task_id.expect("task_id should not be null"),
+            log_line: row.log_line,
+            created_at: row.created_at,
+        }).collect();
+        
+        Ok(logs)
     }
 }
 

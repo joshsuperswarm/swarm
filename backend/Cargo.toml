@@ -28,6 +28,9 @@ tokio-retry = "0.3"
 async-trait = "0.1"
 url = "2.5"
 shell-escape = "0.1"
+tokio-stream = "0.1"
+async-stream = "0.3"
+futures-core = "0.3"
 
 [dev-dependencies]
 tokio-test = "0.4"

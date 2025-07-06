@@ -117,3 +117,17 @@ pub struct RepositoryWithTasks {
     pub task_count: i64,
     pub created_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct TaskLog {
+    pub id: i64,
+    pub task_id: i32,
+    pub log_line: String,
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateTaskLog {
+    pub task_id: i32,
+    pub log_line: String,
+}

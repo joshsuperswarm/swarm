@@ -1,8 +1,8 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     middleware,
-    response::Json,
+    response::{Json, sse::{Event, Sse}},
     routing::{get, post},
     Router,
 };
@@ -30,6 +30,8 @@ use sandbox::{daytona::DaytonaProvider, DynSandbox, WorkspaceStatus};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use futures_core::Stream;
+use std::convert::Infallible;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -152,7 +154,7 @@ async fn sandbox_poller(app_state: AppState) {
         
         // Get all active tasks with sandbox IDs
         let active_tasks_query = sqlx::query!(
-            "SELECT id, daytona_workspace_id, status FROM tasks 
+            "SELECT id, user_id, daytona_workspace_id, daytona_session_id, daytona_command_id, status FROM tasks 
              WHERE daytona_workspace_id IS NOT NULL 
              AND status IN ('spinning', 'running')"
         );
@@ -167,21 +169,70 @@ async fn sandbox_poller(app_state: AppState) {
         
         for task in active_tasks {
             let sandbox_id = match &task.daytona_workspace_id {
-                Some(id) => id,
+                Some(id) => id.as_str(),
                 None => continue,
             };
             
-            // Check sandbox status
+            // Check sandbox status first
             match app_state.sandbox.get_sandbox_status(&sandbox_id).await {
                 Ok(WorkspaceStatus::Stopped) => {
                     tracing::info!("Sandbox {} completed for task {}", sandbox_id, task.id);
-                    // Mark task as completed
-                    if let Err(e) = app_state.database.update_task_status(
-                        task.id,
-                        "pr_opened",
-                        None, // PR URL will be extracted from logs in a real implementation
-                    ).await {
-                        tracing::error!("Error updating task {} status: {}", task.id, e);
+                    
+                    // Before marking as pr_opened, try to collect final logs
+                    if let (Some(session_id), Some(command_id)) = (&task.daytona_session_id, &task.daytona_command_id) {
+                        tracing::info!("→ Collecting final logs for completed task {}", task.id);
+                        
+                        // Create temporary Daytona provider for log collection
+                        if let Ok(config) = crate::config::Config::from_env() {
+                            if let (Some(url), Some(api_key)) = (config.daytona_url, config.daytona_api_key) {
+                                let daytona = sandbox::daytona::DaytonaProvider::new(
+                                    url,
+                                    api_key,
+                                    config.daytona_organization_id,
+                                    config.daytona_region
+                                );
+                                
+                                match daytona.stream_command_logs(
+                                    &app_state.database,
+                                    task.id,
+                                    sandbox_id,
+                                    session_id,
+                                    command_id,
+                                ).await {
+                                    Ok(_) => {
+                                        tracing::info!("✓ Final log collection completed for task {}", task.id);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("⚠ Final log collection failed for task {}: {}", task.id, e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check if task was already marked as 'done' by log processing
+                    match app_state.database.get_user_tasks(task.user_id).await {
+                        Ok(updated_tasks) => {
+                            if let Some(updated_task) = updated_tasks.iter().find(|t| t.id == task.id) {
+                                if updated_task.status.as_deref() != Some("done") {
+                                    // Only update to pr_opened if not already marked as done
+                                    if let Err(e) = app_state.database.update_task_status(
+                                        task.id,
+                                        "pr_opened",
+                                        None,
+                                    ).await {
+                                        tracing::error!("Error updating task {} status: {}", task.id, e);
+                                    } else {
+                                        tracing::info!("✓ Task {} marked as pr_opened", task.id);
+                                    }
+                                } else {
+                                    tracing::info!("✓ Task {} already marked as done, keeping status", task.id);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Error checking task {} current status: {}", task.id, e);
+                        }
                     }
                 },
                 Ok(WorkspaceStatus::Failed) => {
@@ -204,10 +255,45 @@ async fn sandbox_poller(app_state: AppState) {
                             None,
                         ).await {
                             tracing::error!("Error updating task {} status: {}", task.id, e);
+                        } else {
+                            tracing::info!("✓ Task {} updated to running", task.id);
+                        }
+                    }
+                    
+                    // For running tasks, collect logs periodically
+                    if let (Some(session_id), Some(command_id)) = (&task.daytona_session_id, &task.daytona_command_id) {
+                        tracing::info!("→ Collecting logs for running task {}", task.id);
+                        
+                        // Create temporary Daytona provider for log collection
+                        if let Ok(config) = crate::config::Config::from_env() {
+                            if let (Some(url), Some(api_key)) = (config.daytona_url, config.daytona_api_key) {
+                                let daytona = sandbox::daytona::DaytonaProvider::new(
+                                    url,
+                                    api_key,
+                                    config.daytona_organization_id,
+                                    config.daytona_region
+                                );
+                                
+                                match daytona.stream_command_logs(
+                                    &app_state.database,
+                                    task.id,
+                                    sandbox_id,
+                                    session_id,
+                                    command_id,
+                                ).await {
+                                    Ok(_) => {
+                                        tracing::debug!("✓ Log collection completed for running task {}", task.id);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("⚠ Log collection failed for running task {}: {}", task.id, e);
+                                    }
+                                }
+                            }
                         }
                     }
                 },
                 Ok(WorkspaceStatus::Starting) => {
+                    tracing::debug!("Task {} sandbox still starting", task.id);
                     // Keep polling
                 },
                 Err(e) => {
@@ -297,6 +383,7 @@ async fn main() -> AppResult<()> {
         .route("/api/user/anthropic-key", post(store_anthropic_key))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
+        .route("/api/tasks/:id/logs/stream", get(stream_task_logs))
         .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
@@ -671,6 +758,11 @@ async fn create_task(
             ).await {
                 tracing::error!("Error storing command IDs: {}", e);
             }
+
+            tracing::info!(
+                "Task {} started with sandbox {} - logs will be collected by status poller",
+                task.id, sandbox_info.id
+            );
         },
         Err(e) => {
             tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
@@ -735,4 +827,84 @@ async fn connect_github(
             }
         }
     }
+}
+
+async fn stream_task_logs(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    // Verify the task belongs to the user
+    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Verify task exists and belongs to user
+    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
+        Ok(tasks) => tasks,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
+        Some(task) => task,
+        None => return Err(StatusCode::FORBIDDEN),
+    };
+
+    let database = app_state.database.clone();
+
+    let stream = async_stream::stream! {
+        // Stream logs from database (logs are collected automatically in background)
+        let mut last_id: Option<i64> = None;
+        
+        // First, send any existing logs
+        match database.get_task_logs(task_id).await {
+            Ok(logs) => {
+                for log in logs {
+                    last_id = Some(log.id);
+                    yield Ok(Event::default().data(log.log_line));
+                }
+            }
+            Err(e) => {
+                tracing::error!("Error fetching initial logs for task {}: {}", task_id, e);
+            }
+        }
+
+        // Then poll for new logs
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        loop {
+            interval.tick().await;
+            
+            match database.stream_task_logs(task_id, last_id).await {
+                Ok(logs) => {
+                    for log in logs {
+                        last_id = Some(log.id);
+                        yield Ok(Event::default().data(log.log_line));
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error streaming logs for task {}: {}", task_id, e);
+                    // Continue polling even on error
+                }
+            }
+
+            // Check if task is completed
+            if let Ok(Some(updated_task)) = database.get_user_tasks(db_user.id).await
+                .map(|tasks| tasks.into_iter().find(|t| t.id == task_id)) {
+                if let Some(status) = &updated_task.status {
+                    if status == "done" || status == "failed" || status == "pr_opened" {
+                        // Task completed, stop streaming after a short delay
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        break;
+                    }
+                }
+            }
+        }
+    };
+
+    Ok(Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(30))
+            .text("keep-alive"),
+    ))
 }
