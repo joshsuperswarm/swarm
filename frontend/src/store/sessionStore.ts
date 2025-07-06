@@ -14,9 +14,9 @@ interface SessionStore {
   
   // Task management actions
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateTaskStatus: (taskId: string, status: Task['status']) => void;
-  updateTask: (taskId: string, updates: Partial<Task>) => void;
-  deleteTask: (taskId: string) => void;
+  updateTaskStatus: (taskId: number, status: Task['status']) => void;
+  updateTask: (taskId: number, updates: Partial<Task>) => void;
+  deleteTask: (taskId: number) => void;
   
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -116,7 +116,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       
       const newTask: Task = {
         ...taskData,
-        id: `task_${Date.now()}`
+        id: Date.now()
       };
       
       return {
