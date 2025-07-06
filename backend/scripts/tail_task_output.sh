@@ -51,17 +51,17 @@ echo "→ Finding most recent task with Daytona workspace..."
 
 # Query database for most recent task with Daytona workspace info
 TASK_DATA=$(docker exec -i swarm-postgres psql -U swarm -d swarm -t -c "
-    SELECT 
-        id || '|' || 
-        COALESCE(title, 'Untitled') || '|' || 
-        daytona_workspace_id || '|' || 
-        COALESCE(daytona_session_id, '') || '|' || 
-        COALESCE(daytona_command_id, '') || '|' || 
+    SELECT
+        id || '|' ||
+        COALESCE(title, 'Untitled') || '|' ||
+        daytona_workspace_id || '|' ||
+        COALESCE(daytona_session_id, '') || '|' ||
+        COALESCE(daytona_command_id, '') || '|' ||
         status || '|' ||
         COALESCE(description, '')
-    FROM tasks 
-    WHERE daytona_workspace_id IS NOT NULL 
-    ORDER BY created_at DESC 
+    FROM tasks
+    WHERE daytona_workspace_id IS NOT NULL
+    ORDER BY created_at DESC
     LIMIT 1;
 " 2>/dev/null)
 
@@ -88,7 +88,7 @@ if [ -n "$DESCRIPTION" ]; then
     echo ""
     echo "→ Claude command that was invoked:"
     # Reconstruct the Claude command based on the task description
-    CLAUDE_PROMPT="Please work on task ID $TASK_ID: $DESCRIPTION. Analyze the codebase and suggest improvements."
+    CLAUDE_PROMPT="Please work on task ID $TASK_ID: $DESCRIPTION."
     echo "  claude -p \"$CLAUDE_PROMPT\" \\"
     echo "      --verbose \\"
     echo "      --output-format stream-json \\"
@@ -121,24 +121,24 @@ fi
 get_session_logs() {
     local session_id="$1"
     local url="$DAYTONA_URL/toolbox/$WORKSPACE_ID/toolbox/process/session/$session_id"
-    
+
     echo "→ Fetching session logs from: $url"
-    
+
     # Get session info including logs
     RESPONSE=$(curl -s "${HEADERS[@]}" "$url" 2>/dev/null)
-    
+
     if [ $? -ne 0 ]; then
         echo "✗ Failed to connect to Daytona API"
         return 1
     fi
-    
+
     # Check if response contains error
     if echo "$RESPONSE" | jq -e '.error // .message' &>/dev/null; then
         ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error // .message')
         echo "✗ API Error: $ERROR_MSG"
         return 1
     fi
-    
+
     # Extract and display logs
     if echo "$RESPONSE" | jq -e '.logs' &>/dev/null; then
         echo "$RESPONSE" | jq -r '.logs[]' 2>/dev/null || echo "No logs available"
@@ -152,16 +152,16 @@ get_session_logs() {
 get_command_output() {
     local command_id="$1"
     local url="$DAYTONA_URL/toolbox/$WORKSPACE_ID/toolbox/process/session/$SESSION_ID/command/$command_id/logs"
-    
+
     echo "→ Fetching command output from: $url"
-    
+
     RESPONSE=$(curl -s "${HEADERS[@]}" "$url" 2>/dev/null)
-    
+
     if [ $? -ne 0 ]; then
         echo "✗ Failed to connect to Daytona API"
         return 1
     fi
-    
+
     # Check if response contains error
     if echo "$RESPONSE" | jq -e '.error // .message' &>/dev/null; then
         ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error // .message')
@@ -170,7 +170,7 @@ get_command_output() {
         get_session_logs "$SESSION_ID"
         return 1
     fi
-    
+
     # Display the response directly (logs are usually plain text)
     if [ -n "$RESPONSE" ]; then
         echo "$RESPONSE"
@@ -183,13 +183,13 @@ get_command_output() {
 stream_command_logs() {
     local command_id="$1"
     local url="$DAYTONA_URL/toolbox/$WORKSPACE_ID/toolbox/process/session/$SESSION_ID/command/$command_id/logs?follow=true"
-    
+
     echo "→ Streaming command logs from: $url"
     echo "============================================"
-    
+
     # Stream logs with follow=true
     curl -s "${HEADERS[@]}" "$url" 2>/dev/null
-    
+
     if [ $? -ne 0 ]; then
         echo "✗ Failed to stream logs, falling back to polling..."
         return 1
@@ -200,10 +200,10 @@ stream_command_logs() {
 tail_logs() {
     local last_log_count=0
     local use_session_logs=false
-    
+
     echo "→ Starting log tail (press Ctrl+C to stop)..."
     echo "============================================"
-    
+
     # Try streaming first if we have a command ID
     if [ -n "$COMMAND_ID" ] && [ "$COMMAND_ID" != "" ]; then
         if stream_command_logs "$COMMAND_ID"; then
@@ -211,7 +211,7 @@ tail_logs() {
         fi
         echo "→ Streaming failed, falling back to polling..."
     fi
-    
+
     while true; do
         if [ "$use_session_logs" = true ] || [ -z "$COMMAND_ID" ] || [ "$COMMAND_ID" = "" ]; then
             # Use session logs
@@ -223,7 +223,7 @@ tail_logs() {
                 use_session_logs=true
             fi
         fi
-        
+
         echo ""
         echo "--- $(date) ---"
         sleep 5

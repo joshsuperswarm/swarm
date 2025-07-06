@@ -1,8 +1,8 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     middleware,
-    response::{Json, sse::{Event, Sse}},
+    response::Json,
     routing::{get, post},
     Router,
 };
@@ -30,8 +30,6 @@ use sandbox::{daytona::DaytonaProvider, DynSandbox, WorkspaceStatus};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use futures_core::Stream;
-use std::convert::Infallible;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -374,7 +372,6 @@ async fn main() -> AppResult<()> {
 
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/api/tasks/:id/logs/stream", get(stream_task_logs_public))
         .route("/api/auth/github-token", post(store_github_token))
         .route("/api/auth/github/connect", post(connect_github))
         .route("/protected", get(protected_endpoint))
@@ -384,6 +381,7 @@ async fn main() -> AppResult<()> {
         .route("/api/user/anthropic-key", post(store_anthropic_key))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
+        .route("/api/tasks/:id/logs", get(get_task_logs))
         .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
@@ -830,59 +828,59 @@ async fn connect_github(
 }
 
 
-// Temporary public version without authentication for testing
-async fn stream_task_logs_public(
+#[derive(Deserialize)]
+struct LogsQuery {
+    since: Option<i64>,
+}
+
+async fn get_task_logs(
+    CurrentUser(user): CurrentUser,
     State(app_state): State<AppState>,
     Path(task_id): Path<i32>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    // TODO: Add proper authentication back
-    tracing::info!("Starting log stream for task {} (public endpoint)", task_id);
+    Query(query): Query<LogsQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    // Verify the task belongs to the user
+    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
 
-    let database = app_state.database.clone();
+    // Verify task exists and belongs to user
+    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
+        Ok(tasks) => tasks,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
 
-    let stream = async_stream::stream! {
-        // Stream logs from database (logs are collected automatically in background)
-        let mut last_id: Option<i64> = None;
-        
-        // First, send any existing logs
-        match database.get_task_logs(task_id).await {
-            Ok(logs) => {
-                for log in logs {
-                    last_id = Some(log.id);
-                    yield Ok(Event::default().data(log.log_line));
+    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
+        Some(task) => task,
+        None => return Err(StatusCode::FORBIDDEN),
+    };
+
+    // Get logs since the specified ID (or all logs if no since parameter)
+    let logs = match query.since {
+        Some(since_id) => {
+            match app_state.database.stream_task_logs(task_id, Some(since_id)).await {
+                Ok(logs) => logs,
+                Err(e) => {
+                    tracing::error!("Error fetching logs since {} for task {}: {}", since_id, task_id, e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
-            }
-            Err(e) => {
-                tracing::error!("Error fetching initial logs for task {}: {}", task_id, e);
             }
         }
-
-        // Then poll for new logs
-        let mut interval = tokio::time::interval(Duration::from_millis(500));
-        loop {
-            interval.tick().await;
-            
-            match database.stream_task_logs(task_id, last_id).await {
-                Ok(logs) => {
-                    for log in logs {
-                        last_id = Some(log.id);
-                        yield Ok(Event::default().data(log.log_line));
-                    }
-                }
+        None => {
+            match app_state.database.get_task_logs(task_id).await {
+                Ok(logs) => logs,
                 Err(e) => {
-                    tracing::error!("Error streaming logs for task {}: {}", task_id, e);
-                    // Continue polling even on error
+                    tracing::error!("Error fetching all logs for task {}: {}", task_id, e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
             }
-
-            // Continue streaming - in a real implementation we'd check task completion
-            // For now, we'll let it continue indefinitely
         }
     };
 
-    Ok(Sse::new(stream).keep_alive(
-        axum::response::sse::KeepAlive::new()
-            .interval(Duration::from_secs(30))
-            .text("keep-alive"),
-    ))
+    Ok(Json(json!({
+        "logs": logs,
+        "task_id": task_id,
+        "count": logs.len()
+    })))
 }

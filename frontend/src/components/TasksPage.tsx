@@ -36,6 +36,25 @@ export function TasksPage() {
     }
   }, [isLoaded])
 
+  // Auto-refresh tasks every 10 seconds to catch status updates
+  useEffect(() => {
+    if (!loading && !error && tasks.length > 0) {
+      // Check if any tasks are in a running state
+      const hasRunningTasks = tasks.some(task => 
+        task.status === 'spinning' || task.status === 'running'
+      )
+      
+      if (hasRunningTasks) {
+        const intervalId = setInterval(() => {
+          console.log('Auto-refreshing tasks...')
+          loadTasks()
+        }, 10000) // 10 seconds
+        
+        return () => clearInterval(intervalId)
+      }
+    }
+  }, [tasks, loading, error])
+
   const loadTasks = async () => {
     try {
       setLoading(true)
@@ -43,15 +62,8 @@ export function TasksPage() {
 
       const response = await ApiService.getTasks()
       
-      // Convert backend tasks to frontend format
-      const frontendTasks: Task[] = response.tasks.map(task => ({
-        id: task.id.toString(),
-        title: task.title,
-        status: (task.status as "backlog" | "todo" | "in progress" | "done" | "canceled") || "todo", // Backend might use different status values
-        label: "feature", // Default label - could be determined from task data
-        priority: "medium", // Default priority - could be determined from task data
-        description: task.description || undefined, // Pass through the description
-      }))
+      // Use tasks directly from backend - no conversion needed since we updated the Task type
+      const frontendTasks: Task[] = response.tasks
       
       setTasks(frontendTasks)
     } catch (err) {

@@ -5,14 +5,22 @@ export type SessionStatus = 'idle' | 'running' | 'completed' | 'error';
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type MessageType = 'text' | 'code' | 'error' | 'tool_use';
 
-// Task schema matching the example structure
+// Task schema matching the backend structure
 export const taskSchema = z.object({
-  id: z.string(),
+  id: z.number(),
+  user_id: z.number(),
+  repository_id: z.number(),
   title: z.string(),
-  status: z.enum(["backlog", "todo", "in progress", "done", "canceled"]),
-  label: z.enum(["bug", "feature", "documentation", "improvement", "demo"]),
-  priority: z.enum(["low", "medium", "high", "urgent"]),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  github_pr_url: z.string().optional().nullable(),
+  daytona_workspace_id: z.string().optional().nullable(),
+  workspace_hostname: z.string().optional().nullable(),
+  ssh_hostname: z.string().optional().nullable(),
+  daytona_session_id: z.string().optional().nullable(),
+  daytona_command_id: z.string().optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
 });
 
 export type Task = z.infer<typeof taskSchema>;

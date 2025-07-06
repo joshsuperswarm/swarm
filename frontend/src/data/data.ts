@@ -7,8 +7,7 @@ import {
   Timer, 
   CheckCircle, 
   Circle, 
-  XCircle, 
-  Archive,
+  XCircle,
   Clock
 } from "lucide-react";
 
@@ -26,11 +25,11 @@ export const labels: Option[] = [
 ];
 
 export const statuses: Option[] = [
-  { label: "Backlog", value: "backlog", icon: Archive },
-  { label: "Todo", value: "todo", icon: Circle },
-  { label: "In Progress", value: "in progress", icon: Clock },
+  { label: "Spinning Up", value: "spinning", icon: Clock },
+  { label: "Running", value: "running", icon: Circle },
   { label: "Done", value: "done", icon: CheckCircle },
-  { label: "Canceled", value: "canceled", icon: XCircle },
+  { label: "Failed", value: "failed", icon: XCircle },
+  { label: "PR Opened", value: "pr_opened", icon: CircleDot },
 ];
 
 export const priorities: Option[] = [

@@ -3,7 +3,6 @@
 import type { ColumnDef } from "@tanstack/react-table"
 import { MoreHorizontal } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -15,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-import { labels, priorities, statuses } from "@/data/data"
+import { statuses } from "@/data/data"
 import type { Task } from "@/types"
 
 export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Task>[] => [
@@ -54,16 +53,8 @@ export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Tas
     accessorKey: "title",
     header: "Title",
     cell: ({ row }) => {
-      const label = labels.find((label) => label.value === row.original.label)
-
       return (
         <div className="flex space-x-1 items-center">
-          {label && (
-            <Badge variant="outline" className="text-xs px-1 py-0 h-4">
-              {label.icon && <label.icon className="mr-1 h-2 w-2" />}
-              {label.label}
-            </Badge>
-          )}
           <span className="max-w-[500px] truncate font-medium text-xs">
             {row.getValue("title")}
           </span>
@@ -97,28 +88,18 @@ export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Tas
     },
   },
   {
-    accessorKey: "priority",
-    header: "Priority",
+    accessorKey: "created_at",
+    header: "Created",
     cell: ({ row }) => {
-      const priority = priorities.find(
-        (priority) => priority.value === row.getValue("priority")
-      )
-
-      if (!priority) {
-        return null
-      }
-
+      const createdAt = row.getValue("created_at") as string | null
+      if (!createdAt) return <span className="text-xs text-muted-foreground">-</span>
+      
+      const date = new Date(createdAt)
       return (
-        <div className="flex items-center">
-          {priority.icon && (
-            <priority.icon className="mr-1 h-3 w-3 text-muted-foreground" />
-          )}
-          <span className="text-xs">{priority.label}</span>
-        </div>
+        <span className="text-xs text-muted-foreground">
+          {date.toLocaleDateString()}
+        </span>
       )
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
     },
   },
   {
@@ -138,7 +119,7 @@ export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Tas
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(task.id)}
+              onClick={() => navigator.clipboard.writeText(task.id.toString())}
             >
               Copy task ID
             </DropdownMenuItem>

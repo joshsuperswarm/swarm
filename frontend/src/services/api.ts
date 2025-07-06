@@ -18,6 +18,13 @@ interface CreateTaskRequest {
   repository_id: number;
 }
 
+interface TaskLog {
+  id: number;
+  task_id: number;
+  log_line: string;
+  created_at: string | null;
+}
+
 export class ApiService {
   private static async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_URL}${endpoint}`;
@@ -102,5 +109,13 @@ export class ApiService {
     return this.authenticatedRequest("/api/auth/github/connect", {
       method: "POST",
     });
+  }
+
+  static async getTaskLogs(taskId: number, sinceId?: number): Promise<{ logs: TaskLog[]; task_id: number; count: number }> {
+    const url = sinceId 
+      ? `/api/tasks/${taskId}/logs?since=${sinceId}`
+      : `/api/tasks/${taskId}/logs`;
+    
+    return this.authenticatedRequest(url);
   }
 }
