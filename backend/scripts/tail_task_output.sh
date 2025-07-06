@@ -57,7 +57,8 @@ TASK_DATA=$(docker exec -i swarm-postgres psql -U swarm -d swarm -t -c "
         daytona_workspace_id || '|' || 
         COALESCE(daytona_session_id, '') || '|' || 
         COALESCE(daytona_command_id, '') || '|' || 
-        status
+        status || '|' ||
+        COALESCE(description, '')
     FROM tasks 
     WHERE daytona_workspace_id IS NOT NULL 
     ORDER BY created_at DESC 
@@ -76,10 +77,26 @@ WORKSPACE_ID=$(echo "$TASK_DATA" | cut -d'|' -f3 | xargs)
 SESSION_ID=$(echo "$TASK_DATA" | cut -d'|' -f4 | xargs)
 COMMAND_ID=$(echo "$TASK_DATA" | cut -d'|' -f5 | xargs)
 STATUS=$(echo "$TASK_DATA" | cut -d'|' -f6 | xargs)
+DESCRIPTION=$(echo "$TASK_DATA" | cut -d'|' -f7 | xargs)
 
 echo "✓ Found task: #$TASK_ID - $TASK_TITLE"
 echo "  Status: $STATUS"
 echo "  Workspace ID: $WORKSPACE_ID"
+
+# Display the command that would be invoked
+if [ -n "$DESCRIPTION" ]; then
+    echo ""
+    echo "→ Claude command that was invoked:"
+    # Reconstruct the Claude command based on the task description
+    CLAUDE_PROMPT="Please work on task ID $TASK_ID: $DESCRIPTION. Analyze the codebase and suggest improvements."
+    echo "  claude -p \"$CLAUDE_PROMPT\" \\"
+    echo "      --verbose \\"
+    echo "      --output-format stream-json \\"
+    echo "      --max-turns 1 \\"
+    echo "      --dangerously-skip-permissions \\"
+    echo "      < /dev/null"
+    echo ""
+fi
 
 if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "" ]; then
     echo "✗ No session ID found for this task"
