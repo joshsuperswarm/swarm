@@ -9,17 +9,7 @@ import { ApiService } from "@/services/api"
 import { getBackendJwt } from "@/lib/authToken"
 
 // Memoize DataTable outside component to ensure stable reference
-const MemoizedDataTable = React.memo(DataTable<Task, unknown>, (prevProps, nextProps) => {
-  // Custom comparison to prevent unnecessary re-renders
-  const dataEqual = prevProps.data === nextProps.data || 
-    (prevProps.data.length === nextProps.data.length && 
-     prevProps.data.every((item, index) => item.id === nextProps.data[index]?.id))
-  const columnsEqual = prevProps.columns === nextProps.columns
-  const onTaskClickEqual = prevProps.onTaskClick === nextProps.onTaskClick
-  const onCreateTaskEqual = prevProps.onCreateTask === nextProps.onCreateTask
-  
-  return dataEqual && columnsEqual && onTaskClickEqual && onCreateTaskEqual
-}) as typeof DataTable<Task, unknown>
+const MemoizedDataTable = React.memo(DataTable<Task, unknown>) // default shallow compare
 
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
@@ -33,7 +23,7 @@ export function TasksPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (forceUpdate = false) => {
     // console.log('🔄 TasksPage loadTasks called')
     try {
       // Don't set loading to true during refresh to prevent table unmount
@@ -49,23 +39,28 @@ export function TasksPage() {
       // Use tasks directly from backend - no conversion needed since we updated the Task type
       const frontendTasks: Task[] = response.tasks
       
-      // Only update state if tasks have actually changed
-      setTasks(prevTasks => {
-        // Check if tasks have changed by comparing IDs and status
-        const hasChanged = prevTasks.length !== frontendTasks.length ||
-          !prevTasks.every((task, index) => {
-            const newTask = frontendTasks[index]
-            return task.id === newTask?.id && task.status === newTask?.status
-          })
-        
-        if (hasChanged) {
-          console.log('🔄 TasksPage setTasks - tasks have changed, updating state')
-          return frontendTasks
-        } else {
-          console.log('🔄 TasksPage setTasks - tasks unchanged, keeping existing state')
-          return prevTasks // Return same reference to prevent re-render
-        }
-      })
+      // Force update or only update state if tasks have actually changed
+      if (forceUpdate) {
+        console.log('🔄 TasksPage setTasks - force update, refreshing state')
+        setTasks(frontendTasks)
+      } else {
+        setTasks(prevTasks => {
+          // Check if tasks have changed by comparing IDs and status
+          const hasChanged = prevTasks.length !== frontendTasks.length ||
+            !prevTasks.every((task, index) => {
+              const newTask = frontendTasks[index]
+              return task.id === newTask?.id && task.status === newTask?.status
+            })
+          
+          if (hasChanged) {
+            console.log('🔄 TasksPage setTasks - tasks have changed, updating state')
+            return frontendTasks
+          } else {
+            console.log('🔄 TasksPage setTasks - tasks unchanged, keeping existing state')
+            return prevTasks // Return same reference to prevent re-render
+          }
+        })
+      }
       
       // Auto-refresh logic based on current task status
       const hasRunningTasks = frontendTasks.some(task => 
@@ -162,7 +157,7 @@ export function TasksPage() {
       })
       
       // Reload tasks to show the new task
-      await loadTasks()
+      await loadTasks(true)
       
       setIsCreateTaskModalOpen(false)
     } catch (err) {
@@ -239,7 +234,7 @@ export function TasksPage() {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to load tasks</h3>
             <p className="text-gray-600 mb-4">{error}</p>
             <button 
-              onClick={loadTasks}
+              onClick={() => loadTasks()}
               className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
             >
               Try Again
