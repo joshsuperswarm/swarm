@@ -1027,6 +1027,7 @@ async fn get_tasks(
                     "user_id": task.user_id,
                     "status": task.status.unwrap_or_else(|| "pending".to_string()),
                     "github_pr_url": task.github_pr_url,
+                    "github_branch": task.github_branch,
                     "daytona_sandbox_id": task.daytona_sandbox_id,
                     "sandbox_hostname": task.sandbox_hostname,
                     "ssh_hostname": task.sandbox_hostname,
