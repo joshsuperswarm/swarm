@@ -443,9 +443,9 @@ impl DaytonaProvider {
         sandbox_id: &str,
         repo_path: &str,
         branch: &str,
-        task_id: i32,
-        author_name: &str,
-        author_email: &str,
+        _task_id: i32,
+        _author_name: &str,
+        _author_email: &str,
     ) -> SandboxResult<()> {
         #[derive(Serialize)]
         struct ExecBody {
