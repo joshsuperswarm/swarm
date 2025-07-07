@@ -78,6 +78,7 @@ pub struct Task {
     pub description: Option<String>,
     pub status: Option<String>,
     pub github_pr_url: Option<String>,
+    pub github_branch: Option<String>,
     pub daytona_sandbox_id: Option<String>,
     pub sandbox_hostname: Option<String>,
     pub daytona_session_id: Option<String>,
