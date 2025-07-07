@@ -9,7 +9,7 @@ import { ApiService } from "@/services/api"
 import { getBackendJwt } from "@/lib/authToken"
 
 // Memoize DataTable outside component to ensure stable reference
-const MemoizedDataTable = React.memo(DataTable, (prevProps, nextProps) => {
+const MemoizedDataTable = React.memo(DataTable<Task, unknown>, (prevProps, nextProps) => {
   // Custom comparison to prevent unnecessary re-renders
   const dataEqual = prevProps.data === nextProps.data || 
     (prevProps.data.length === nextProps.data.length && 
@@ -19,7 +19,7 @@ const MemoizedDataTable = React.memo(DataTable, (prevProps, nextProps) => {
   const onCreateTaskEqual = prevProps.onCreateTask === nextProps.onCreateTask
   
   return dataEqual && columnsEqual && onTaskClickEqual && onCreateTaskEqual
-})
+}) as typeof DataTable<Task, unknown>
 
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
@@ -33,38 +33,7 @@ export function TasksPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Load tasks when auth is ready and JWT is available
-  useEffect(() => {
-    // console.log('🔄 TasksPage auth useEffect - isSignedIn:', isSignedIn)
-    if (isSignedIn && isLoaded) {
-      // Add a small delay to ensure JWT has been set in the auth store
-      const timeoutId = setTimeout(() => {
-        const jwt = getBackendJwt()
-        if (jwt) {
-          loadTasks()
-        } else {
-          console.log('Waiting for JWT to be available...')
-          // Try again in a moment
-          setTimeout(loadTasks, 1000)
-        }
-      }, 100)
-      
-      return () => clearTimeout(timeoutId)
-    }
-  }, [isSignedIn, isLoaded])
-
-  // Cleanup auto-refresh on unmount
-  useEffect(() => {
-    return () => {
-      if (autoRefreshIntervalRef.current) {
-        // console.log('🔄 TasksPage unmounting - cleaning up auto-refresh')
-        clearInterval(autoRefreshIntervalRef.current)
-        autoRefreshIntervalRef.current = null
-      }
-    }
-  }, [])
-
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     // console.log('🔄 TasksPage loadTasks called')
     try {
       // Don't set loading to true during refresh to prevent table unmount
@@ -126,7 +95,38 @@ export function TasksPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [tasks.length])
+
+  // Load tasks when auth is ready and JWT is available
+  useEffect(() => {
+    // console.log('🔄 TasksPage auth useEffect - isSignedIn:', isSignedIn)
+    if (isSignedIn && isLoaded) {
+      // Add a small delay to ensure JWT has been set in the auth store
+      const timeoutId = setTimeout(() => {
+        const jwt = getBackendJwt()
+        if (jwt) {
+          loadTasks()
+        } else {
+          console.log('Waiting for JWT to be available...')
+          // Try again in a moment
+          setTimeout(loadTasks, 1000)
+        }
+      }, 100)
+      
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isSignedIn, isLoaded, loadTasks])
+
+  // Cleanup auto-refresh on unmount
+  useEffect(() => {
+    return () => {
+      if (autoRefreshIntervalRef.current) {
+        // console.log('🔄 TasksPage unmounting - cleaning up auto-refresh')
+        clearInterval(autoRefreshIntervalRef.current)
+        autoRefreshIntervalRef.current = null
+      }
+    }
+  }, [])
 
   const handleTaskClick = useCallback((task: Task) => {
     // console.log('🔄 TasksPage handleTaskClick - opening modal for task:', task.id)

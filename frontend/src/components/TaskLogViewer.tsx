@@ -122,7 +122,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [taskId]);
+  }, [taskId, fetchLogs, taskCompleted]);
 
   // Stop polling when task is completed
   useEffect(() => {
