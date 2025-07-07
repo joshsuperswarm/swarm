@@ -19,16 +19,16 @@ pub enum SandboxError {
 pub type SandboxResult<T> = Result<T, SandboxError>;
 
 #[derive(Debug, Clone)]
-pub struct WorkspaceInfo {
+pub struct SandboxInfo {
     pub id: String,
     pub hostname: String,
-    pub status: WorkspaceStatus,
+    pub status: SandboxStatus,
     pub session_id: String,
     pub command_id: String,
 }
 
 #[derive(Debug, Clone)]
-pub enum WorkspaceStatus {
+pub enum SandboxStatus {
     Starting,
     Running,
     Stopped,
@@ -46,16 +46,24 @@ pub trait SandboxProvider: Send + Sync {
         prompt: &str,
         anthropic_api_key: &str,
         openai_api_key: Option<&str>,
-    ) -> SandboxResult<WorkspaceInfo>;
+    ) -> SandboxResult<SandboxInfo>;
 
     /// Get the current status of a sandbox
-    async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus>;
+    async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<SandboxStatus>;
 
     /// Wait for a sandbox to complete (return when status is Stopped or Failed)
-    async fn wait_for_completion(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus>;
+    async fn wait_for_completion(&self, sandbox_id: &str) -> SandboxResult<SandboxStatus>;
 
     /// Stop a sandbox
     async fn stop_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
+    
+    /// Get the exit code of a command if available
+    async fn get_command_exit_code(
+        &self,
+        sandbox_id: &str,
+        session_id: &str,
+        command_id: &str,
+    ) -> SandboxResult<Option<i32>>;
 }
 
 pub type DynSandbox = Arc<dyn SandboxProvider + Send + Sync>;

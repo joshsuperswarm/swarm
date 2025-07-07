@@ -35,6 +35,7 @@ pub struct Repository {
     pub user_id: i32,
     pub is_private: Option<bool>,
     pub created_at: Option<DateTime<Utc>>,
+    pub last_fetched_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,8 +78,8 @@ pub struct Task {
     pub description: Option<String>,
     pub status: Option<String>,
     pub github_pr_url: Option<String>,
-    pub daytona_workspace_id: Option<String>,
-    pub workspace_hostname: Option<String>,
+    pub daytona_sandbox_id: Option<String>,
+    pub sandbox_hostname: Option<String>,
     pub daytona_session_id: Option<String>,
     pub daytona_command_id: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
@@ -116,6 +117,7 @@ pub struct RepositoryWithTasks {
     pub is_private: Option<bool>,
     pub task_count: i64,
     pub created_at: Option<DateTime<Utc>>,
+    pub last_fetched_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

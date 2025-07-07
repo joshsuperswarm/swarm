@@ -1,4 +1,4 @@
-use super::{SandboxError, SandboxProvider, SandboxResult, WorkspaceInfo, WorkspaceStatus};
+use super::{SandboxError, SandboxProvider, SandboxResult, SandboxInfo, SandboxStatus};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -257,13 +257,13 @@ impl DaytonaProvider {
         Ok(repo_name)
     }
 
-    fn map_daytona_status(state: &str) -> WorkspaceStatus {
+    fn map_daytona_status(state: &str) -> SandboxStatus {
         match state.to_lowercase().as_str() {
-            "starting" | "pending" => WorkspaceStatus::Starting,
-            "started" | "running" => WorkspaceStatus::Running,
-            "stopped" | "succeeded" => WorkspaceStatus::Stopped,
-            "failed" | "error" | "destroyed" => WorkspaceStatus::Failed,
-            _ => WorkspaceStatus::Starting,
+            "starting" | "pending" => SandboxStatus::Starting,
+            "started" | "running" => SandboxStatus::Running,
+            "stopped" | "succeeded" => SandboxStatus::Stopped,
+            "failed" | "error" | "destroyed" => SandboxStatus::Failed,
+            _ => SandboxStatus::Starting,
         }
     }
 
@@ -578,7 +578,7 @@ impl DaytonaProvider {
         // If stream ended without a done event, check sandbox status
         if !task_completed {
             match self.get_sandbox_status(sandbox_id).await {
-                Ok(WorkspaceStatus::Stopped) => {
+                Ok(SandboxStatus::Stopped) => {
                     info!(
                         "Task {} sandbox stopped without 'done' event, marking as failed",
                         task_id
@@ -599,6 +599,58 @@ impl DaytonaProvider {
         info!("Log stream ended for task {}", task_id);
         Ok(())
     }
+
+    /// Get the exit code of a command from Daytona
+    pub async fn get_command_exit_code(
+        &self,
+        sandbox_id: &str,
+        session_id: &str,
+        command_id: &str,
+    ) -> SandboxResult<Option<i32>> {
+        let url = format!(
+            "{}/toolbox/{}/toolbox/process/session/{}/command/{}",
+            self.base_url, sandbox_id, session_id, command_id
+        );
+
+        debug!(
+            "Getting command exit code for sandbox: {}, session: {}, command: {}",
+            sandbox_id, session_id, command_id
+        );
+
+        let response = self.add_auth_headers(self.client.get(&url)).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            error!(
+                "Failed to get command exit code for sandbox {}: {} - {}",
+                sandbox_id, status, error_text
+            );
+            return Err(SandboxError::SandboxOperationError(format!(
+                "Failed to get command exit code: {} - {}",
+                status, error_text
+            )));
+        }
+
+        let response_text = response.text().await?;
+        debug!("Command status response: {}", response_text);
+
+        let json_value: serde_json::Value = serde_json::from_str(&response_text)?;
+
+        // Try different possible field names for exit code
+        let exit_code = json_value
+            .get("exitCode")
+            .or_else(|| json_value.get("exit_code"))
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+
+        debug!(
+            "Command exit code for {}/{}/{}: {:?}",
+            sandbox_id, session_id, command_id, exit_code
+        );
+
+        Ok(exit_code)
+    }
 }
 
 #[async_trait]
@@ -611,7 +663,7 @@ impl SandboxProvider for DaytonaProvider {
         prompt: &str,
         anthropic_api_key: &str,
         openai_api_key: Option<&str>,
-    ) -> SandboxResult<WorkspaceInfo> {
+    ) -> SandboxResult<SandboxInfo> {
         info!(
             "Starting sandbox for task {}, repository: {}",
             task_id, repo_url
@@ -648,20 +700,20 @@ impl SandboxProvider for DaytonaProvider {
             // Check if sandbox is in a running state
             let sandbox_status = Self::map_daytona_status(&sb.state);
             match sandbox_status {
-                WorkspaceStatus::Running => {
+                SandboxStatus::Running => {
                     info!("Sandbox {} is running (state: {}, hostname: {:?}, runner_domain: {:?}, ip: {:?})",
                           sandbox_id, sb.state, sb.host_name, sb.runner_domain, sb.public_ipv4);
                     Ok(sb)
                 }
-                WorkspaceStatus::Failed => {
+                SandboxStatus::Failed => {
                     error!("Sandbox {} failed to start (state: {})", sandbox_id, sb.state);
                     Err(SandboxError::SandboxOperationError("Sandbox failed to start".to_string()))
                 }
-                WorkspaceStatus::Starting => {
+                SandboxStatus::Starting => {
                     debug!("Sandbox {} still starting (state: {}), retrying...", sandbox_id, sb.state);
                     Err(SandboxError::SandboxOperationError("Sandbox still starting".to_string()))
                 }
-                WorkspaceStatus::Stopped => {
+                SandboxStatus::Stopped => {
                     error!("Sandbox {} stopped unexpectedly (state: {})", sandbox_id, sb.state);
                     Err(SandboxError::SandboxOperationError("Sandbox stopped unexpectedly".to_string()))
                 }
@@ -699,7 +751,7 @@ impl SandboxProvider for DaytonaProvider {
             "Sandbox {} started successfully with hostname: {} and Claude Code running",
             sandbox_id, hostname
         );
-        Ok(WorkspaceInfo {
+        Ok(SandboxInfo {
             id: sandbox_id,
             hostname,
             status,
@@ -708,7 +760,7 @@ impl SandboxProvider for DaytonaProvider {
         })
     }
 
-    async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus> {
+    async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<SandboxStatus> {
         let sandbox = self.get_sandbox(sandbox_id).await?;
 
         let status = Self::map_daytona_status(&sandbox.state);
@@ -717,7 +769,7 @@ impl SandboxProvider for DaytonaProvider {
         Ok(status)
     }
 
-    async fn wait_for_completion(&self, sandbox_id: &str) -> SandboxResult<WorkspaceStatus> {
+    async fn wait_for_completion(&self, sandbox_id: &str) -> SandboxResult<SandboxStatus> {
         let timeout_duration = Duration::from_secs(30 * 60); // 30 minutes
         let poll_interval = Duration::from_secs(30);
 
@@ -730,11 +782,11 @@ impl SandboxProvider for DaytonaProvider {
                 let status = self.get_sandbox_status(sandbox_id).await?;
 
                 match status {
-                    WorkspaceStatus::Stopped | WorkspaceStatus::Failed => {
+                    SandboxStatus::Stopped | SandboxStatus::Failed => {
                         info!("Sandbox {} completed with status: {:?}", sandbox_id, status);
                         return Ok(status);
                     }
-                    WorkspaceStatus::Starting | WorkspaceStatus::Running => {
+                    SandboxStatus::Starting | SandboxStatus::Running => {
                         debug!(
                             "Sandbox {} still running, checking again in {} seconds",
                             sandbox_id,
@@ -765,11 +817,22 @@ impl SandboxProvider for DaytonaProvider {
         info!("Stopping sandbox {}", sandbox_id);
         self.delete_sandbox(sandbox_id).await
     }
+    
+    async fn get_command_exit_code(
+        &self,
+        sandbox_id: &str,
+        session_id: &str,
+        command_id: &str,
+    ) -> SandboxResult<Option<i32>> {
+        self.get_command_exit_code(sandbox_id, session_id, command_id).await
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_extract_repo_name() {
@@ -796,5 +859,147 @@ mod tests {
         let error =
             SandboxError::SandboxOperationError("clone failed: 404 – Not Found".to_string());
         assert!(error.to_string().contains("clone failed: 404"));
+    }
+
+    #[tokio::test]
+    async fn test_get_command_exit_code_success() {
+        let mock_server = MockServer::start().await;
+        let sandbox_id = "test-sandbox";
+        let session_id = "test-session";
+        let command_id = "test-command";
+
+        // Mock successful response with exit code 0
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/toolbox/{}/toolbox/process/session/{}/command/{}",
+                sandbox_id, session_id, command_id
+            )))
+            .and(header("authorization", "Bearer test-api-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "exitCode": 0,
+                "state": "Succeeded"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = DaytonaProvider::new(
+            mock_server.uri(),
+            "test-api-key".to_string(),
+            None,
+            "us".to_string(),
+        );
+
+        let result = provider
+            .get_command_exit_code(sandbox_id, session_id, command_id)
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_get_command_exit_code_failure() {
+        let mock_server = MockServer::start().await;
+        let sandbox_id = "test-sandbox";
+        let session_id = "test-session";
+        let command_id = "test-command";
+
+        // Mock successful response with exit code 1 (failure)
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/toolbox/{}/toolbox/process/session/{}/command/{}",
+                sandbox_id, session_id, command_id
+            )))
+            .and(header("authorization", "Bearer test-api-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "exitCode": 1,
+                "state": "Failed"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = DaytonaProvider::new(
+            mock_server.uri(),
+            "test-api-key".to_string(),
+            None,
+            "us".to_string(),
+        );
+
+        let result = provider
+            .get_command_exit_code(sandbox_id, session_id, command_id)
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_get_command_exit_code_no_exit_code() {
+        let mock_server = MockServer::start().await;
+        let sandbox_id = "test-sandbox";
+        let session_id = "test-session";
+        let command_id = "test-command";
+
+        // Mock response without exit code (command still running)
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/toolbox/{}/toolbox/process/session/{}/command/{}",
+                sandbox_id, session_id, command_id
+            )))
+            .and(header("authorization", "Bearer test-api-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "state": "Running"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = DaytonaProvider::new(
+            mock_server.uri(),
+            "test-api-key".to_string(),
+            None,
+            "us".to_string(),
+        );
+
+        let result = provider
+            .get_command_exit_code(sandbox_id, session_id, command_id)
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn test_get_command_exit_code_http_error() {
+        let mock_server = MockServer::start().await;
+        let sandbox_id = "test-sandbox";
+        let session_id = "test-session";
+        let command_id = "test-command";
+
+        // Mock HTTP error response
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/toolbox/{}/toolbox/process/session/{}/command/{}",
+                sandbox_id, session_id, command_id
+            )))
+            .and(header("authorization", "Bearer test-api-key"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+                "error": "Command not found"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = DaytonaProvider::new(
+            mock_server.uri(),
+            "test-api-key".to_string(),
+            None,
+            "us".to_string(),
+        );
+
+        let result = provider
+            .get_command_exit_code(sandbox_id, session_id, command_id)
+            .await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), SandboxError::SandboxOperationError(_)));
     }
 }

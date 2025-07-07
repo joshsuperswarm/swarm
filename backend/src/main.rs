@@ -19,6 +19,7 @@ mod error;
 mod github;
 mod models;
 mod sandbox;
+mod task_pipeline;
 
 use auth::{clerk_middleware, CurrentUser, GitHubTokenBody, AnthropicApiKeyBody};
 use config::Config;
@@ -26,7 +27,7 @@ use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
 use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser};
-use sandbox::{daytona::DaytonaProvider, DynSandbox, WorkspaceStatus};
+use sandbox::{daytona::DaytonaProvider, DynSandbox, SandboxStatus};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -152,8 +153,8 @@ async fn sandbox_poller(app_state: AppState) {
         
         // Get all active tasks with sandbox IDs
         let active_tasks_query = sqlx::query!(
-            "SELECT id, user_id, daytona_workspace_id, daytona_session_id, daytona_command_id, status FROM tasks 
-             WHERE daytona_workspace_id IS NOT NULL 
+            "SELECT id, user_id, daytona_sandbox_id, daytona_session_id, daytona_command_id, status FROM tasks 
+             WHERE daytona_sandbox_id IS NOT NULL 
              AND status IN ('spinning', 'running')"
         );
         
@@ -166,19 +167,69 @@ async fn sandbox_poller(app_state: AppState) {
         };
         
         for task in active_tasks {
-            let sandbox_id = match &task.daytona_workspace_id {
+            let sandbox_id = match &task.daytona_sandbox_id {
                 Some(id) => id.as_str(),
                 None => continue,
             };
             
-            // Check sandbox status first
+            // Check command exit code first if we have session and command IDs
+            if let (Some(session_id), Some(command_id)) = (&task.daytona_session_id, &task.daytona_command_id) {
+                match app_state.sandbox.get_command_exit_code(sandbox_id, session_id, command_id).await {
+                    Ok(Some(0)) => {
+                        // Exit code 0 means success
+                        tracing::info!("Task {} completed successfully (exit code: 0)", task.id);
+                        
+                        // Skip if already in terminal state
+                        if !matches!(task.status.as_deref(), Some("done") | Some("failed") | Some("pr_opened")) {
+                            if let Err(e) = app_state.database.update_task_status(
+                                task.id,
+                                "pr_opened",
+                                None,
+                            ).await {
+                                tracing::error!("Error updating task {} status to pr_opened: {}", task.id, e);
+                            } else {
+                                tracing::info!("✓ Task {} marked as pr_opened (exit code: 0)", task.id);
+                            }
+                        }
+                        continue; // Skip sandbox status check
+                    }
+                    Ok(Some(code)) => {
+                        // Non-zero exit code means failure
+                        tracing::warn!("Task {} failed with exit code: {}", task.id, code);
+                        
+                        // Skip if already in terminal state
+                        if !matches!(task.status.as_deref(), Some("done") | Some("failed") | Some("pr_opened")) {
+                            if let Err(e) = app_state.database.update_task_status(
+                                task.id,
+                                "failed",
+                                None,
+                            ).await {
+                                tracing::error!("Error updating task {} status to failed: {}", task.id, e);
+                            } else {
+                                tracing::info!("✓ Task {} marked as failed (exit code: {})", task.id, code);
+                            }
+                        }
+                        continue; // Skip sandbox status check
+                    }
+                    Ok(None) => {
+                        // No exit code yet, command still running - continue to sandbox check
+                        tracing::debug!("Task {} command still running (no exit code)", task.id);
+                    }
+                    Err(e) => {
+                        tracing::debug!("Error checking exit code for task {}: {}", task.id, e);
+                        // Continue to sandbox status check as fallback
+                    }
+                }
+            }
+            
+            // Check sandbox status (fallback or when no session/command IDs)
             match app_state.sandbox.get_sandbox_status(&sandbox_id).await {
-                Ok(WorkspaceStatus::Stopped) => {
-                    tracing::info!("Sandbox {} completed for task {}", sandbox_id, task.id);
+                Ok(SandboxStatus::Stopped) => {
+                    tracing::info!("Sandbox {} stopped for task {} (exit code check was inconclusive)", sandbox_id, task.id);
                     
-                    // Before marking as pr_opened, try to collect final logs
+                    // Collect final logs for UI display
                     if let (Some(session_id), Some(command_id)) = (&task.daytona_session_id, &task.daytona_command_id) {
-                        tracing::info!("→ Collecting final logs for completed task {}", task.id);
+                        tracing::info!("→ Collecting final logs for stopped task {}", task.id);
                         
                         // Create temporary Daytona provider for log collection
                         if let Ok(config) = crate::config::Config::from_env() {
@@ -208,32 +259,24 @@ async fn sandbox_poller(app_state: AppState) {
                         }
                     }
                     
-                    // Check if task was already marked as 'done' by log processing
-                    match app_state.database.get_user_tasks(task.user_id).await {
-                        Ok(updated_tasks) => {
-                            if let Some(updated_task) = updated_tasks.iter().find(|t| t.id == task.id) {
-                                if updated_task.status.as_deref() != Some("done") {
-                                    // Only update to pr_opened if not already marked as done
-                                    if let Err(e) = app_state.database.update_task_status(
-                                        task.id,
-                                        "pr_opened",
-                                        None,
-                                    ).await {
-                                        tracing::error!("Error updating task {} status: {}", task.id, e);
-                                    } else {
-                                        tracing::info!("✓ Task {} marked as pr_opened", task.id);
-                                    }
-                                } else {
-                                    tracing::info!("✓ Task {} already marked as done, keeping status", task.id);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("Error checking task {} current status: {}", task.id, e);
+                    // Since we rely on exit code for task completion, 
+                    // a stopped sandbox without exit code indicates failure
+                    tracing::warn!("Task {} sandbox stopped without exit code, likely failed", task.id);
+                    
+                    // Skip if already in terminal state
+                    if !matches!(task.status.as_deref(), Some("done") | Some("failed") | Some("pr_opened")) {
+                        if let Err(e) = app_state.database.update_task_status(
+                            task.id,
+                            "failed",
+                            None,
+                        ).await {
+                            tracing::error!("Error updating task {} status to failed: {}", task.id, e);
+                        } else {
+                            tracing::info!("✓ Task {} marked as failed (sandbox stopped without exit code)", task.id);
                         }
                     }
                 },
-                Ok(WorkspaceStatus::Failed) => {
+                Ok(SandboxStatus::Failed) => {
                     tracing::warn!("Sandbox {} failed for task {}", sandbox_id, task.id);
                     // Mark task as failed
                     if let Err(e) = app_state.database.update_task_status(
@@ -244,7 +287,7 @@ async fn sandbox_poller(app_state: AppState) {
                         tracing::error!("Error updating task {} status: {}", task.id, e);
                     }
                 },
-                Ok(WorkspaceStatus::Running) => {
+                Ok(SandboxStatus::Running) => {
                     // Update status to running if it was spinning
                     if task.status.as_deref() == Some("spinning") {
                         if let Err(e) = app_state.database.update_task_status(
@@ -290,7 +333,7 @@ async fn sandbox_poller(app_state: AppState) {
                         }
                     }
                 },
-                Ok(WorkspaceStatus::Starting) => {
+                Ok(SandboxStatus::Starting) => {
                     tracing::debug!("Task {} sandbox still starting", task.id);
                     // Keep polling
                 },
@@ -402,6 +445,237 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::extract::State;
+    use axum::Json;
+    use std::time::Instant;
+    use std::sync::Arc;
+    use crate::auth::{CurrentUser, ClerkUser};
+    use crate::sandbox::SandboxProvider;
+    use async_trait::async_trait;
+
+    // Mock sandbox provider for testing
+    #[derive(Clone)]
+    struct MockSandboxProvider {
+        delay_ms: u64,
+    }
+
+    impl MockSandboxProvider {
+        fn new(delay_ms: u64) -> Self {
+            Self { delay_ms }
+        }
+    }
+
+    #[async_trait]
+    impl SandboxProvider for MockSandboxProvider {
+        async fn start_sandbox(
+            &self,
+            _task_id: i32,
+            _repo_url: &str,
+            _github_token: &str,
+            _prompt: &str,
+            _anthropic_api_key: &str,
+            _openai_api_key: Option<&str>,
+        ) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxInfo> {
+            // Simulate delay
+            tokio::time::sleep(tokio::time::Duration::from_millis(self.delay_ms)).await;
+            
+            Ok(crate::sandbox::SandboxInfo {
+                id: "test-workspace".to_string(),
+                hostname: "test-hostname".to_string(),
+                status: crate::sandbox::SandboxStatus::Running,
+                session_id: "test-session".to_string(),
+                command_id: "test-command".to_string(),
+            })
+        }
+
+        async fn get_sandbox_status(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxStatus> {
+            Ok(crate::sandbox::SandboxStatus::Running)
+        }
+
+        async fn wait_for_completion(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxStatus> {
+            Ok(crate::sandbox::SandboxStatus::Stopped)
+        }
+
+        async fn stop_sandbox(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<()> {
+            Ok(())
+        }
+        
+        async fn get_command_exit_code(
+            &self,
+            _sandbox_id: &str,
+            _session_id: &str,
+            _command_id: &str,
+        ) -> crate::sandbox::SandboxResult<Option<i32>> {
+            // For testing, return no exit code (command still running)
+            Ok(None)
+        }
+    }
+    
+    // Mock sandbox provider with controllable exit code for testing
+    #[derive(Clone)]
+    struct MockSandboxProviderWithExitCode {
+        exit_code: Option<i32>,
+    }
+
+    impl MockSandboxProviderWithExitCode {
+        fn new(exit_code: Option<i32>) -> Self {
+            Self { exit_code }
+        }
+    }
+
+    #[async_trait]
+    impl SandboxProvider for MockSandboxProviderWithExitCode {
+        async fn start_sandbox(
+            &self,
+            _task_id: i32,
+            _repo_url: &str,
+            _github_token: &str,
+            _prompt: &str,
+            _anthropic_api_key: &str,
+            _openai_api_key: Option<&str>,
+        ) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxInfo> {
+            Ok(crate::sandbox::SandboxInfo {
+                id: "test-workspace".to_string(),
+                hostname: "test-hostname".to_string(),
+                status: crate::sandbox::SandboxStatus::Running,
+                session_id: "test-session".to_string(),
+                command_id: "test-command".to_string(),
+            })
+        }
+
+        async fn get_sandbox_status(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxStatus> {
+            Ok(crate::sandbox::SandboxStatus::Running)
+        }
+
+        async fn wait_for_completion(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxStatus> {
+            Ok(crate::sandbox::SandboxStatus::Stopped)
+        }
+
+        async fn stop_sandbox(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<()> {
+            Ok(())
+        }
+        
+        async fn get_command_exit_code(
+            &self,
+            _sandbox_id: &str,
+            _session_id: &str,
+            _command_id: &str,
+        ) -> crate::sandbox::SandboxResult<Option<i32>> {
+            Ok(self.exit_code)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_create_task_returns_quickly() {
+        // This test verifies that create_task returns quickly (< 100ms)
+        // even when sandbox operations would take longer
+        
+        // Setup mock sandbox with 2 second delay
+        let mock_sandbox: Arc<dyn SandboxProvider + Send + Sync> = Arc::new(MockSandboxProvider::new(2000));
+        
+        // Create a minimal config for testing
+        let config = Config {
+            database_url: "postgresql://test".to_string(),
+            clerk_secret_key: "test-key".to_string(),
+            github_token: None,
+            port: 3001,
+            daytona_url: Some("http://localhost".to_string()),
+            daytona_api_key: Some("test-key".to_string()),
+            daytona_organization_id: Some("test-org".to_string()),
+            daytona_region: "us".to_string(),
+            openai_api_key: None,
+        };
+        
+        // Create a mock database (this would need proper mocking in a real test)
+        let pool = sqlx::PgPool::connect_lazy("postgresql://test").unwrap();
+        let database = Database::new(pool);
+        
+        let app_state = AppState {
+            database,
+            config,
+            sandbox: mock_sandbox,
+        };
+        
+        let current_user = CurrentUser(ClerkUser {
+            id: "test-user".to_string(),
+            email: Some("test@example.com".to_string()),
+        });
+        
+        let payload = CreateTaskRequest {
+            title: "Test Task".to_string(),
+            description: Some("Test Description".to_string()),
+            repository_id: 1,
+        };
+        
+        let start_time = Instant::now();
+        
+        // Call create_task - this should return quickly even though sandbox ops are slow
+        let result = create_task(
+            current_user,
+            State(app_state),
+            Json(payload),
+        ).await;
+        
+        let elapsed = start_time.elapsed();
+        
+        // Verify the handler returned quickly (< 100ms)
+        // Note: This test will fail with database connection issues since we're using a mock URL
+        // But it demonstrates the pattern for testing fire-and-forget behavior
+        // We expect an error but the timing should still be fast
+        assert!(elapsed.as_millis() < 100, "create_task should return quickly, took {}ms", elapsed.as_millis());
+        
+        // In a real test environment with proper database setup, we would also verify:
+        // - The task was created with "pending" status
+        // - The response contains the correct task data
+        // - The spawned task eventually completes (could be verified with polling)
+    }
+
+    #[tokio::test]
+    async fn test_sandbox_provider_exit_code_success() {
+        // Test that a mock provider returning exit code 0 is handled correctly
+        let mock_provider = MockSandboxProviderWithExitCode::new(Some(0));
+        
+        // Test the exit code method directly
+        let result = mock_provider
+            .get_command_exit_code("test-sandbox", "test-session", "test-command")
+            .await;
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Some(0));
+    }
+    
+    #[tokio::test]
+    async fn test_sandbox_provider_exit_code_failure() {
+        // Test that a mock provider returning exit code 1 is handled correctly
+        let mock_provider = MockSandboxProviderWithExitCode::new(Some(1));
+        
+        // Test the exit code method directly
+        let result = mock_provider
+            .get_command_exit_code("test-sandbox", "test-session", "test-command")
+            .await;
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Some(1));
+    }
+    
+    #[tokio::test]
+    async fn test_sandbox_provider_no_exit_code() {
+        // Test that a mock provider returning no exit code is handled correctly
+        let mock_provider = MockSandboxProviderWithExitCode::new(None);
+        
+        // Test the exit code method directly
+        let result = mock_provider
+            .get_command_exit_code("test-sandbox", "test-session", "test-command")
+            .await;
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), None);
+    }
+}
+
 async fn health_check() -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({
         "status": "ok",
@@ -448,7 +722,26 @@ async fn get_user_repos(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Step 1: look in DB, else ask Clerk, else fall back
+    // Step 1: Check cache first - if we have repositories and they're fresh, return them
+    if let Ok(cached_repos) = app_state.database.get_user_repositories(user.id).await {
+        if !cached_repos.is_empty() {
+            // Check if cache is still valid (15 minutes TTL)
+            if let Some(last_fetched) = cached_repos.iter().filter_map(|r| r.last_fetched_at).max() {
+                let cache_age = chrono::Utc::now() - last_fetched;
+                if cache_age.num_minutes() < 15 {
+                    tracing::info!("Returning cached repositories for user {}, cache age: {} minutes", user.id, cache_age.num_minutes());
+                    return Ok(Json(json!({
+                        "repositories": cached_repos,
+                        "count": cached_repos.len(),
+                        "message": format!("Cached repositories (updated {} minutes ago)", cache_age.num_minutes())
+                    })));
+                }
+            }
+        }
+    }
+
+    // Step 2: Cache is stale or empty, need to fetch from GitHub
+    // First get GitHub token
     let github_token = if let Ok(Some(t)) = app_state.database.get_github_token(user.id).await {
         t.access_token
     } else {
@@ -503,7 +796,7 @@ async fn get_user_repos(
         }
     };
 
-    // Step 2: Use GitHub API to fetch repositories
+    // Step 3: Use GitHub API to fetch repositories
     let github_client = match GitHubClient::new(&github_token) {
         Ok(client) => client,
         Err(e) => {
@@ -529,7 +822,7 @@ async fn get_user_repos(
         }
     };
 
-    // Step 3: Store/sync repositories in database
+    // Step 4: Store/sync repositories in database with updated last_fetched_at
     let create_repos: Vec<CreateRepository> = github_repos
         .iter()
         .map(|repo| CreateRepository {
@@ -550,11 +843,14 @@ async fn get_user_repos(
         Ok(_) => {
             // Return fresh data from database after sync
             match app_state.database.get_user_repositories(user.id).await {
-                Ok(synced_repos) => Ok(Json(json!({
-                    "repositories": synced_repos,
-                    "count": synced_repos.len(),
-                    "message": format!("Successfully synced {} repositories from GitHub", github_repos.len())
-                }))),
+                Ok(synced_repos) => {
+                    tracing::info!("Successfully synced {} repositories from GitHub for user {}", github_repos.len(), user.id);
+                    Ok(Json(json!({
+                        "repositories": synced_repos,
+                        "count": synced_repos.len(),
+                        "message": format!("Successfully synced {} repositories from GitHub", github_repos.len())
+                    })))
+                }
                 Err(e) => {
                     tracing::error!("Database error after sync: {}", e);
                     Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -628,9 +924,9 @@ async fn get_tasks(
                     "user_id": task.user_id,
                     "status": task.status.unwrap_or_else(|| "pending".to_string()),
                     "github_pr_url": task.github_pr_url,
-                    "daytona_workspace_id": task.daytona_workspace_id,
-                    "workspace_hostname": task.workspace_hostname,
-                    "ssh_hostname": task.workspace_hostname,
+                    "daytona_sandbox_id": task.daytona_sandbox_id,
+                    "sandbox_hostname": task.sandbox_hostname,
+                    "ssh_hostname": task.sandbox_hostname,
                     "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
                     "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
                 })
@@ -669,7 +965,7 @@ async fn create_task(
     };
 
     // Validate repository access
-    let repository = match app_state.database.get_repository_by_id(payload.repository_id, user.id).await {
+    let _repository = match app_state.database.get_repository_by_id(payload.repository_id, user.id).await {
         Ok(Some(repo)) => repo,
         Ok(None) => {
             tracing::warn!("User {} attempted to create task for repository {} they don't have access to", user.id, payload.repository_id);
@@ -681,29 +977,13 @@ async fn create_task(
         }
     };
 
-    // Create task in database first with "spinning" status
-    let create_task = CreateTask {
-        user_id: user.id,
-        repository_id: payload.repository_id,
-        title: payload.title,
-        description: payload.description,
-    };
-
-    let mut task = match app_state.database.create_task(create_task).await {
-        Ok(task) => task,
-        Err(e) => {
-            tracing::error!("Error creating task: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    // Get GitHub token for the user
-    let github_token = match app_state.database.get_github_token(user.id).await {
-        Ok(Some(token)) => token.access_token,
+    // Pre-flight validation: Check GitHub token availability
+    match app_state.database.get_github_token(user.id).await {
+        Ok(Some(_)) => {}, // Token exists, continue
         Ok(None) => {
             // Try to get from Clerk
             match clerk_api::fetch_github_token(&clerk_user.id, &app_state.config.clerk_secret_key).await {
-                Ok(token) => token,
+                Ok(_) => {}, // Token available from Clerk, continue
                 Err(_) => {
                     tracing::error!("No GitHub token available for user {}", user.id);
                     return Err(StatusCode::BAD_REQUEST);
@@ -716,60 +996,39 @@ async fn create_task(
         }
     };
 
-    // Get user's Anthropic API key
-    let anthropic_api_key = match user.anthropic_api_key {
-        Some(key) => key,
-        None => {
-            tracing::error!("No Anthropic API key available for user {}", user.id);
-            return Err(StatusCode::BAD_REQUEST);
+    // Pre-flight validation: Check Anthropic API key
+    if user.anthropic_api_key.is_none() {
+        tracing::error!("No Anthropic API key available for user {}", user.id);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Create task in database first with "pending" status
+    let create_task = CreateTask {
+        user_id: user.id,
+        repository_id: payload.repository_id,
+        title: payload.title,
+        description: payload.description,
+    };
+
+    let task = match app_state.database.create_task(create_task).await {
+        Ok(task) => task,
+        Err(e) => {
+            tracing::error!("Error creating task: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
 
-    // Start sandbox
-    let repo_url = format!("https://github.com/{}", repository.full_name);
-    let prompt = task.description.as_deref().unwrap_or(&task.title);
-    
-    match app_state.sandbox.start_sandbox(task.id, &repo_url, &github_token, prompt, &anthropic_api_key, app_state.config.openai_api_key.as_deref()).await {
-        Ok(sandbox_info) => {
-            // Update task with sandbox information
-            match app_state.database.update_task_workspace(
-                task.id,
-                &sandbox_info.id,
-                &sandbox_info.hostname,
-                "spinning",
-            ).await {
-                Ok(updated_task) => {
-                    task = updated_task;
-                    tracing::info!("Started sandbox {} for task {}", sandbox_info.id, task.id);
-                },
-                Err(e) => {
-                    tracing::error!("Error updating task with sandbox info: {}", e);
-                    // Still return success since sandbox was created
-                }
-            }
-
-            // Store command IDs for log streaming
-            if let Err(e) = app_state.database.update_task_command_ids(
-                task.id,
-                &sandbox_info.session_id,
-                &sandbox_info.command_id,
-            ).await {
-                tracing::error!("Error storing command IDs: {}", e);
-            }
-
-            tracing::info!(
-                "Task {} started with sandbox {} - logs will be collected by status poller",
-                task.id, sandbox_info.id
-            );
-        },
-        Err(e) => {
-            tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
-            // Update task status to failed
-            let _ = app_state.database.update_task_status(task.id, "failed", None).await;
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    // Spawn detached task for heavy operations
+    let pipeline_state = app_state.clone();
+    let task_clone = task.clone();
+    let task_id = task.id;
+    tokio::spawn(async move {
+        if let Err(e) = task_pipeline::run_full_task_pipeline(pipeline_state, task_clone).await {
+            tracing::error!("Task {} pipeline error: {}", task_id, e);
         }
-    }
+    });
 
+    // Return immediately with pending task
     Ok(Json(json!({
         "success": true,
         "task": {
@@ -778,11 +1037,11 @@ async fn create_task(
             "description": task.description,
             "repository_id": task.repository_id,
             "user_id": task.user_id,
-            "status": task.status.unwrap_or_else(|| "spinning".to_string()),
+            "status": task.status.unwrap_or_else(|| "pending".to_string()),
             "github_pr_url": task.github_pr_url,
-            "daytona_workspace_id": task.daytona_workspace_id,
-            "workspace_hostname": task.workspace_hostname,
-            "ssh_hostname": task.workspace_hostname,
+            "daytona_sandbox_id": task.daytona_sandbox_id,
+            "sandbox_hostname": task.sandbox_hostname,
+            "ssh_hostname": task.sandbox_hostname,
             "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
             "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
         }

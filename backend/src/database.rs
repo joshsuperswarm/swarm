@@ -39,6 +39,18 @@ impl Database {
         Ok(user)
     }
 
+    pub async fn get_user_by_id(&self, user_id: i32) -> AppResult<Option<User>> {
+        let user = sqlx::query_as!(
+            User,
+            "SELECT * FROM users WHERE id = $1",
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
     pub async fn update_user_github_info(
         &self,
         user_id: i32,
@@ -121,6 +133,7 @@ impl Database {
                 is_private: row.is_private,
                 task_count: row.task_count.unwrap_or(0),
                 created_at: row.created_at,
+                last_fetched_at: row.last_fetched_at,
             })
             .collect();
 
@@ -225,7 +238,7 @@ impl Database {
         Ok(task)
     }
 
-    pub async fn update_task_workspace(
+    pub async fn update_task_sandbox(
         &self,
         task_id: i32,
         sandbox_id: &str,
@@ -234,7 +247,7 @@ impl Database {
     ) -> AppResult<Task> {
         let task = sqlx::query_file_as!(
             Task,
-            "sql/update_task_workspace.sql",
+            "sql/update_task_sandbox.sql",
             task_id,
             sandbox_id,
             hostname,
