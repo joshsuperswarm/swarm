@@ -39,7 +39,7 @@ export function DataTable<TData, TValue>({
   onTaskClick,
   onCreateTask,
 }: DataTableProps<TData, TValue>) {
-  console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
+  // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -49,12 +49,24 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([])
 
   React.useEffect(() => {
-    console.log('🔄 DataTable mounted')
+    // console.log('🔄 DataTable mounted')
     return () => {
-      console.log('🔄 DataTable unmounted!')
+      // console.log('🔄 DataTable unmounted!')
     }
   }, [])
 
+  // Track if this is the first render
+  const isFirstRender = React.useRef(true)
+  
+  // Log when table instance is created
+  React.useEffect(() => {
+    if (isFirstRender.current) {
+      console.log('🔄 Creating Table Instance... (should only happen once)')
+      isFirstRender.current = false
+    }
+  }, [])
+
+  // Create table with initial configuration
   const table = useReactTable({
     data,
     columns,
@@ -73,7 +85,7 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    debugTable: true,
+    debugTable: false, // Turn off TanStack debug logs
   })
 
   return (
