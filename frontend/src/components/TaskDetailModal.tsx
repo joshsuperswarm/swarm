@@ -17,10 +17,14 @@ interface TaskDetailModalProps {
 }
 
 export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps) {
+  console.log('🔄 TaskDetailModal render - task:', task?.id, 'isOpen:', isOpen)
+  
   if (!task) return null
 
   const status = statuses.find((s) => s.value === task.status)
   const showLogs = task.status === 'spinning' || task.status === 'running'
+  
+  console.log('🔄 TaskDetailModal showLogs:', showLogs, 'status:', task.status)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

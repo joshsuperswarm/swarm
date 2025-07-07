@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ApiService } from "@/services/api";
 
 interface TaskLog {
@@ -12,7 +12,8 @@ interface TaskLogViewerProps {
   taskId: number;
 }
 
-export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
+const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
+  console.log('🔄 TaskLogViewer render - taskId:', taskId)
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,8 @@ export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogIdRef = useRef<number | null>(null);
 
-  const fetchLogs = async (since?: number) => {
+  const fetchLogs = useCallback(async (since?: number) => {
+    console.log('🔄 TaskLogViewer fetchLogs called - taskId:', taskId, 'since:', since)
     if (since) {
       setIsPolling(true);
     }
@@ -32,8 +34,12 @@ export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       const newLogs = data.logs || [];
 
       if (since) {
-        // Append new logs
-        setLogs(prevLogs => [...prevLogs, ...newLogs]);
+        // Append new logs, but deduplicate based on log ID
+        setLogs(prevLogs => {
+          const existingIds = new Set(prevLogs.map(log => log.id));
+          const uniqueNewLogs = newLogs.filter(log => !existingIds.has(log.id));
+          return [...prevLogs, ...uniqueNewLogs];
+        });
       } else {
         // Initial load - replace all logs
         setLogs(newLogs);
@@ -42,10 +48,13 @@ export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       // Update last log ID for next poll
       if (newLogs.length > 0) {
         lastLogIdRef.current = newLogs[newLogs.length - 1].id;
+      } else if (!since) {
+        // If initial load has no logs, set lastLogIdRef to 0 so polling starts from the beginning
+        lastLogIdRef.current = 0;
       }
 
-      // Check for task completion in logs (both new logs and all logs on initial load)
-      const logsToCheck = since ? newLogs : [...(logs || []), ...newLogs];
+      // Check for task completion in logs (just check new logs for completion)
+      const logsToCheck = newLogs;
       const completionFound = logsToCheck.some(log => {
         try {
           const jsonObj = JSON.parse(log.log_line);
@@ -55,20 +64,26 @@ export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
         }
       });
 
+      // Batch all remaining state updates
       if (completionFound && !taskCompleted) {
         setTaskCompleted(true);
+        setError(null);
+        setIsLoading(false);
+        setIsPolling(false);
+        
         // Stop polling after a delay to catch any final logs
         setTimeout(() => {
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
           }
-        }, 10000); // Stop polling after 10 seconds
+        }, 10000);
+      } else {
+        // Batch state updates when not completed
+        setError(null);
+        setIsLoading(false);
+        setIsPolling(false);
       }
-
-      setError(null);
-      setIsLoading(false);
-      setIsPolling(false);
       
       // Auto-scroll to bottom when new logs arrive
       if (newLogs.length > 0) {
@@ -80,19 +95,21 @@ export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       }
     } catch (err) {
       console.error("Error fetching logs:", err);
+      // Batch error state updates
       setError(err instanceof Error ? err.message : "Failed to load logs");
       setIsLoading(false);
       setIsPolling(false);
     }
-  };
+  }, [taskId, taskCompleted]);
 
   useEffect(() => {
     // Initial fetch
     fetchLogs().then(() => {
-      // Only start polling if task is not completed
+      // Only start polling if task is not completed and we have logs to track
       if (!taskCompleted) {
         intervalRef.current = setInterval(() => {
-          if (lastLogIdRef.current && !taskCompleted) {
+          // Only poll if we have a reference point (lastLogIdRef.current)
+          if (lastLogIdRef.current !== null && !taskCompleted) {
             fetchLogs(lastLogIdRef.current);
           }
         }, 3000);
@@ -196,3 +213,6 @@ export const TaskLogViewer: React.FC<TaskLogViewerProps> = ({ taskId }) => {
     </div>
   );
 };
+
+// Memoize component to prevent unnecessary re-renders when parent updates
+export const TaskLogViewer = React.memo(TaskLogViewerComponent);

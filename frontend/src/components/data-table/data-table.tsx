@@ -39,6 +39,7 @@ export function DataTable<TData, TValue>({
   onTaskClick,
   onCreateTask,
 }: DataTableProps<TData, TValue>) {
+  console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -46,6 +47,13 @@ export function DataTable<TData, TValue>({
     []
   )
   const [sorting, setSorting] = React.useState<SortingState>([])
+
+  React.useEffect(() => {
+    console.log('🔄 DataTable mounted')
+    return () => {
+      console.log('🔄 DataTable unmounted!')
+    }
+  }, [])
 
   const table = useReactTable({
     data,
