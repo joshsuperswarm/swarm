@@ -878,9 +878,19 @@ async fn get_task_logs(
         }
     };
 
+    // Convert JSON logs back to string format for API response
+    let string_logs: Vec<_> = logs.into_iter().map(|log| {
+        json!({
+            "id": log.id,
+            "task_id": log.task_id,
+            "log_line": log.log_line.to_string(),
+            "created_at": log.created_at
+        })
+    }).collect();
+
     Ok(Json(json!({
-        "logs": logs,
+        "logs": string_logs,
         "task_id": task_id,
-        "count": logs.len()
+        "count": string_logs.len()
     })))
 }

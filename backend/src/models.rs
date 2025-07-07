@@ -122,12 +122,12 @@ pub struct RepositoryWithTasks {
 pub struct TaskLog {
     pub id: i64,
     pub task_id: i32,
-    pub log_line: String,
+    pub log_line: serde_json::Value,
     pub created_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTaskLog {
     pub task_id: i32,
-    pub log_line: String,
+    pub log_line: serde_json::Value,
 }

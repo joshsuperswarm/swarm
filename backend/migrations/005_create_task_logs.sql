@@ -2,7 +2,7 @@
 CREATE TABLE task_logs (
     id               BIGSERIAL PRIMARY KEY,
     task_id          INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-    log_line         TEXT            NOT NULL,
+    log_line         JSONB           NOT NULL,
     created_at       TIMESTAMPTZ     DEFAULT now()
 );
 

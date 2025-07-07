@@ -269,10 +269,24 @@ impl Database {
     pub async fn insert_task_log(&self, task_id: i32, log_line: &str) -> AppResult<()> {
         tracing::debug!("→ Inserting log line for task {} (length: {} chars)", task_id, log_line.len());
         
+        // Parse the log line as JSON
+        let json_value: serde_json::Value = match serde_json::from_str(log_line) {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!("⚠ Failed to parse log line as JSON for task {}: {}", task_id, e);
+                tracing::warn!("   Line: {}", if log_line.len() > 200 { 
+                    format!("{}...", &log_line[..200]) 
+                } else { 
+                    log_line.to_string() 
+                });
+                return Ok(()); // Skip non-JSON lines
+            }
+        };
+        
         match sqlx::query!(
-            "INSERT INTO task_logs (task_id, log_line) VALUES ($1, $2)",
+            "INSERT INTO task_logs (task_id, log_line) VALUES ($1, $2::jsonb)",
             task_id,
-            log_line
+            json_value
         )
         .execute(&self.pool)
         .await {
@@ -297,7 +311,7 @@ impl Database {
     pub async fn get_task_logs(&self, task_id: i32) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
-            SELECT id, task_id, log_line, created_at
+            SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
             FROM task_logs
             WHERE task_id = $1
             ORDER BY id ASC
@@ -324,7 +338,7 @@ impl Database {
     ) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
-            SELECT id, task_id, log_line, created_at
+            SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
             FROM task_logs
             WHERE task_id = $1 AND ($2::BIGINT IS NULL OR id > $2)
             ORDER BY id ASC
