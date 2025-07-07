@@ -68,6 +68,17 @@ pub trait SandboxProvider: Send + Sync {
         session_id: &str,
         command_id: &str,
     ) -> SandboxResult<Option<i32>>;
+
+    /// Push changes to GitHub branch after task completion  
+    async fn push_changes(
+        &self,
+        sandbox_id: &str,
+        repo_path: &str,
+        branch: &str,
+        task_id: i32,
+        author_name: &str,
+        author_email: &str,
+    ) -> SandboxResult<()>;
 }
 
 pub type DynSandbox = Arc<dyn SandboxProvider + Send + Sync>;

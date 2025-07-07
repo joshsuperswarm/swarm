@@ -1035,6 +1035,18 @@ impl SandboxProvider for DaytonaProvider {
     ) -> SandboxResult<Option<i32>> {
         self.get_command_exit_code(sandbox_id, session_id, command_id).await
     }
+
+    async fn push_changes(
+        &self,
+        sandbox_id: &str,
+        repo_path: &str,
+        branch: &str,
+        task_id: i32,
+        author_name: &str,
+        author_email: &str,
+    ) -> SandboxResult<()> {
+        self.push_changes(sandbox_id, repo_path, branch, task_id, author_name, author_email).await
+    }
 }
 
 #[cfg(test)]

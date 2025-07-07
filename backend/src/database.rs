@@ -224,6 +224,18 @@ impl Database {
         Ok(tasks)
     }
 
+    pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
+        let task = sqlx::query_as!(
+            Task,
+            "SELECT * FROM tasks WHERE id = $1",
+            task_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(task)
+    }
+
     pub async fn update_task_status(
         &self,
         task_id: i32,
