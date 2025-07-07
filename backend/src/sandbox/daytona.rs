@@ -437,6 +437,97 @@ impl DaytonaProvider {
         Ok(())
     }
 
+    /// Push changes to GitHub branch after Claude Code execution
+    pub async fn push_changes(
+        &self,
+        sandbox_id: &str,
+        repo_path: &str,
+        branch: &str,
+        task_id: i32,
+        author_name: &str,
+        author_email: &str,
+    ) -> SandboxResult<()> {
+        #[derive(Serialize)]
+        struct ExecBody {
+            command: String,
+            cwd: String,
+            #[serde(rename = "runAsync")]
+            run_async: bool,
+        }
+
+        // Create process session
+        let session_id = Uuid::new_v4().to_string();
+        let response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session",
+                self.base_url, sandbox_id
+            )))
+            .json(&serde_json::json!({
+                "SessionId": session_id.clone()
+            }))
+            .send()
+            .await?;
+
+        let response_text = response.text().await?;
+
+        // If response is empty, use the session ID we generated
+        let returned_session_id = if response_text.is_empty() {
+            session_id
+        } else {
+            let sess: serde_json::Value = serde_json::from_str(&response_text)?;
+            sess["id"]
+                .as_str()
+                .or_else(|| sess["SessionId"].as_str())
+                .or_else(|| sess["sessionId"].as_str())
+                .unwrap_or(&session_id)
+                .to_owned()
+        };
+
+        // Push script as specified in the plan
+        let push_script = format!(
+            r#"bash -lc '
+set -e
+branch="$SWARM_BRANCH"
+git checkout -B "$branch"
+git add -A
+if git diff --cached --quiet; then exit 0; fi
+git commit --author "$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" \
+           -m "Swarm: fixes for task $SWARM_TASK_ID"
+git push -u origin "$branch"
+'"#
+        );
+
+        info!("Pushing changes to branch {} in sandbox {}", branch, sandbox_id);
+
+        let response = self.add_auth_headers(self.client.post(format!(
+            "{}/toolbox/{}/toolbox/process/session/{}/exec",
+            self.base_url, sandbox_id, returned_session_id
+        )))
+        .json(&ExecBody {
+            command: push_script,
+            cwd: repo_path.to_string(),
+            run_async: false, // Wait for push to complete
+        })
+        .send()
+        .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            error!(
+                "Failed to push changes in sandbox {}: {} - {}",
+                sandbox_id, status, error_text
+            );
+            return Err(SandboxError::SandboxOperationError(format!(
+                "Push failed: {} - {}",
+                status, error_text
+            )));
+        }
+
+        info!("Successfully pushed changes to branch {} in sandbox {}", branch, sandbox_id);
+        Ok(())
+    }
+
     /// Execute Claude Code with the given task prompt
     pub async fn exec_claude_code(
         &self,

@@ -17,6 +17,7 @@ mod config;
 mod database;
 mod error;
 mod github;
+mod github_pr;
 mod models;
 mod sandbox;
 mod task_pipeline;
