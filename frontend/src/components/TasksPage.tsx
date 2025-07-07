@@ -143,7 +143,7 @@ export function TasksPage() {
     setIsCreateTaskModalOpen(false)
   }
 
-  const handleTaskCreated = async (taskData: { title: string; description: string; repositoryId: number | null; priority: string }) => {
+  const handleTaskCreated = async (taskData: { title: string; description: string; repositoryId: number | null }) => {
     try {
       if (!taskData.repositoryId) {
         console.error('Repository ID is required');

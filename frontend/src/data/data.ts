@@ -3,7 +3,6 @@ import {
   Bug, 
   FileText, 
   CircleDot, 
-  Flag, 
   Timer, 
   CheckCircle, 
   Circle, 
@@ -32,9 +31,3 @@ export const statuses: Option[] = [
   { label: "PR Opened", value: "pr_opened", icon: CircleDot },
 ];
 
-export const priorities: Option[] = [
-  { label: "Low", value: "low", icon: Flag },
-  { label: "Medium", value: "medium", icon: Flag },
-  { label: "High", value: "high", icon: Flag },
-  { label: "Urgent", value: "urgent", icon: Flag },
-];

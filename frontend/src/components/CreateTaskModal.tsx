@@ -8,7 +8,6 @@ interface CreateTaskData {
   title: string;
   description: string;
   repositoryId: number | null;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 interface CreateTaskModalProps {
@@ -25,8 +24,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
-    repositoryId: null,
-    priority: 'medium'
+    repositoryId: null
   });
   
   const [repositories, setRepositories] = useState<RepositoryWithTasks[]>([]);
@@ -79,8 +77,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     setFormData({
       title: '',
       description: '',
-      repositoryId: null,
-      priority: 'medium'
+      repositoryId: null
     });
 
     setLoading(false);
@@ -172,22 +169,6 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             />
           </div>
 
-          <div>
-            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-              Priority
-            </label>
-            <select
-              id="priority"
-              value={formData.priority}
-              onChange={handleChange('priority')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
 
           <div className="flex gap-3 pt-4">
             <button

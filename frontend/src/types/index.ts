@@ -25,22 +25,6 @@ export const taskSchema = z.object({
 
 export type Task = z.infer<typeof taskSchema>;
 
-// Legacy task interface for backward compatibility
-export interface LegacyTask {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'todo' | 'in_progress' | 'done' | 'cancelled';
-  priority: 'urgent' | 'high' | 'medium' | 'low';
-  type: 'feature' | 'bug' | 'improvement' | 'task';
-  assignee?: string;
-  labels: string[];
-  createdAt: string;
-  updatedAt: string;
-  dueDate?: string;
-  estimatedHours?: number;
-  completedAt?: string;
-}
 
 export interface Message {
   id: string;

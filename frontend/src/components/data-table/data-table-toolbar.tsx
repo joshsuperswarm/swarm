@@ -39,14 +39,6 @@ export function DataTableToolbar<TData>({
             options={statuses}
           />
         )}
-        {/* Priority column doesn't exist in Task type - commenting out to prevent errors
-        {table.getColumn("priority") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("priority")}
-            title="Priority"
-            options={priorities}
-          />
-        )} */}
         {isFiltered && (
           <Button
             variant="ghost"
