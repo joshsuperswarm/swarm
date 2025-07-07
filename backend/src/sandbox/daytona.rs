@@ -257,6 +257,26 @@ impl DaytonaProvider {
         Ok(repo_name)
     }
 
+    fn extract_repo_full_name(repo_url: &str) -> SandboxResult<String> {
+        let parsed_url = Url::parse(repo_url).map_err(|e| {
+            SandboxError::SandboxOperationError(format!("Invalid repository URL: {}", e))
+        })?;
+
+        let path = parsed_url.path().trim_start_matches('/');
+        let repo_full_name = path
+            .strip_suffix(".git")
+            .unwrap_or(path)
+            .to_string();
+
+        if repo_full_name.is_empty() {
+            return Err(SandboxError::SandboxOperationError(
+                "Repository full name is empty".to_string(),
+            ));
+        }
+
+        Ok(repo_full_name)
+    }
+
     fn map_daytona_status(state: &str) -> SandboxStatus {
         match state.to_lowercase().as_str() {
             "starting" | "pending" => SandboxStatus::Starting,
@@ -328,6 +348,92 @@ impl DaytonaProvider {
             "Successfully installed Claude Code in sandbox {}",
             sandbox_id
         );
+        Ok(())
+    }
+
+    /// Configure Git with author information and authenticated remote URL
+    pub async fn configure_git(
+        &self,
+        sandbox_id: &str,
+        repo_path: &str,
+        github_token: &str,
+        author_name: &str,
+        author_email: &str,
+        repo_full_name: &str,
+    ) -> SandboxResult<()> {
+        #[derive(Serialize)]
+        struct ExecBody {
+            command: String,
+            cwd: String,
+            #[serde(rename = "runAsync")]
+            run_async: bool,
+        }
+
+        // Create process session
+        let session_id = Uuid::new_v4().to_string();
+        let response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session",
+                self.base_url, sandbox_id
+            )))
+            .json(&serde_json::json!({
+                "SessionId": session_id.clone()
+            }))
+            .send()
+            .await?;
+
+        let response_text = response.text().await?;
+
+        // If response is empty, use the session ID we generated
+        let returned_session_id = if response_text.is_empty() {
+            session_id
+        } else {
+            let sess: serde_json::Value = serde_json::from_str(&response_text)?;
+            sess["id"]
+                .as_str()
+                .or_else(|| sess["SessionId"].as_str())
+                .or_else(|| sess["sessionId"].as_str())
+                .unwrap_or(&session_id)
+                .to_owned()
+        };
+        
+        // Configure git user
+        let git_config_commands = vec![
+            format!("git config --global user.name '{}'", author_name),
+            format!("git config --global user.email '{}'", author_email),
+            format!("git remote set-url origin 'https://{}@github.com/{}'", github_token, repo_full_name),
+        ];
+
+        for command in git_config_commands {
+            info!("Configuring git in sandbox {}: {}", sandbox_id, command.replace(github_token, "***"));
+
+            let response = self.add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session/{}/exec",
+                self.base_url, sandbox_id, returned_session_id
+            )))
+            .json(&ExecBody {
+                command,
+                cwd: repo_path.to_string(),
+                run_async: false, // Wait for git config to complete
+            })
+            .send()
+            .await?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let error_text = response.text().await.unwrap_or_default();
+                error!(
+                    "Failed to configure git in sandbox {}: {} - {}",
+                    sandbox_id, status, error_text
+                );
+                return Err(SandboxError::SandboxOperationError(format!(
+                    "Git configuration failed: {} - {}",
+                    status, error_text
+                )));
+            }
+        }
+
+        info!("Successfully configured git in sandbox {}", sandbox_id);
         Ok(())
     }
 
@@ -739,9 +845,13 @@ impl SandboxProvider for DaytonaProvider {
         // Install Claude Code
         self.install_claude_code(&sandbox_id).await?;
 
-        // Launch Claude Code with the task
+        // Configure Git with author information and authenticated remote
         let repo_name = Self::extract_repo_name(repo_url)?;
         let repo_path = format!("/home/daytona/{}", repo_name);
+        let repo_full_name = Self::extract_repo_full_name(repo_url)?;
+        self.configure_git(&sandbox_id, &repo_path, github_token, author_name, author_email, &repo_full_name).await?;
+
+        // Launch Claude Code with the task
         let (session_id, command_id) = self
             .exec_claude_code(&sandbox_id, &repo_path, prompt, task_id)
             .await?;
