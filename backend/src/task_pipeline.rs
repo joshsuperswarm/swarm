@@ -1,6 +1,7 @@
 use crate::models::Task;
 use crate::AppState;
 use anyhow::Result;
+use chrono::Utc;
 use tracing::instrument;
 
 /// Runs the full task pipeline in a detached tokio task
@@ -71,6 +72,23 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
             return Err(anyhow::anyhow!("No Anthropic API key available"));
         }
     };
+
+    // Generate branch name and author info
+    let branch = format!("swarm/task-{}-{}", task.id, Utc::now().format("%Y%m%d%H%M"));
+    let author_name = user.github_username.clone().unwrap_or("swarm-user".into());
+    let author_email = format!("{}@users.noreply.github.com", author_name);
+    
+    // Update task with branch name
+    match app_state.database.update_task_branch(task.id, &branch).await {
+        Ok(_) => {
+            tracing::info!("Updated task {} with branch {}", task.id, branch);
+        }
+        Err(e) => {
+            tracing::error!("Error updating task {} with branch {}: {}", task.id, branch, e);
+            let _ = app_state.database.update_task_status(task.id, "failed", None).await;
+            return Err(anyhow::anyhow!("Error updating task branch: {}", e));
+        }
+    }
 
     // Start sandbox
     let repo_url = format!("https://github.com/{}", repository.full_name);

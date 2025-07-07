@@ -278,6 +278,23 @@ impl Database {
         Ok(task)
     }
 
+    pub async fn update_task_branch(
+        &self,
+        task_id: i32,
+        github_branch: &str,
+    ) -> AppResult<Task> {
+        let task = sqlx::query_file_as!(
+            Task,
+            "sql/update_task_branch.sql",
+            task_id,
+            github_branch
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(task)
+    }
+
     // Task log operations
     pub async fn insert_task_log(&self, task_id: i32, log_line: &str) -> AppResult<()> {
         tracing::debug!("→ Inserting log line for task {} (length: {} chars)", task_id, log_line.len());
