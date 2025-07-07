@@ -25,6 +25,7 @@ pub struct SandboxInfo {
     pub status: SandboxStatus,
     pub session_id: String,
     pub command_id: String,
+    pub branch: String,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +47,9 @@ pub trait SandboxProvider: Send + Sync {
         prompt: &str,
         anthropic_api_key: &str,
         openai_api_key: Option<&str>,
+        branch: &str,
+        author_name: &str,
+        author_email: &str,
     ) -> SandboxResult<SandboxInfo>;
 
     /// Get the current status of a sandbox

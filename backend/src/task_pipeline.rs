@@ -101,6 +101,9 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
         prompt,
         &anthropic_api_key,
         app_state.config.openai_api_key.as_deref(),
+        &branch,
+        &author_name,
+        &author_email,
     ).await {
         Ok(info) => {
             tracing::info!("Started sandbox {} for task {}", info.id, task.id);

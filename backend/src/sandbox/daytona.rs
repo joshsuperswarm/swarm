@@ -663,6 +663,9 @@ impl SandboxProvider for DaytonaProvider {
         prompt: &str,
         anthropic_api_key: &str,
         openai_api_key: Option<&str>,
+        branch: &str,
+        author_name: &str,
+        author_email: &str,
     ) -> SandboxResult<SandboxInfo> {
         info!(
             "Starting sandbox for task {}, repository: {}",
@@ -671,7 +674,11 @@ impl SandboxProvider for DaytonaProvider {
 
         let mut env_vars = json!({
             "GITHUB_TOKEN": github_token,
-            "ANTHROPIC_API_KEY": anthropic_api_key
+            "ANTHROPIC_API_KEY": anthropic_api_key,
+            "SWARM_BRANCH": branch,
+            "SWARM_TASK_ID": task_id,
+            "GIT_AUTHOR_NAME": author_name,
+            "GIT_AUTHOR_EMAIL": author_email
         });
 
         // Add OPENAI_API_KEY if provided
@@ -757,6 +764,7 @@ impl SandboxProvider for DaytonaProvider {
             status,
             session_id,
             command_id,
+            branch: branch.to_string(),
         })
     }
 
