@@ -42,7 +42,6 @@ export function DataTable<TData, TValue>({
   onCreateTask,
 }: DataTableProps<TData, TValue>) {
   // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
-  const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -76,11 +75,8 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnVisibility,
-      rowSelection,
       columnFilters,
     },
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -131,7 +127,6 @@ export function DataTable<TData, TValue>({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
                     className="cursor-pointer"
                     onClick={() => onTaskClick?.(row.original)}
                   >
