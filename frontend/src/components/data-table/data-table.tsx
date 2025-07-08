@@ -94,7 +94,7 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-1">
       <DataTableToolbar table={table} onCreateTask={onCreateTask} />
-      <div className="rounded-md border overflow-hidden h-[400px] flex flex-col">
+      <div className="rounded-md border overflow-hidden flex flex-col">
         <div className="overflow-auto flex-1">
           <Table>
             <TableHeader className="sticky top-0 bg-white z-10">
