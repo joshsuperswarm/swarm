@@ -41,7 +41,7 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           {/* Task Properties */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
             {status && (
@@ -86,7 +86,7 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
 
           {/* Live Logs */}
           {showLogs && (
-            <div className="space-y-3">
+            <div className="space-y-3 min-w-0">
               <TaskLogViewer taskId={task.id} />
             </div>
           )}

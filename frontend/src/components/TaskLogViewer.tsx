@@ -204,35 +204,37 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       </div>
       
       <div 
-        className="h-96 w-full rounded-lg border bg-gray-900 p-4 overflow-y-auto" 
+        className="h-96 w-full rounded-lg border bg-gray-900 p-4 overflow-y-auto overflow-x-hidden" 
         ref={scrollRef}
       >
-        <pre className="text-xs text-gray-100">
-          {logs.length === 0 && !isLoading ? (
-            <span className="text-gray-500">No logs yet...</span>
-          ) : isLoading && logs.length === 0 ? (
-            <span className="text-gray-500">Loading logs...</span>
-          ) : (
-            logs.map((log) => {
-              try {
-                // Try to parse as JSON for pretty printing
-                const jsonObj = JSON.parse(log.log_line);
-                return (
-                  <code key={log.id} className="block mb-2">
-                    {JSON.stringify(jsonObj, null, 2)}
-                  </code>
-                );
-              } catch {
-                // If not JSON, display as plain text
-                return (
-                  <code key={log.id} className="block mb-1">
-                    {log.log_line}
-                  </code>
-                );
-              }
-            })
-          )}
-        </pre>
+        <div className="w-full overflow-x-auto">
+          <pre className="w-full text-xs text-gray-100">
+            {logs.length === 0 && !isLoading ? (
+              <span className="text-gray-500">No logs yet...</span>
+            ) : isLoading && logs.length === 0 ? (
+              <span className="text-gray-500">Loading logs...</span>
+            ) : (
+              logs.map((log) => {
+                try {
+                  // Try to parse as JSON for pretty printing
+                  const jsonObj = JSON.parse(log.log_line);
+                  return (
+                    <code key={log.id} className="block mb-2 whitespace-pre">
+                      {JSON.stringify(jsonObj, null, 2)}
+                    </code>
+                  );
+                } catch {
+                  // If not JSON, display as plain text
+                  return (
+                    <code key={log.id} className="block mb-1 whitespace-pre">
+                      {log.log_line}
+                    </code>
+                  );
+                }
+              })
+            )}
+          </pre>
+        </div>
       </div>
     </div>
   );
