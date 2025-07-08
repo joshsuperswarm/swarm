@@ -693,8 +693,57 @@ async fn handle_task_success(
     let repo_name = repository.name.clone();
     let repo_path = format!("/home/daytona/{}", repo_name);
 
+    // Validate that AI-generated artifacts are present
+    let commit_title = match task.commit_title.as_ref() {
+        Some(title) if !title.trim().is_empty() => title,
+        _ => {
+            tracing::error!("Task {} missing AI-generated commit title", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let commit_body = match task.commit_body.as_ref() {
+        Some(body) if !body.trim().is_empty() => body,
+        _ => {
+            tracing::error!("Task {} missing AI-generated commit body", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let pr_title = match task.pr_title.as_ref() {
+        Some(title) if !title.trim().is_empty() => title,
+        _ => {
+            tracing::error!("Task {} missing AI-generated PR title", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let pr_body = match task.pr_body.as_ref() {
+        Some(body) if !body.trim().is_empty() => body,
+        _ => {
+            tracing::error!("Task {} missing AI-generated PR body", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
     // Push changes to GitHub
-    tracing::info!("Pushing changes for task {}", task_id);
+    tracing::info!("Pushing changes for task {} with AI-generated commit message", task_id);
     if let Err(e) = app_state
         .sandbox
         .push_changes(
@@ -704,6 +753,8 @@ async fn handle_task_success(
             task_id,
             &author_name,
             &author_email,
+            commit_title,
+            commit_body,
         )
         .await
     {
@@ -743,7 +794,7 @@ async fn handle_task_success(
     };
 
     let pr_url = match pr_client
-        .create_or_update_pr(&repository.owner, &repository.name, branch, &task)
+        .create_or_update_pr(&repository.owner, &repository.name, branch, &task, pr_title, pr_body)
         .await
     {
         Ok(url) => {
@@ -1015,7 +1066,13 @@ mod tests {
             _task_id: i32,
             _author_name: &str,
             _author_email: &str,
+            _commit_title: &str,
+            _commit_body: &str,
         ) -> crate::sandbox::SandboxResult<()> {
+            Ok(())
+        }
+
+        async fn delete_sandbox(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<()> {
             Ok(())
         }
     }
@@ -1091,7 +1148,13 @@ mod tests {
             _task_id: i32,
             _author_name: &str,
             _author_email: &str,
+            _commit_title: &str,
+            _commit_body: &str,
         ) -> crate::sandbox::SandboxResult<()> {
+            Ok(())
+        }
+
+        async fn delete_sandbox(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<()> {
             Ok(())
         }
     }

@@ -22,6 +22,8 @@ impl GitHubPRClient {
         repo: &str,
         branch: &str,
         task: &Task,
+        pr_title: &str,
+        pr_body: &str,
     ) -> Result<String> {
         tracing::info!(
             "Starting PR creation for task {} in {}/{} on branch {}",
@@ -31,12 +33,8 @@ impl GitHubPRClient {
             branch
         );
 
-        let title = format!("Swarm: {}", task.title);
-        let body = task
-            .description
-            .as_deref()
-            .unwrap_or("Automated changes by Swarm AI agent")
-            .to_string();
+        let title = format!("task-{}: {}", task.id, pr_title);
+        let body = pr_body.to_string();
 
         tracing::debug!("PR title: '{}', body length: {} chars", title, body.len());
 
@@ -234,6 +232,10 @@ mod tests {
             sandbox_hostname: None,
             daytona_session_id: None,
             daytona_command_id: None,
+            commit_title: None,
+            commit_body: None,
+            pr_title: None,
+            pr_body: None,
             created_at: None,
             updated_at: None,
         }

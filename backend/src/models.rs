@@ -140,6 +140,10 @@ pub struct Task {
     pub sandbox_hostname: Option<String>,
     pub daytona_session_id: Option<String>,
     pub daytona_command_id: Option<String>,
+    pub commit_title: Option<String>,
+    pub commit_body: Option<String>,
+    pub pr_title: Option<String>,
+    pub pr_body: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }

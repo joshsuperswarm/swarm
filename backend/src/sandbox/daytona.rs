@@ -415,8 +415,7 @@ impl DaytonaProvider {
             let masked_command = command.replace(github_token, &format!("{}***", token_prefix));
             info!(
                 "Configuring git in sandbox {}: {}",
-                sandbox_id,
-                masked_command
+                sandbox_id, masked_command
             );
 
             let response = self
@@ -456,7 +455,8 @@ impl DaytonaProvider {
 
                 if exit_code != 0 {
                     let token_prefix = &github_token[..8.min(github_token.len())];
-                    let masked_command = command.replace(github_token, &format!("{}***", token_prefix));
+                    let masked_command =
+                        command.replace(github_token, &format!("{}***", token_prefix));
                     error!(
                         "Git command failed with exit code {} in sandbox {}: {}",
                         exit_code, sandbox_id, masked_command
@@ -471,7 +471,10 @@ impl DaytonaProvider {
 
         // Verify the remote URL was set correctly - embed cd since cwd is ignored
         let verify_command = format!("bash -c 'cd \"{}\" && pwd && git remote -v'", repo_path);
-        info!("Verifying git remote in sandbox {}: {}", sandbox_id, verify_command);
+        info!(
+            "Verifying git remote in sandbox {}: {}",
+            sandbox_id, verify_command
+        );
 
         let response = self
             .add_auth_headers(self.client.post(format!(
@@ -496,10 +499,17 @@ impl DaytonaProvider {
                     let verification_output = output.trim();
                     // Show first 8 characters of token for verification, mask the rest
                     let token_prefix = &github_token[..8.min(github_token.len())];
-                    let masked_output = verification_output.replace(github_token, &format!("{}***", token_prefix));
-                    info!("Git remote verification in sandbox {}:\n{}", sandbox_id, masked_output);
+                    let masked_output =
+                        verification_output.replace(github_token, &format!("{}***", token_prefix));
+                    info!(
+                        "Git remote verification in sandbox {}:\n{}",
+                        sandbox_id, masked_output
+                    );
                 } else {
-                    warn!("No output found in git remote verification response for sandbox {}", sandbox_id);
+                    warn!(
+                        "No output found in git remote verification response for sandbox {}",
+                        sandbox_id
+                    );
                 }
             }
         } else {
@@ -522,6 +532,8 @@ impl DaytonaProvider {
         _task_id: i32,
         _author_name: &str,
         _author_email: &str,
+        commit_title: &str,
+        commit_body: &str,
     ) -> SandboxResult<()> {
         #[derive(Serialize)]
         struct ExecBody {
@@ -559,6 +571,10 @@ impl DaytonaProvider {
                 .to_owned()
         };
 
+        // Use AI-generated commit title and body (no fallbacks)
+        let final_commit_title = commit_title;
+        let final_commit_body = commit_body;
+
         // Push script with correct git flow: commit first, then create branch, then push
         let push_script = format!(
             r#"bash -c '
@@ -566,35 +582,28 @@ cd "{}" || {{ echo "cd failed"; exit 1; }}
 set -e
 branch="$SWARM_BRANCH"
 
-# Show current directory
-echo "Current directory: $(pwd)"
-ls -la
-
-echo "THIS IS A TEST"
-
 # Stage all changes
 git add -A
 
-echo "ADDED CHANGES"
+# Write full commit message to temporary file
+cat > /tmp/commit_message << "EOF"
+{}
+
+{}
+EOF
 
 # Commit changes to current branch
 git commit --author "$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" \
-           -m "Swarm: fixes for task $SWARM_TASK_ID"
-
-echo "COMMITTED CHANGES"
+           -F /tmp/commit_message
 
 # Create new branch from the commit
 git checkout -B "$branch"
 
-echo "COMMITTED CHANGES"
-
 # Push the branch to origin
 git push -u origin "$branch"
 
-echo "THIS IS A TEST 4"
-
 '"#,
-            repo_path
+            repo_path, final_commit_title, final_commit_body
         );
 
         info!(
@@ -690,7 +699,20 @@ echo "THIS IS A TEST 4"
         };
 
         // 2. Execute Claude Code with the task prompt
-        let claude_prompt = format!("Please work on this task {}: {}.", task_id, prompt);
+        let claude_prompt = format!(
+            "Please work on this task {}: {}.
+
+After completing the task, you MUST output the following markers in this exact format:
+
+COMMIT_MESSAGE_TITLE: Your commit title here
+COMMIT_MESSAGE_BODY: Your detailed commit message body here
+PR_TITLE: Your pull request title here
+PR_BODY: Your detailed pull request description here
+DONE
+
+The system requires these markers to automatically generate commit messages and pull requests. Without them, the task will fail.",
+            task_id, prompt
+        );
 
         // TODO: Remove max turns once I'm confident in the setup
         let cmd = format!(
@@ -825,6 +847,12 @@ echo "THIS IS A TEST 4"
         let mut lines_processed = 0;
         let mut lines_stored = 0;
         let mut json_lines = 0;
+        let mut commit_title: Option<String> = None;
+        let mut commit_body: Option<String> = None;
+        let mut pr_title: Option<String> = None;
+        let mut pr_body: Option<String> = None;
+        let mut current_artifact: Option<String> = None;
+        let mut artifact_lines: Vec<String> = Vec::new();
 
         for (line_num, line_str) in lines.iter().enumerate() {
             let line_str = line_str.trim();
@@ -844,6 +872,165 @@ echo "THIS IS A TEST 4"
             }
 
             if !line_str.is_empty() {
+                // Extract text content from JSON messages for artifact parsing
+                let text_to_parse = if line_str.starts_with('{') {
+                    match serde_json::from_str::<serde_json::Value>(line_str) {
+                        Ok(json_value) => {
+                            // Extract text from message content
+                            json_value
+                                .get("message")
+                                .and_then(|msg| msg.get("content"))
+                                .and_then(|content| content.as_array())
+                                .and_then(|arr| arr.first())
+                                .and_then(|item| item.get("text"))
+                                .and_then(|text| text.as_str())
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| line_str.to_string())
+                        }
+                        Err(_) => line_str.to_string(),
+                    }
+                } else {
+                    line_str.to_string()
+                };
+
+                // Parse artifact markers from extracted text (split by newlines)
+                for text_line in text_to_parse.lines() {
+                    let text_line = text_line.trim();
+                    if text_line.is_empty() {
+                        continue;
+                    }
+
+                    // Check for artifact markers
+                    if text_line.starts_with("COMMIT_MESSAGE_TITLE:") {
+                        info!("Found COMMIT_MESSAGE_TITLE marker in task {}", task_id);
+                        if let Some(ref artifact_type) = current_artifact {
+                            // Complete previous artifact
+                            let content = artifact_lines.join("\n");
+                            match artifact_type.as_str() {
+                                "commit_body" => commit_body = Some(content),
+                                "pr_title" => pr_title = Some(content),
+                                "pr_body" => pr_body = Some(content),
+                                _ => {}
+                            }
+                        }
+                        commit_title = Some(
+                            text_line
+                                .strip_prefix("COMMIT_MESSAGE_TITLE:")
+                                .unwrap_or("")
+                                .trim()
+                                .to_string(),
+                        );
+                        current_artifact = None;
+                        artifact_lines.clear();
+                    } else if text_line.starts_with("COMMIT_MESSAGE_BODY:") {
+                        if let Some(ref artifact_type) = current_artifact {
+                            // Complete previous artifact
+                            let content = artifact_lines.join("\n");
+                            match artifact_type.as_str() {
+                                "commit_body" => commit_body = Some(content),
+                                "pr_title" => pr_title = Some(content),
+                                "pr_body" => pr_body = Some(content),
+                                _ => {}
+                            }
+                        }
+                        current_artifact = Some("commit_body".to_string());
+                        artifact_lines.clear();
+                        if let Some(first_line) = text_line.strip_prefix("COMMIT_MESSAGE_BODY:") {
+                            let trimmed = first_line.trim();
+                            if !trimmed.is_empty() {
+                                artifact_lines.push(trimmed.to_string());
+                            }
+                        }
+                    } else if text_line.starts_with("PR_TITLE:") {
+                        if let Some(ref artifact_type) = current_artifact {
+                            // Complete previous artifact
+                            let content = artifact_lines.join("\n");
+                            match artifact_type.as_str() {
+                                "commit_body" => commit_body = Some(content),
+                                "pr_title" => pr_title = Some(content),
+                                "pr_body" => pr_body = Some(content),
+                                _ => {}
+                            }
+                        }
+                        current_artifact = Some("pr_title".to_string());
+                        artifact_lines.clear();
+                        if let Some(first_line) = text_line.strip_prefix("PR_TITLE:") {
+                            let trimmed = first_line.trim();
+                            if !trimmed.is_empty() {
+                                artifact_lines.push(trimmed.to_string());
+                            }
+                        }
+                    } else if text_line.starts_with("PR_BODY:") {
+                        if let Some(ref artifact_type) = current_artifact {
+                            // Complete previous artifact
+                            let content = artifact_lines.join("\n");
+                            match artifact_type.as_str() {
+                                "commit_body" => commit_body = Some(content),
+                                "pr_title" => pr_title = Some(content),
+                                "pr_body" => pr_body = Some(content),
+                                _ => {}
+                            }
+                        }
+                        current_artifact = Some("pr_body".to_string());
+                        artifact_lines.clear();
+                        if let Some(first_line) = text_line.strip_prefix("PR_BODY:") {
+                            let trimmed = first_line.trim();
+                            if !trimmed.is_empty() {
+                                artifact_lines.push(trimmed.to_string());
+                            }
+                        }
+                    } else if text_line == "DONE" {
+                        // Complete any remaining artifact
+                        if let Some(ref artifact_type) = current_artifact {
+                            let content = artifact_lines.join("\n");
+                            match artifact_type.as_str() {
+                                "commit_body" => commit_body = Some(content),
+                                "pr_title" => pr_title = Some(content),
+                                "pr_body" => pr_body = Some(content),
+                                _ => {}
+                            }
+                        }
+                        current_artifact = None;
+                        artifact_lines.clear();
+
+                        // Store all artifacts if we have all four
+                        if commit_title.is_some()
+                            && commit_body.is_some()
+                            && pr_title.is_some()
+                            && pr_body.is_some()
+                        {
+                            info!("✓ Found all 4 AI artifacts for task {}", task_id);
+                            info!("   Commit title: {:?}", commit_title);
+                            info!("   Commit body: {:?}", commit_body);
+                            info!("   PR title: {:?}", pr_title);
+                            info!("   PR body: {:?}", pr_body);
+                            match db
+                                .set_task_artifacts(
+                                    task_id,
+                                    commit_title.clone(),
+                                    commit_body.clone(),
+                                    pr_title.clone(),
+                                    pr_body.clone(),
+                                )
+                                .await
+                            {
+                                Ok(_) => {
+                                    info!("✓ Stored AI-generated artifacts for task {}", task_id);
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "✗ Failed to store artifacts for task {}: {}",
+                                        task_id, e
+                                    );
+                                }
+                            }
+                        }
+                    } else if let Some(ref _artifact_type) = current_artifact {
+                        // Accumulate lines for current artifact
+                        artifact_lines.push(text_line.to_string());
+                    }
+                }
+
                 // Store the log line in database
                 match db.insert_task_log(task_id, line_str).await {
                     Ok(_) => {
@@ -1208,6 +1395,8 @@ impl SandboxProvider for DaytonaProvider {
         task_id: i32,
         author_name: &str,
         author_email: &str,
+        commit_title: &str,
+        commit_body: &str,
     ) -> SandboxResult<()> {
         self.push_changes(
             sandbox_id,
@@ -1216,6 +1405,8 @@ impl SandboxProvider for DaytonaProvider {
             task_id,
             author_name,
             author_email,
+            commit_title,
+            commit_body,
         )
         .await
     }

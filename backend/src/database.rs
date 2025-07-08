@@ -221,7 +221,7 @@ impl Database {
     }
 
     pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
-        let task = sqlx::query_as!(Task, "SELECT * FROM tasks WHERE id = $1", task_id)
+        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, github_branch, daytona_sandbox_id, sandbox_hostname, daytona_session_id, daytona_command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -286,6 +286,34 @@ impl Database {
         let task = sqlx::query_file_as!(Task, "sql/update_task_branch.sql", task_id, github_branch)
             .fetch_one(&self.pool)
             .await?;
+
+        Ok(task)
+    }
+
+    pub async fn set_task_artifacts(
+        &self,
+        task_id: i32,
+        commit_title: Option<String>,
+        commit_body: Option<String>,
+        pr_title: Option<String>,
+        pr_body: Option<String>,
+    ) -> AppResult<Task> {
+        let task = sqlx::query_as!(
+            Task,
+            r#"
+            UPDATE tasks 
+            SET commit_title = $2, commit_body = $3, pr_title = $4, pr_body = $5, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+            task_id,
+            commit_title,
+            commit_body,
+            pr_title,
+            pr_body
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
         Ok(task)
     }

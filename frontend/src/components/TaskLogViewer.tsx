@@ -23,6 +23,22 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogIdRef = useRef<number | null>(null);
 
+  const copyLogsToClipboard = useCallback(async () => {
+    try {
+      const allLogsText = logs.map(log => log.log_line).join('\n');
+      await navigator.clipboard.writeText(allLogsText);
+    } catch (err) {
+      console.error('Failed to copy logs:', err);
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = logs.map(log => log.log_line).join('\n');
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+  }, [logs]);
+
   const fetchLogs = useCallback(async (since?: number) => {
     console.log('🔄 TaskLogViewer fetchLogs called - taskId:', taskId, 'since:', since)
     if (since) {
@@ -165,13 +181,24 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
              `${logs.length} log entries • Polling every 3s`}
           </span>
           {!isLoading && (
-            <button 
-              onClick={() => fetchLogs(lastLogIdRef.current || undefined)} 
-              className="text-xs text-blue-600 hover:text-blue-800 underline"
-              disabled={isPolling}
-            >
-              Refresh
-            </button>
+            <>
+              <button 
+                onClick={() => fetchLogs(lastLogIdRef.current || undefined)} 
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+                disabled={isPolling}
+              >
+                Refresh
+              </button>
+              {logs.length > 0 && (
+                <button 
+                  onClick={copyLogsToClipboard}
+                  className="text-xs text-green-600 hover:text-green-800 underline"
+                  title="Copy all logs to clipboard"
+                >
+                  Copy Logs
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

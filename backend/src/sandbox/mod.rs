@@ -80,6 +80,8 @@ pub trait SandboxProvider: Send + Sync {
         task_id: i32,
         author_name: &str,
         author_email: &str,
+        commit_title: &str,
+        commit_body: &str,
     ) -> SandboxResult<()>;
 
     /// Delete a sandbox
