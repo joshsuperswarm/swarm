@@ -199,6 +199,52 @@ async fn sandbox_poller(app_state: AppState) {
                         // Exit code 0 means success
                         tracing::info!("Task {} completed successfully (exit code: 0)", task.id);
 
+                        // Collect final logs immediately upon successful completion
+                        if let (Some(session_id), Some(command_id)) =
+                            (&task.daytona_session_id, &task.daytona_command_id)
+                        {
+                            tracing::info!("→ Collecting final logs for successful task {}", task.id);
+
+                            // Create temporary Daytona provider for log collection
+                            if let Ok(config) = crate::config::Config::from_env() {
+                                if let (Some(url), Some(api_key)) =
+                                    (config.daytona_url, config.daytona_api_key)
+                                {
+                                    let daytona = sandbox::daytona::DaytonaProvider::new(
+                                        url,
+                                        api_key,
+                                        config.daytona_organization_id,
+                                        config.daytona_region,
+                                    );
+
+                                    match daytona
+                                        .stream_command_logs(
+                                            &app_state.database,
+                                            task.id,
+                                            sandbox_id,
+                                            session_id,
+                                            command_id,
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            tracing::info!(
+                                                "✓ Final log collection completed for successful task {}",
+                                                task.id
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                "⚠ Final log collection failed for successful task {}: {}",
+                                                task.id,
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Atomically update task status to 'pushing' to prevent duplicate workers
                         let update_result = sqlx::query!(
                             r#"
@@ -254,6 +300,52 @@ async fn sandbox_poller(app_state: AppState) {
                     Ok(Some(code)) => {
                         // Non-zero exit code means failure
                         tracing::warn!("Task {} failed with exit code: {}", task.id, code);
+
+                        // Collect final logs immediately upon task failure
+                        if let (Some(session_id), Some(command_id)) =
+                            (&task.daytona_session_id, &task.daytona_command_id)
+                        {
+                            tracing::info!("→ Collecting final logs for failed task {}", task.id);
+
+                            // Create temporary Daytona provider for log collection
+                            if let Ok(config) = crate::config::Config::from_env() {
+                                if let (Some(url), Some(api_key)) =
+                                    (config.daytona_url, config.daytona_api_key)
+                                {
+                                    let daytona = sandbox::daytona::DaytonaProvider::new(
+                                        url,
+                                        api_key,
+                                        config.daytona_organization_id,
+                                        config.daytona_region,
+                                    );
+
+                                    match daytona
+                                        .stream_command_logs(
+                                            &app_state.database,
+                                            task.id,
+                                            sandbox_id,
+                                            session_id,
+                                            command_id,
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            tracing::info!(
+                                                "✓ Final log collection completed for failed task {}",
+                                                task.id
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                "⚠ Final log collection failed for failed task {}: {}",
+                                                task.id,
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         // Skip if already in terminal state
                         if !matches!(
