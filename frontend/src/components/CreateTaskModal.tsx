@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { ApiService } from '@/services/api';
 import { getBackendJwt } from '@/lib/authToken';
-import type { RepositoryWithTasks } from '@/types/generated/RepositoryWithTasks';
+import type { RepositoryTS } from '@/types/generated/RepositoryTS';
 
 interface CreateTaskData {
   title: string;
@@ -16,6 +16,7 @@ interface CreateTaskModalProps {
   onCreateTask: (task: CreateTaskData) => void;
 }
 
+
 export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ 
   isOpen, 
   onClose, 
@@ -27,41 +28,46 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     repositoryId: null
   });
   
-  const [repositories, setRepositories] = useState<RepositoryWithTasks[]>([]);
+  const [defaultRepo, setDefaultRepo] = useState<RepositoryTS | null>(null);
   const [loading, setLoading] = useState(false);
-  const [repositoriesLoading, setRepositoriesLoading] = useState(false);
+  const [userLoading, setUserLoading] = useState(false);
 
-  // Load repositories when modal opens and JWT is available
+  // Load user profile with default repo when modal opens
   useEffect(() => {
     if (isOpen) {
       const jwt = getBackendJwt()
       if (jwt) {
-        loadRepositories();
+        loadUserProfile();
       } else {
-        console.log('Waiting for JWT before loading repositories...')
+        console.log('Waiting for JWT before loading user profile...')
         // Try again in a moment
         setTimeout(() => {
           if (getBackendJwt()) {
-            loadRepositories();
+            loadUserProfile();
           }
         }, 500)
       }
     }
   }, [isOpen]);
 
-  const loadRepositories = async () => {
+  const loadUserProfile = async () => {
     try {
-      setRepositoriesLoading(true);
+      setUserLoading(true);
 
-      const response = await ApiService.getUserRepositories();
-      setRepositories(response.repositories);
+      const user = await ApiService.getUserProfile();
+      if (user.default_repo) {
+        const defaultRepo = user.default_repo;
+        setDefaultRepo(defaultRepo);
+        setFormData(prev => ({
+          ...prev,
+          repositoryId: defaultRepo.id
+        }));
+      }
     } catch (err) {
-      console.error('Failed to load repositories:', err);
-      
-      // Show empty list when API fails - user will see "Connect GitHub" message
-      setRepositories([]);
+      console.error('Failed to load user profile:', err);
+      setDefaultRepo(null);
     } finally {
-      setRepositoriesLoading(false);
+      setUserLoading(false);
     }
   };
 
@@ -84,12 +90,11 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   };
 
   const handleChange = (field: keyof CreateTaskData) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    const value = field === 'repositoryId' ? parseInt(e.target.value) : e.target.value;
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: e.target.value
     }));
   };
 
@@ -111,32 +116,24 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="repository" className="block text-sm font-medium text-gray-700 mb-1">
-              GitHub Repository *
+              GitHub Repository
             </label>
-            {repositories.length === 0 && !repositoriesLoading ? (
+            {userLoading ? (
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                <p className="text-gray-500 text-sm">
-                  No repositories available. Please connect your GitHub account and ensure you have repository access.
+                <p className="text-gray-500 text-sm">Loading default repository...</p>
+              </div>
+            ) : defaultRepo ? (
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                <p className="text-gray-700 text-sm">
+                  <strong>{defaultRepo.full_name}</strong> {defaultRepo.is_private ? '(Private)' : '(Public)'}
                 </p>
               </div>
             ) : (
-              <select
-                id="repository"
-                required
-                value={formData.repositoryId || ''}
-                onChange={handleChange('repositoryId')}
-                disabled={repositoriesLoading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              >
-                <option value="">
-                  {repositoriesLoading ? 'Loading repositories...' : 'Select a repository...'}
-                </option>
-                {repositories.map((repo) => (
-                  <option key={repo.id} value={repo.id}>
-                    {repo.full_name} {repo.is_private ? '(Private)' : '(Public)'}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                <p className="text-gray-500 text-sm">
+                  No default repository set. Please set a default repository in your settings.
+                </p>
+              </div>
             )}
           </div>
 
@@ -180,7 +177,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !defaultRepo || !formData.title.trim()}
               className="flex-1 px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-md transition-colors"
             >
               {loading ? 'Creating...' : 'Create Task'}

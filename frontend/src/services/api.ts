@@ -1,8 +1,8 @@
 // API service for backend communication
 import { getBackendJwt } from "@/lib/authToken";
-import type { User } from "@/types/generated/User";
 import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks";
 import type { Task } from "@/types/generated/Task";
+import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -71,8 +71,8 @@ export class ApiService {
   }
 
   // Authenticated endpoints
-  static async getUserProfile(): Promise<User> {
-    return this.authenticatedRequest<User>('/api/user/profile');
+  static async getUserProfile(): Promise<UserWithDefaultRepo> {
+    return this.authenticatedRequest<UserWithDefaultRepo>('/api/user/profile');
   }
 
   static async getUserRepositories(): Promise<{ repositories: RepositoryWithTasks[]; count: number; message?: string }> {

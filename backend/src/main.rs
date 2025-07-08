@@ -28,11 +28,12 @@ use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
-use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser};
+use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser, UserWithDefaultRepo, RepositoryTS, _force_ts_generation};
 use sandbox::{daytona::DaytonaProvider, DynSandbox, SandboxStatus};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use ts_rs::TS;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -673,6 +674,13 @@ async fn handle_task_success(
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
+    // Force TypeScript generation for exported types
+    _force_ts_generation();
+    
+    // Export the types explicitly
+    UserWithDefaultRepo::export().unwrap();
+    RepositoryTS::export().unwrap();
+
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -1175,17 +1183,44 @@ async fn protected_endpoint() -> Result<Json<Value>, StatusCode> {
 async fn get_user_profile(
     CurrentUser(user): CurrentUser,
     State(app_state): State<AppState>,
-) -> Result<Json<Value>, StatusCode> {
+) -> Result<Json<models::UserWithDefaultRepo>, StatusCode> {
     // Get full user data from database
     match app_state.database.get_user_by_clerk_id(&user.id).await {
-        Ok(Some(db_user)) => Ok(Json(json!({
-            "id": db_user.id,
-            "clerk_user_id": db_user.clerk_user_id,
-            "github_username": db_user.github_username,
-            "email": db_user.email,
-            "default_repo_id": db_user.default_repo_id,
-            "created_at": db_user.created_at
-        }))),
+        Ok(Some(db_user)) => {
+            // Get default repository if set
+            let default_repo = if let Some(default_repo_id) = db_user.default_repo_id {
+                if let Ok(Some(repo)) = app_state.database.get_repository_by_id(default_repo_id, db_user.id).await {
+                    Some(models::RepositoryTS {
+                        id: repo.id,
+                        github_repo_id: repo.github_repo_id,
+                        owner: repo.owner,
+                        name: repo.name,
+                        full_name: repo.full_name,
+                        user_id: repo.user_id,
+                        is_private: repo.is_private,
+                        created_at: repo.created_at.map(|dt| dt.to_rfc3339()),
+                        last_fetched_at: repo.last_fetched_at.map(|dt| dt.to_rfc3339()),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            
+            Ok(Json(models::UserWithDefaultRepo {
+                id: db_user.id,
+                clerk_user_id: db_user.clerk_user_id,
+                github_username: db_user.github_username,
+                github_user_id: db_user.github_user_id,
+                email: db_user.email,
+                default_repo_id: db_user.default_repo_id,
+                default_repo,
+                anthropic_api_key: db_user.anthropic_api_key,
+                created_at: db_user.created_at.map(|dt| dt.to_rfc3339()),
+                updated_at: db_user.updated_at.map(|dt| dt.to_rfc3339()),
+            }))
+        },
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }

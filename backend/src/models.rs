@@ -17,6 +17,49 @@ pub struct User {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct UserWithDefaultRepo {
+    pub id: i32,
+    pub clerk_user_id: String,
+    pub github_username: Option<String>,
+    pub github_user_id: Option<i32>,
+    pub email: Option<String>,
+    pub default_repo_id: Option<i32>,
+    pub default_repo: Option<RepositoryTS>,
+    pub anthropic_api_key: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+// Force ts-rs to generate types by ensuring they're used
+#[allow(dead_code)]
+pub fn _force_ts_generation() {
+    let _: UserWithDefaultRepo = UserWithDefaultRepo {
+        id: 0,
+        clerk_user_id: String::new(),
+        github_username: None,
+        github_user_id: None,
+        email: None,
+        default_repo_id: None,
+        default_repo: None,
+        anthropic_api_key: None,
+        created_at: None,
+        updated_at: None,
+    };
+    let _: RepositoryTS = RepositoryTS {
+        id: 0,
+        github_repo_id: 0,
+        owner: String::new(),
+        name: String::new(),
+        full_name: String::new(),
+        user_id: 0,
+        is_private: None,
+        created_at: None,
+        last_fetched_at: None,
+    };
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateUser {
     pub clerk_user_id: String,
@@ -36,6 +79,20 @@ pub struct Repository {
     pub is_private: Option<bool>,
     pub created_at: Option<DateTime<Utc>>,
     pub last_fetched_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct RepositoryTS {
+    pub id: i32,
+    pub github_repo_id: i64,
+    pub owner: String,
+    pub name: String,
+    pub full_name: String,
+    pub user_id: i32,
+    pub is_private: Option<bool>,
+    pub created_at: Option<String>,
+    pub last_fetched_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,16 +153,6 @@ pub struct CreateTask {
 }
 
 // Response models for API
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserWithDefaultRepo {
-    pub id: i32,
-    pub clerk_user_id: String,
-    pub github_username: Option<String>,
-    pub email: Option<String>,
-    pub default_repo: Option<Repository>,
-    pub anthropic_api_key: Option<String>,
-    pub created_at: Option<DateTime<Utc>>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
