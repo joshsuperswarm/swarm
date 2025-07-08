@@ -207,7 +207,7 @@ export function TasksPage() {
   const showErrorOverlay = error && !showSignInOverlay;
 
   return (
-    <div className="flex flex-col h-full space-y-2 p-2 relative">
+    <div className="p-4 relative">
       {/* Auth loading overlay */}
       {showAuthSpinner && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm">
@@ -267,7 +267,7 @@ export function TasksPage() {
 
 
       {/* Main content - always rendered to prevent unmounting */}
-      <div className="min-h-0 flex-1">
+      <div>
         <MemoizedDataTable
           data={tasks}
           columns={columns}

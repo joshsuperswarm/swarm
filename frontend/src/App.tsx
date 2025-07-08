@@ -62,7 +62,7 @@ function App() {
   }, [isSignedIn, getToken, user])
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className="bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900">Swarm</h1>
@@ -78,7 +78,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main>
         <TasksPage />
       </main>
 
