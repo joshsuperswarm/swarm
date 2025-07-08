@@ -67,9 +67,6 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       // Batch all remaining state updates
       if (completionFound && !taskCompleted) {
         setTaskCompleted(true);
-        setError(null);
-        setIsLoading(false);
-        setIsPolling(false);
         
         // Stop polling after a delay to catch any final logs
         setTimeout(() => {
@@ -78,12 +75,12 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
             intervalRef.current = null;
           }
         }, 10000);
-      } else {
-        // Batch state updates when not completed
-        setError(null);
-        setIsLoading(false);
-        setIsPolling(false);
       }
+      
+      // Always update these states regardless of completion
+      setError(null);
+      setIsLoading(false);
+      setIsPolling(false);
       
       // Auto-scroll to bottom when new logs arrive
       if (newLogs.length > 0) {
@@ -100,12 +97,12 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       setIsLoading(false);
       setIsPolling(false);
     }
-  }, [taskId, taskCompleted]);
+  }, [taskId]); // Remove taskCompleted dependency to prevent blocking initial fetch
 
   useEffect(() => {
-    // Initial fetch
+    // Always fetch logs initially, regardless of completion status
     fetchLogs().then(() => {
-      // Only start polling if task is not completed and we have logs to track
+      // Only start polling if task is not completed
       if (!taskCompleted) {
         intervalRef.current = setInterval(() => {
           // Only poll if we have a reference point (lastLogIdRef.current)
@@ -122,7 +119,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [taskId, fetchLogs, taskCompleted]);
+  }, [taskId, fetchLogs]); // Remove taskCompleted dependency to ensure initial fetch always happens
 
   // Stop polling when task is completed
   useEffect(() => {
