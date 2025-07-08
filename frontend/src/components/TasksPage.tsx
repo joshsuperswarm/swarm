@@ -22,8 +22,9 @@ export function TasksPage() {
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const settledCounterRef = useRef(0)
 
-  const loadTasks = useCallback(async (forceUpdate = false) => {
+  const loadTasks = useCallback(async () => {
     // console.log('🔄 TasksPage loadTasks called')
     try {
       // Don't set loading to true during refresh to prevent table unmount
@@ -39,46 +40,34 @@ export function TasksPage() {
       // Use tasks directly from backend - no conversion needed since we updated the Task type
       const frontendTasks: Task[] = response.tasks
       
-      // Force update or only update state if tasks have actually changed
-      if (forceUpdate) {
-        console.log('🔄 TasksPage setTasks - force update, refreshing state')
-        setTasks(frontendTasks)
-      } else {
-        setTasks(prevTasks => {
-          // Check if tasks have changed by comparing IDs and status
-          const hasChanged = prevTasks.length !== frontendTasks.length ||
-            !prevTasks.every((task, index) => {
-              const newTask = frontendTasks[index]
-              return task.id === newTask?.id && task.status === newTask?.status
-            })
-          
-          if (hasChanged) {
-            console.log('🔄 TasksPage setTasks - tasks have changed, updating state')
-            return frontendTasks
-          } else {
-            console.log('🔄 TasksPage setTasks - tasks unchanged, keeping existing state')
-            return prevTasks // Return same reference to prevent re-render
-          }
-        })
-      }
+      // Always update state - React-Table memoises efficiently
+      setTasks(frontendTasks)
       
-      // Auto-refresh logic based on current task status
-      const hasRunningTasks = frontendTasks.some(task => 
-        task.status === 'spinning' || task.status === 'running'
+      // Auto-refresh logic - poll until all tasks are terminal for at least one extra tick
+      const unfinished = frontendTasks.some(
+        t => !["done", "failed", "pr_opened"].includes(t.status ?? "")
       )
       
-      // console.log('🔄 TasksPage auto-refresh check - hasRunningTasks:', hasRunningTasks, 'hasInterval:', !!autoRefreshIntervalRef.current)
-      
-      if (hasRunningTasks && !autoRefreshIntervalRef.current) {
-        // console.log('🔄 TasksPage starting auto-refresh for running tasks')
-        autoRefreshIntervalRef.current = setInterval(() => {
-          // console.log('🔄 TasksPage auto-refresh tick - reloading tasks')
-          loadTasks()
-        }, 10000) // 10 seconds
-      } else if (!hasRunningTasks && autoRefreshIntervalRef.current) {
-        // console.log('🔄 TasksPage stopping auto-refresh - no running tasks')
-        clearInterval(autoRefreshIntervalRef.current)
-        autoRefreshIntervalRef.current = null
+      if (unfinished) {
+        // Reset counter when we have unfinished tasks
+        settledCounterRef.current = 0
+        
+        // Start interval if not already running
+        if (!autoRefreshIntervalRef.current) {
+          autoRefreshIntervalRef.current = setInterval(() => {
+            loadTasks()
+          }, 10000) // 10 seconds
+        }
+      } else {
+        // All tasks are finished - increment counter
+        settledCounterRef.current++
+        
+        // Stop polling after one additional fetch with all tasks settled
+        if (settledCounterRef.current >= 1 && autoRefreshIntervalRef.current) {
+          clearInterval(autoRefreshIntervalRef.current)
+          autoRefreshIntervalRef.current = null
+          settledCounterRef.current = 0
+        }
       }
     } catch (err) {
       console.error('Failed to load tasks:', err)
@@ -90,7 +79,7 @@ export function TasksPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }, [tasks.length])
+  }, [])
 
   // Load tasks when auth is ready and JWT is available
   useEffect(() => {
@@ -157,7 +146,7 @@ export function TasksPage() {
       })
       
       // Reload tasks to show the new task
-      await loadTasks(true)
+      await loadTasks()
       
       setIsCreateTaskModalOpen(false)
     } catch (err) {
