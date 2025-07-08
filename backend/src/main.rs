@@ -369,6 +369,18 @@ async fn sandbox_poller(app_state: AppState) {
                                     code
                                 );
                             }
+
+                            // Clean up sandbox after task failure
+                            tracing::info!("Deleting sandbox {} after task failure", sandbox_id);
+                            if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
+                                tracing::warn!(
+                                    "⚠ Failed to delete sandbox {} after task failure: {}",
+                                    sandbox_id,
+                                    e
+                                );
+                            } else {
+                                tracing::info!("✓ Sandbox {} deleted after task failure", sandbox_id);
+                            }
                         }
                         continue; // Skip sandbox status check
                     }
@@ -466,6 +478,18 @@ async fn sandbox_poller(app_state: AppState) {
                                 task.id
                             );
                         }
+
+                        // Clean up sandbox after task failure
+                        tracing::info!("Deleting sandbox {} after task failure (stopped without exit code)", sandbox_id);
+                        if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
+                            tracing::warn!(
+                                "⚠ Failed to delete sandbox {} after task failure: {}",
+                                sandbox_id,
+                                e
+                            );
+                        } else {
+                            tracing::info!("✓ Sandbox {} deleted after task failure", sandbox_id);
+                        }
                     }
                 }
                 Ok(SandboxStatus::Failed) => {
@@ -477,6 +501,20 @@ async fn sandbox_poller(app_state: AppState) {
                         .await
                     {
                         tracing::error!("Error updating task {} status: {}", task.id, e);
+                    } else {
+                        tracing::info!("✓ Task {} marked as failed (sandbox failed)", task.id);
+                    }
+
+                    // Clean up sandbox after sandbox failure
+                    tracing::info!("Deleting sandbox {} after sandbox failure", sandbox_id);
+                    if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
+                        tracing::warn!(
+                            "⚠ Failed to delete sandbox {} after sandbox failure: {}",
+                            sandbox_id,
+                            e
+                        );
+                    } else {
+                        tracing::info!("✓ Sandbox {} deleted after sandbox failure", sandbox_id);
                     }
                 }
                 Ok(SandboxStatus::Running) => {
@@ -759,6 +797,19 @@ async fn handle_task_success(
             task_id,
             pr_url
         );
+    }
+
+    // Delete the sandbox after PR is created
+    tracing::info!("Deleting sandbox {} after PR creation", sandbox_id);
+    if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
+        tracing::warn!(
+            "⚠ Failed to delete sandbox {} after PR creation: {}",
+            sandbox_id,
+            e
+        );
+        // Don't fail the task if sandbox deletion fails
+    } else {
+        tracing::info!("✓ Sandbox {} deleted successfully", sandbox_id);
     }
 
     Ok(())

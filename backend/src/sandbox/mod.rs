@@ -81,6 +81,9 @@ pub trait SandboxProvider: Send + Sync {
         author_name: &str,
         author_email: &str,
     ) -> SandboxResult<()>;
+
+    /// Delete a sandbox
+    async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
 }
 
 pub type DynSandbox = Arc<dyn SandboxProvider + Send + Sync>;

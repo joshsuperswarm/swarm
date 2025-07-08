@@ -147,7 +147,7 @@ impl DaytonaProvider {
     }
 
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {
-        let url = format!("{}/sandbox/{}", self.base_url, sandbox_id);
+        let url = format!("{}/sandbox/{}?force=true", self.base_url, sandbox_id);
 
         info!("Deleting sandbox {}", sandbox_id);
 
@@ -1218,6 +1218,10 @@ impl SandboxProvider for DaytonaProvider {
             author_email,
         )
         .await
+    }
+
+    async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {
+        self.delete_sandbox(sandbox_id).await
     }
 }
 
