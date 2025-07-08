@@ -29,6 +29,7 @@ import { DataTableToolbar } from "./data-table-toolbar"
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  loading?: boolean
   onTaskClick?: (task: TData) => void
   onCreateTask?: () => void
 }
@@ -36,6 +37,7 @@ interface DataTableProps<TData, TValue> {
 export function DataTable<TData, TValue>({
   columns,
   data,
+  loading = false,
   onTaskClick,
   onCreateTask,
 }: DataTableProps<TData, TValue>) {
@@ -113,7 +115,18 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {loading ? (
+              /* ─── skeleton rows ─── */
+              Array.from({ length: 8 }).map((_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  {columns.map((_, idx) => (
+                    <TableCell key={idx}>
+                      <div className="h-3 w-full bg-muted rounded animate-pulse" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -131,7 +144,7 @@ export function DataTable<TData, TValue>({
                   ))}
                 </TableRow>
               ))
-            ) : (
+            ) : !loading ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
@@ -140,7 +153,7 @@ export function DataTable<TData, TValue>({
                   No results.
                 </TableCell>
               </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>
