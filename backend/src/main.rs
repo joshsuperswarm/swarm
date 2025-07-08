@@ -420,9 +420,14 @@ async fn handle_task_success(app_state: AppState, task_id: i32) -> Result<(), Bo
     }
 
     // Create or update PR
-    tracing::info!("Creating PR for task {}", task_id);
+    tracing::info!("Creating PR for task {} in repository {}/{}", task_id, repository.owner, repository.name);
+    tracing::debug!("Using GitHub token: {}***", &github_token[..4.min(github_token.len())]);
+    
     let pr_client = match GitHubPRClient::new(&github_token) {
-        Ok(client) => client,
+        Ok(client) => {
+            tracing::debug!("Successfully created GitHub PR client for task {}", task_id);
+            client
+        }
         Err(e) => {
             tracing::error!("Failed to create PR client for task {}: {}", task_id, e);
             let _ = app_state.database.update_task_status(task_id, "failed", None).await;
@@ -431,9 +436,24 @@ async fn handle_task_success(app_state: AppState, task_id: i32) -> Result<(), Bo
     };
 
     let pr_url = match pr_client.create_or_update_pr(&repository.owner, &repository.name, branch, &task).await {
-        Ok(url) => url,
+        Ok(url) => {
+            tracing::info!("Successfully created/updated PR for task {}: {}", task_id, url);
+            url
+        }
         Err(e) => {
-            tracing::error!("Failed to create PR for task {}: {}", task_id, e);
+            tracing::error!("Failed to create PR for task {} in {}/{} on branch '{}': {}", 
+                task_id, repository.owner, repository.name, branch, e);
+            
+            // Log error chain for more context
+            let mut source = e.source();
+            let mut depth = 1;
+            while let Some(err) = source {
+                tracing::error!("  Error chain [{}]: {}", depth, err);
+                source = err.source();
+                depth += 1;
+                if depth > 5 { break; } // Prevent infinite loops
+            }
+            
             let _ = app_state.database.update_task_status(task_id, "failed", None).await;
             return Ok(());
         }
