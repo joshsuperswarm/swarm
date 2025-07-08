@@ -78,7 +78,9 @@ function App() {
         </div>
       </header>
 
-      <TasksPage />
+      <main className="flex-1">
+        <TasksPage />
+      </main>
 
       <CreateSessionModal
         isOpen={isCreateModalOpen}

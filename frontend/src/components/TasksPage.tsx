@@ -207,7 +207,7 @@ export function TasksPage() {
   const showErrorOverlay = error && !showSignInOverlay;
 
   return (
-    <div className="relative h-full flex-1 flex-col space-y-2 p-2 md:flex">
+    <div className="flex flex-col h-full space-y-2 p-2 relative">
       {/* Auth loading overlay */}
       {showAuthSpinner && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm">
@@ -267,13 +267,15 @@ export function TasksPage() {
 
 
       {/* Main content - always rendered to prevent unmounting */}
-      <MemoizedDataTable
-        data={tasks}
-        columns={columns}
-        loading={loading && tasks.length === 0}
-        onTaskClick={handleTaskClick}
-        onCreateTask={handleCreateTask}
-      />
+      <div className="min-h-0 flex-1">
+        <MemoizedDataTable
+          data={tasks}
+          columns={columns}
+          loading={loading && tasks.length === 0}
+          onTaskClick={handleTaskClick}
+          onCreateTask={handleCreateTask}
+        />
+      </div>
       <TaskDetailModal
         task={selectedTask}
         isOpen={isModalOpen}
