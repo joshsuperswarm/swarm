@@ -873,7 +873,7 @@ impl SandboxProvider for DaytonaProvider {
             "GITHUB_TOKEN": github_token,
             "ANTHROPIC_API_KEY": anthropic_api_key,
             "SWARM_BRANCH": branch,
-            "SWARM_TASK_ID": task_id,
+            "SWARM_TASK_ID": task_id.to_string(),
             "GIT_AUTHOR_NAME": author_name,
             "GIT_AUTHOR_EMAIL": author_email
         });
