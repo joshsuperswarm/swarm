@@ -8,6 +8,39 @@ import { CreateTaskModal } from "@/components/CreateTaskModal"
 import { ApiService } from "@/services/api"
 import { getBackendJwt } from "@/lib/authToken"
 
+/** Build a Map id → task for quick lookup. */
+function toTaskMap(list: Task[]) {
+  return new Map(list.map(t => [t.id, t]));
+}
+
+/** Merge `src` into `dest` but keep reference equality when nothing changed. */
+function mergeTaskLists(dest: Task[], src: Task[]): Task[] {
+  const destMap = toTaskMap(dest);
+  const out: Task[] = [];
+
+  let changed = false;
+
+  for (const next of src) {
+    const prev = destMap.get(next.id);
+    if (
+      prev &&
+      prev.status === next.status &&
+      prev.github_pr_url === next.github_pr_url &&
+      prev.updated_at === next.updated_at
+    ) {
+      out.push(prev);          // re-use previous object ⇒ keeps referential equality
+    } else {
+      out.push(next);          // new/updated task
+      changed = true;
+    }
+  }
+
+  // Detect removals
+  if (dest.length !== src.length) changed = true;
+
+  return changed ? out : dest; // if nothing changed, return same array ref
+}
+
 // Memoize DataTable outside component to ensure stable reference
 const MemoizedDataTable = React.memo(DataTable<Task, unknown>) // default shallow compare
 
@@ -40,8 +73,8 @@ export function TasksPage() {
       // Use tasks directly from backend - no conversion needed since we updated the Task type
       const frontendTasks: Task[] = response.tasks
       
-      // Always update state - React-Table memoises efficiently
-      setTasks(frontendTasks)
+      // Merge tasks to maintain referential equality for unchanged tasks
+      setTasks(prev => mergeTaskLists(prev, frontendTasks));
       
       // Auto-refresh logic - poll until all tasks are terminal for at least one extra tick
       const unfinished = frontendTasks.some(
