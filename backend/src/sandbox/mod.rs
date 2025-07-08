@@ -5,6 +5,7 @@ use thiserror::Error;
 pub mod daytona;
 
 #[derive(Debug, Error)]
+#[allow(clippy::enum_variant_names)]
 pub enum SandboxError {
     #[error("HTTP request failed: {0}")]
     HttpError(#[from] reqwest::Error),
@@ -39,6 +40,7 @@ pub enum SandboxStatus {
 #[async_trait]
 pub trait SandboxProvider: Send + Sync {
     /// Start a new sandbox with the given configuration
+    #[allow(clippy::too_many_arguments)]
     async fn start_sandbox(
         &self,
         task_id: i32,
@@ -60,7 +62,7 @@ pub trait SandboxProvider: Send + Sync {
 
     /// Stop a sandbox
     async fn stop_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
-    
+
     /// Get the exit code of a command if available
     async fn get_command_exit_code(
         &self,

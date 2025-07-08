@@ -238,14 +238,14 @@ impl DaytonaProvider {
         let path = parsed_url.path();
         let repo_name = path
             .split('/')
-            .last()
+            .next_back()
             .ok_or_else(|| {
                 SandboxError::SandboxOperationError(
                     "Cannot extract repository name from URL".to_string(),
                 )
             })?
             .strip_suffix(".git")
-            .unwrap_or(path.split('/').last().unwrap())
+            .unwrap_or(path.split('/').next_back().unwrap())
             .to_string();
 
         if repo_name.is_empty() {
@@ -499,25 +499,31 @@ branch="$SWARM_BRANCH"
 echo "Current directory: $(pwd)"
 ls -la
 
-# Check if there are any changes to commit
-if git diff --quiet && git diff --cached --quiet; then
-    echo "No changes to commit"
-    exit 0
-fi
+echo "THIS IS A TEST"
 
 # Stage all changes
 git add -A
+
+echo "ADDED CHANGES"
 
 # Commit changes to current branch
 git commit --author "$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" \
            -m "Swarm: fixes for task $SWARM_TASK_ID"
 
+echo "COMMITTED CHANGES"
+
 # Create new branch from the commit
 git checkout -B "$branch"
 
+echo "COMMITTED CHANGES"
+
 # Push the branch to origin
 git push -u origin "$branch"
-'"#, repo_path
+
+echo "THIS IS A TEST 4"
+
+'"#,
+            repo_path
         );
 
         info!(

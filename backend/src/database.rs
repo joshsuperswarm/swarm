@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
     CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken, Repository,
-    RepositoryWithTasks, Task, User, TaskLog,
+    RepositoryWithTasks, Task, TaskLog, User,
 };
 use sqlx::PgPool;
 
@@ -40,13 +40,9 @@ impl Database {
     }
 
     pub async fn get_user_by_id(&self, user_id: i32) -> AppResult<Option<User>> {
-        let user = sqlx::query_as!(
-            User,
-            "SELECT * FROM users WHERE id = $1",
-            user_id
-        )
-        .fetch_optional(&self.pool)
-        .await?;
+        let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(user)
     }
@@ -225,13 +221,9 @@ impl Database {
     }
 
     pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
-        let task = sqlx::query_as!(
-            Task,
-            "SELECT * FROM tasks WHERE id = $1",
-            task_id
-        )
-        .fetch_optional(&self.pool)
-        .await?;
+        let task = sqlx::query_as!(Task, "SELECT * FROM tasks WHERE id = $1", task_id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(task)
     }
@@ -290,61 +282,73 @@ impl Database {
         Ok(task)
     }
 
-    pub async fn update_task_branch(
-        &self,
-        task_id: i32,
-        github_branch: &str,
-    ) -> AppResult<Task> {
-        let task = sqlx::query_file_as!(
-            Task,
-            "sql/update_task_branch.sql",
-            task_id,
-            github_branch
-        )
-        .fetch_one(&self.pool)
-        .await?;
+    pub async fn update_task_branch(&self, task_id: i32, github_branch: &str) -> AppResult<Task> {
+        let task = sqlx::query_file_as!(Task, "sql/update_task_branch.sql", task_id, github_branch)
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(task)
     }
 
     // Task log operations
     pub async fn insert_task_log(&self, task_id: i32, log_line: &str) -> AppResult<()> {
-        tracing::debug!("→ Inserting log line for task {} (length: {} chars)", task_id, log_line.len());
-        
+        tracing::debug!(
+            "→ Inserting log line for task {} (length: {} chars)",
+            task_id,
+            log_line.len()
+        );
+
         // Parse the log line as JSON
         let json_value: serde_json::Value = match serde_json::from_str(log_line) {
             Ok(json) => json,
             Err(e) => {
-                tracing::warn!("⚠ Failed to parse log line as JSON for task {}: {}", task_id, e);
-                tracing::warn!("   Line: {}", if log_line.len() > 200 { 
-                    format!("{}...", &log_line[..200]) 
-                } else { 
-                    log_line.to_string() 
-                });
+                tracing::warn!(
+                    "⚠ Failed to parse log line as JSON for task {}: {}",
+                    task_id,
+                    e
+                );
+                tracing::warn!(
+                    "   Line: {}",
+                    if log_line.len() > 200 {
+                        format!("{}...", &log_line[..200])
+                    } else {
+                        log_line.to_string()
+                    }
+                );
                 return Ok(()); // Skip non-JSON lines
             }
         };
-        
+
         match sqlx::query!(
             "INSERT INTO task_logs (task_id, log_line) VALUES ($1, $2::jsonb)",
             task_id,
             json_value
         )
         .execute(&self.pool)
-        .await {
+        .await
+        {
             Ok(result) => {
-                tracing::debug!("✓ Successfully inserted log line for task {}, rows affected: {}", 
-                    task_id, result.rows_affected());
+                tracing::debug!(
+                    "✓ Successfully inserted log line for task {}, rows affected: {}",
+                    task_id,
+                    result.rows_affected()
+                );
                 Ok(())
             }
             Err(e) => {
-                tracing::error!("✗ Database error inserting log line for task {}: {}", task_id, e);
-                tracing::error!("   Line preview: {}", 
-                    if log_line.len() > 100 { 
-                        format!("{}...", &log_line[..100]) 
-                    } else { 
-                        log_line.to_string() 
-                    });
+                tracing::error!(
+                    "✗ Database error inserting log line for task {}: {}",
+                    task_id,
+                    e
+                );
+                tracing::error!(
+                    "   Line preview: {}",
+                    if log_line.len() > 100 {
+                        format!("{}...", &log_line[..100])
+                    } else {
+                        log_line.to_string()
+                    }
+                );
                 Err(e.into())
             }
         }
@@ -362,14 +366,17 @@ impl Database {
         )
         .fetch_all(&self.pool)
         .await?;
-        
-        let logs = rows.into_iter().map(|row| TaskLog {
-            id: row.id,
-            task_id: row.task_id.expect("task_id should not be null"),
-            log_line: row.log_line,
-            created_at: row.created_at,
-        }).collect();
-        
+
+        let logs = rows
+            .into_iter()
+            .map(|row| TaskLog {
+                id: row.id,
+                task_id: row.task_id.expect("task_id should not be null"),
+                log_line: row.log_line,
+                created_at: row.created_at,
+            })
+            .collect();
+
         Ok(logs)
     }
 
@@ -391,14 +398,17 @@ impl Database {
         )
         .fetch_all(&self.pool)
         .await?;
-        
-        let logs = rows.into_iter().map(|row| TaskLog {
-            id: row.id,
-            task_id: row.task_id.expect("task_id should not be null"),
-            log_line: row.log_line,
-            created_at: row.created_at,
-        }).collect();
-        
+
+        let logs = rows
+            .into_iter()
+            .map(|row| TaskLog {
+                id: row.id,
+                task_id: row.task_id.expect("task_id should not be null"),
+                log_line: row.log_line,
+                created_at: row.created_at,
+            })
+            .collect();
+
         Ok(logs)
     }
 }

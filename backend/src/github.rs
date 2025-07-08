@@ -35,10 +35,11 @@ pub struct GitHubClient {
 }
 
 impl GitHubClient {
-    pub fn new(access_token: &str) -> Result<Self, octocrab::Error> {
+    pub fn new(access_token: &str) -> Result<Self, Box<octocrab::Error>> {
         let client = OctocrabBuilder::new()
             .personal_token(access_token.to_string())
-            .build()?;
+            .build()
+            .map_err(Box::new)?;
 
         Ok(Self { client })
     }

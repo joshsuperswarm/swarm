@@ -4,15 +4,15 @@ use sqlx::PgPool;
 async fn test_pr_flow_database_integration() {
     // This is a simplified integration test that focuses on database operations
     // and verifies the github_branch and github_pr_url fields work correctly
-    
+
     // Setup test database
     let database_url = std::env::var("TEST_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://swarm:password@localhost:5432/swarm".to_string());
-    
+
     let pool = PgPool::connect(&database_url)
         .await
         .expect("Failed to connect to test database");
-    
+
     // Test that we can create a task and update it with branch and PR info
     let test_task_id = sqlx::query_scalar!(
         "INSERT INTO tasks (user_id, repository_id, title, description) 
@@ -66,5 +66,7 @@ async fn test_pr_flow_database_integration() {
         .await
         .expect("Failed to clean up test task");
 
-    println!("✓ Database integration test passed: github_branch and github_pr_url fields work correctly");
+    println!(
+        "✓ Database integration test passed: github_branch and github_pr_url fields work correctly"
+    );
 }
