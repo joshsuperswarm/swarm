@@ -114,10 +114,38 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
         }
     };
 
-    // Generate branch name and author info
+    // Generate branch name and author info - fail if GitHub username or email not available
     let branch = format!("swarm/task-{}-{}", task.id, Utc::now().format("%Y%m%d%H%M"));
-    let author_name = user.github_username.clone().unwrap_or("swarm-user".into());
-    let author_email = format!("{}@users.noreply.github.com", author_name);
+    let author_name = match user.github_username.clone() {
+        Some(username) => username,
+        None => {
+            tracing::error!(
+                "No GitHub username available for user {} in task {}",
+                user.id,
+                task.id
+            );
+            let _ = app_state
+                .database
+                .update_task_status(task.id, "failed", None)
+                .await;
+            return Err(anyhow::anyhow!("No GitHub username available"));
+        }
+    };
+    let author_email = match user.email.clone() {
+        Some(email) => email,
+        None => {
+            tracing::error!(
+                "No email available for user {} in task {}",
+                user.id,
+                task.id
+            );
+            let _ = app_state
+                .database
+                .update_task_status(task.id, "failed", None)
+                .await;
+            return Err(anyhow::anyhow!("No email available"));
+        }
+    };
 
     // Update task with branch name
     match app_state

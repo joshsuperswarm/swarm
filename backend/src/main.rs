@@ -91,7 +91,7 @@ async fn store_github_token(
         .database
         .store_github_token(CreateGitHubToken {
             user_id: db_user.id,
-            access_token: body.access_token,
+            access_token: body.access_token.clone(),
             token_type: "bearer".into(),
             scope: Some("repo".into()),
         })
@@ -99,6 +99,14 @@ async fn store_github_token(
     {
         Ok(_) => {
             tracing::info!("Successfully stored GitHub token for user {}", db_user.id);
+            
+            if let Ok((login, gh_id)) = github::fetch_current_user(&body.access_token).await {
+                let _ = app_state
+                    .database
+                    .update_user_github_info(db_user.id, Some(login), Some(gh_id))
+                    .await;
+            }
+            
             Ok(Json(json!({ "success": true })))
         }
         Err(e) => {
@@ -526,9 +534,29 @@ async fn handle_task_success(
         }
     };
 
-    // Get author information
-    let author_name = user.github_username.clone().unwrap_or("swarm-user".into());
-    let author_email = format!("{}@users.noreply.github.com", author_name);
+    // Get author information - fail if not available
+    let author_name = match user.github_username.clone() {
+        Some(username) => username,
+        None => {
+            tracing::error!("No GitHub username available for user {} in task {}", user.id, task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+    let author_email = match user.email.clone() {
+        Some(email) => email,
+        None => {
+            tracing::error!("No email available for user {} in task {}", user.id, task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
 
     // Create repo path
     let repo_name = repository.name.clone();
@@ -1545,6 +1573,14 @@ async fn connect_github(
                 })
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                
+            if let Ok((login, gh_id)) = github::fetch_current_user(&token).await {
+                let _ = app_state
+                    .database
+                    .update_user_github_info(user.id, Some(login), Some(gh_id))
+                    .await;
+            }
+            
             Ok(Json(json!({ "success": true })))
         }
         Err(e) => {

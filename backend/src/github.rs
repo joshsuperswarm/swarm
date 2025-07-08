@@ -160,6 +160,17 @@ impl GitHubClient {
     }
 }
 
+pub async fn fetch_current_user(access_token: &str)
+    -> anyhow::Result<(String, i32)>         // (login, id)
+{
+    use octocrab::Octocrab;
+    let octo = Octocrab::builder()
+        .personal_token(access_token.to_owned())
+        .build()?;
+    let u = octo.current().user().await?;
+    Ok((u.login, u.id.0 as i32))
+}
+
 // Helper function to extract repo owner and name from full name
 #[allow(dead_code)]
 pub fn parse_repo_full_name(full_name: &str) -> Option<(String, String)> {

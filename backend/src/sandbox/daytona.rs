@@ -394,21 +394,29 @@ impl DaytonaProvider {
                 .to_owned()
         };
 
-        // Configure git user
+        // Configure git user and remote - embed cd in commands since cwd is ignored by Daytona
         let git_config_commands = vec![
             format!("git config --global user.name '{}'", author_name),
             format!("git config --global user.email '{}'", author_email),
             format!(
-                "git remote set-url origin 'https://{}@github.com/{}'",
-                github_token, repo_full_name
+                "bash -c 'cd \"{}\" && \
+                 if git remote | grep -q \"^origin$\"; then \
+                     git remote set-url origin \"https://x-access-token:{}@github.com/{}\"; \
+                 else \
+                     git remote add origin \"https://x-access-token:{}@github.com/{}\"; \
+                 fi'",
+                repo_path, github_token, repo_full_name, github_token, repo_full_name
             ),
         ];
 
         for command in git_config_commands {
+            // Show first 8 characters of token for verification, mask the rest
+            let token_prefix = &github_token[..8.min(github_token.len())];
+            let masked_command = command.replace(github_token, &format!("{}***", token_prefix));
             info!(
                 "Configuring git in sandbox {}: {}",
                 sandbox_id,
-                command.replace(github_token, "***")
+                masked_command
             );
 
             let response = self
@@ -417,25 +425,88 @@ impl DaytonaProvider {
                     self.base_url, sandbox_id, returned_session_id
                 )))
                 .json(&ExecBody {
-                    command,
+                    command: command.clone(),
                     cwd: repo_path.to_string(),
                     run_async: false, // Wait for git config to complete
                 })
                 .send()
                 .await?;
 
-            if !response.status().is_success() {
-                let status = response.status();
-                let error_text = response.text().await.unwrap_or_default();
+            let status = response.status();
+            let response_text = response.text().await.unwrap_or_default();
+
+            if !status.is_success() {
                 error!(
                     "Failed to configure git in sandbox {}: {} - {}",
-                    sandbox_id, status, error_text
+                    sandbox_id, status, response_text
                 );
                 return Err(SandboxError::SandboxOperationError(format!(
                     "Git configuration failed: {} - {}",
-                    status, error_text
+                    status, response_text
                 )));
             }
+
+            // Check exit code in response JSON
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&response_text) {
+                let exit_code = json_value
+                    .get("exitCode")
+                    .or_else(|| json_value.get("exit_code"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+
+                if exit_code != 0 {
+                    let token_prefix = &github_token[..8.min(github_token.len())];
+                    let masked_command = command.replace(github_token, &format!("{}***", token_prefix));
+                    error!(
+                        "Git command failed with exit code {} in sandbox {}: {}",
+                        exit_code, sandbox_id, masked_command
+                    );
+                    return Err(SandboxError::SandboxOperationError(format!(
+                        "Git command failed with exit code {}: {}",
+                        exit_code, masked_command
+                    )));
+                }
+            }
+        }
+
+        // Verify the remote URL was set correctly - embed cd since cwd is ignored
+        let verify_command = format!("bash -c 'cd \"{}\" && pwd && git remote -v'", repo_path);
+        info!("Verifying git remote in sandbox {}: {}", sandbox_id, verify_command);
+
+        let response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session/{}/exec",
+                self.base_url, sandbox_id, returned_session_id
+            )))
+            .json(&ExecBody {
+                command: verify_command.to_string(),
+                cwd: "/home/daytona".to_string(), // This is ignored anyway, but keeping it consistent
+                run_async: false,
+            })
+            .send()
+            .await?;
+
+        let status = response.status();
+        let response_text = response.text().await.unwrap_or_default();
+
+        if status.is_success() {
+            // Parse and log the remote verification output
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&response_text) {
+                if let Some(output) = json_value.get("output").and_then(|v| v.as_str()) {
+                    let verification_output = output.trim();
+                    // Show first 8 characters of token for verification, mask the rest
+                    let token_prefix = &github_token[..8.min(github_token.len())];
+                    let masked_output = verification_output.replace(github_token, &format!("{}***", token_prefix));
+                    info!("Git remote verification in sandbox {}:\n{}", sandbox_id, masked_output);
+                } else {
+                    warn!("No output found in git remote verification response for sandbox {}", sandbox_id);
+                }
+            }
+        } else {
+            warn!(
+                "Failed to verify git remote in sandbox {}: {} - {}",
+                sandbox_id, status, response_text
+            );
         }
 
         info!("Successfully configured git in sandbox {}", sandbox_id);
