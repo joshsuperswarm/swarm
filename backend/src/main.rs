@@ -601,6 +601,9 @@ mod tests {
             _prompt: &str,
             _anthropic_api_key: &str,
             _openai_api_key: Option<&str>,
+            branch: &str,
+            _author_name: &str,
+            _author_email: &str,
         ) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxInfo> {
             // Simulate delay
             tokio::time::sleep(tokio::time::Duration::from_millis(self.delay_ms)).await;
@@ -611,6 +614,7 @@ mod tests {
                 status: crate::sandbox::SandboxStatus::Running,
                 session_id: "test-session".to_string(),
                 command_id: "test-command".to_string(),
+                branch: branch.to_string(),
             })
         }
 
@@ -634,6 +638,18 @@ mod tests {
         ) -> crate::sandbox::SandboxResult<Option<i32>> {
             // For testing, return no exit code (command still running)
             Ok(None)
+        }
+
+        async fn push_changes(
+            &self,
+            _sandbox_id: &str,
+            _repo_path: &str,
+            _branch: &str,
+            _task_id: i32,
+            _author_name: &str,
+            _author_email: &str,
+        ) -> crate::sandbox::SandboxResult<()> {
+            Ok(())
         }
     }
     
@@ -659,6 +675,9 @@ mod tests {
             _prompt: &str,
             _anthropic_api_key: &str,
             _openai_api_key: Option<&str>,
+            branch: &str,
+            _author_name: &str,
+            _author_email: &str,
         ) -> crate::sandbox::SandboxResult<crate::sandbox::SandboxInfo> {
             Ok(crate::sandbox::SandboxInfo {
                 id: "test-workspace".to_string(),
@@ -666,6 +685,7 @@ mod tests {
                 status: crate::sandbox::SandboxStatus::Running,
                 session_id: "test-session".to_string(),
                 command_id: "test-command".to_string(),
+                branch: branch.to_string(),
             })
         }
 
@@ -688,6 +708,18 @@ mod tests {
             _command_id: &str,
         ) -> crate::sandbox::SandboxResult<Option<i32>> {
             Ok(self.exit_code)
+        }
+
+        async fn push_changes(
+            &self,
+            _sandbox_id: &str,
+            _repo_path: &str,
+            _branch: &str,
+            _task_id: i32,
+            _author_name: &str,
+            _author_email: &str,
+        ) -> crate::sandbox::SandboxResult<()> {
+            Ok(())
         }
     }
 

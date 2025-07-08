@@ -1,4 +1,4 @@
-use super::{SandboxError, SandboxProvider, SandboxResult, SandboxInfo, SandboxStatus};
+use super::{SandboxError, SandboxInfo, SandboxProvider, SandboxResult, SandboxStatus};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -263,10 +263,7 @@ impl DaytonaProvider {
         })?;
 
         let path = parsed_url.path().trim_start_matches('/');
-        let repo_full_name = path
-            .strip_suffix(".git")
-            .unwrap_or(path)
-            .to_string();
+        let repo_full_name = path.strip_suffix(".git").unwrap_or(path).to_string();
 
         if repo_full_name.is_empty() {
             return Err(SandboxError::SandboxOperationError(
@@ -396,28 +393,36 @@ impl DaytonaProvider {
                 .unwrap_or(&session_id)
                 .to_owned()
         };
-        
+
         // Configure git user
         let git_config_commands = vec![
             format!("git config --global user.name '{}'", author_name),
             format!("git config --global user.email '{}'", author_email),
-            format!("git remote set-url origin 'https://{}@github.com/{}'", github_token, repo_full_name),
+            format!(
+                "git remote set-url origin 'https://{}@github.com/{}'",
+                github_token, repo_full_name
+            ),
         ];
 
         for command in git_config_commands {
-            info!("Configuring git in sandbox {}: {}", sandbox_id, command.replace(github_token, "***"));
+            info!(
+                "Configuring git in sandbox {}: {}",
+                sandbox_id,
+                command.replace(github_token, "***")
+            );
 
-            let response = self.add_auth_headers(self.client.post(format!(
-                "{}/toolbox/{}/toolbox/process/session/{}/exec",
-                self.base_url, sandbox_id, returned_session_id
-            )))
-            .json(&ExecBody {
-                command,
-                cwd: repo_path.to_string(),
-                run_async: false, // Wait for git config to complete
-            })
-            .send()
-            .await?;
+            let response = self
+                .add_auth_headers(self.client.post(format!(
+                    "{}/toolbox/{}/toolbox/process/session/{}/exec",
+                    self.base_url, sandbox_id, returned_session_id
+                )))
+                .json(&ExecBody {
+                    command,
+                    cwd: repo_path.to_string(),
+                    run_async: false, // Wait for git config to complete
+                })
+                .send()
+                .await?;
 
             if !response.status().is_success() {
                 let status = response.status();
@@ -483,48 +488,83 @@ impl DaytonaProvider {
                 .to_owned()
         };
 
-        // Push script as specified in the plan
+        // Push script with correct git flow: commit first, then create branch, then push
         let push_script = format!(
-            r#"bash -lc '
+            r#"bash -c '
+cd "{}" || {{ echo "cd failed"; exit 1; }}
 set -e
 branch="$SWARM_BRANCH"
-git checkout -B "$branch"
+
+# Show current directory
+echo "Current directory: $(pwd)"
+ls -la
+
+# Check if there are any changes to commit
+if git diff --quiet && git diff --cached --quiet; then
+    echo "No changes to commit"
+    exit 0
+fi
+
+# Stage all changes
 git add -A
-if git diff --cached --quiet; then exit 0; fi
+
+# Commit changes to current branch
 git commit --author "$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" \
            -m "Swarm: fixes for task $SWARM_TASK_ID"
+
+# Create new branch from the commit
+git checkout -B "$branch"
+
+# Push the branch to origin
 git push -u origin "$branch"
-'"#
+'"#, repo_path
         );
 
-        info!("Pushing changes to branch {} in sandbox {}", branch, sandbox_id);
+        info!(
+            "Pushing changes to branch {} in sandbox {}",
+            branch, sandbox_id
+        );
 
-        let response = self.add_auth_headers(self.client.post(format!(
-            "{}/toolbox/{}/toolbox/process/session/{}/exec",
-            self.base_url, sandbox_id, returned_session_id
-        )))
-        .json(&ExecBody {
-            command: push_script,
-            cwd: repo_path.to_string(),
-            run_async: false, // Wait for push to complete
-        })
-        .send()
-        .await?;
+        let response = self
+            .add_auth_headers(self.client.post(format!(
+                "{}/toolbox/{}/toolbox/process/session/{}/exec",
+                self.base_url, sandbox_id, returned_session_id
+            )))
+            .json(&ExecBody {
+                command: push_script,
+                cwd: repo_path.to_string(),
+                run_async: false, // Wait for push to complete
+            })
+            .send()
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
+        let status = response.status();
+        let response_text = response.text().await.unwrap_or_default();
+
+        // Log the complete output from the push script
+        info!("→ Push script execution completed with status: {}", status);
+        info!("→ Push script output for sandbox {}:", sandbox_id);
+        for line in response_text.lines() {
+            if !line.trim().is_empty() {
+                info!("   {}", line);
+            }
+        }
+
+        if !status.is_success() {
             error!(
                 "Failed to push changes in sandbox {}: {} - {}",
-                sandbox_id, status, error_text
+                sandbox_id, status, response_text
             );
             return Err(SandboxError::SandboxOperationError(format!(
                 "Push failed: {} - {}",
-                status, error_text
+                status, response_text
             )));
         }
 
-        info!("Successfully pushed changes to branch {} in sandbox {}", branch, sandbox_id);
+        info!(
+            "✓ Successfully pushed changes to branch {} in sandbox {}",
+            branch, sandbox_id
+        );
         Ok(())
     }
 
@@ -578,6 +618,8 @@ git push -u origin "$branch"
         // TODO: Remove max turns once I'm confident in the setup
         let cmd = format!(
             r#"bash -c '
+                cd "{}" || {{ echo "cd failed"; exit 1; }}
+                set -euo pipefail
                 claude -p "{}" \
                     --verbose \
                     --output-format stream-json \
@@ -585,6 +627,7 @@ git push -u origin "$branch"
                     --dangerously-skip-permissions \
                     < /dev/null
             '"#,
+            repo_path,
             claude_prompt.replace("'", r"'\''")
         );
 
@@ -657,9 +700,14 @@ git push -u origin "$branch"
             self.base_url, sandbox_id, session_id, command_id
         );
 
-        info!("→ Starting log stream for task {} from URL: {}", task_id, url);
-        info!("   Request details - sandbox: {}, session: {}, command: {}", 
-            sandbox_id, session_id, command_id);
+        info!(
+            "→ Starting log stream for task {} from URL: {}",
+            task_id, url
+        );
+        info!(
+            "   Request details - sandbox: {}, session: {}, command: {}",
+            sandbox_id, session_id, command_id
+        );
 
         let response = self.add_auth_headers(self.client.get(&url)).send().await?;
 
@@ -678,20 +726,24 @@ git push -u origin "$branch"
         }
 
         info!("✓ HTTP request successful, reading response body...");
-        
+
         // Read response body in chunks
         let body = response.text().await?;
         let body_size = body.len();
         info!("   Response body received - size: {} bytes", body_size);
-        
+
         if body.is_empty() {
             warn!("⚠ Response body is empty for task {}", task_id);
             return Ok(());
         }
-        
+
         let lines: Vec<&str> = body.lines().collect();
-        info!("   Processing {} lines from response for task {}", lines.len(), task_id);
-        
+        info!(
+            "   Processing {} lines from response for task {}",
+            lines.len(),
+            task_id
+        );
+
         let mut task_completed = false;
         let mut lines_processed = 0;
         let mut lines_stored = 0;
@@ -700,17 +752,20 @@ git push -u origin "$branch"
         for (line_num, line_str) in lines.iter().enumerate() {
             let line_str = line_str.trim();
             lines_processed += 1;
-            
+
             if line_num < 5 {
                 // Log first few lines for debugging
-                info!("   Line {}: {}", line_num + 1, 
-                    if line_str.len() > 100 { 
-                        format!("{}...", &line_str[..100]) 
-                    } else { 
-                        line_str.to_string() 
-                    });
+                info!(
+                    "   Line {}: {}",
+                    line_num + 1,
+                    if line_str.len() > 100 {
+                        format!("{}...", &line_str[..100])
+                    } else {
+                        line_str.to_string()
+                    }
+                );
             }
-            
+
             if !line_str.is_empty() {
                 // Store the log line in database
                 match db.insert_task_log(task_id, line_str).await {
@@ -721,12 +776,20 @@ git push -u origin "$branch"
                         }
                     }
                     Err(e) => {
-                        warn!("✗ Failed to store log line {} for task {}: {}", line_num + 1, task_id, e);
-                        warn!("   Line content: {}", if line_str.len() > 200 { 
-                            format!("{}...", &line_str[..200]) 
-                        } else { 
-                            line_str.to_string() 
-                        });
+                        warn!(
+                            "✗ Failed to store log line {} for task {}: {}",
+                            line_num + 1,
+                            task_id,
+                            e
+                        );
+                        warn!(
+                            "   Line content: {}",
+                            if line_str.len() > 200 {
+                                format!("{}...", &line_str[..200])
+                            } else {
+                                line_str.to_string()
+                            }
+                        );
                     }
                 }
 
@@ -735,31 +798,46 @@ git push -u origin "$branch"
                     json_lines += 1;
                     match serde_json::from_str::<serde_json::Value>(line_str) {
                         Ok(json_value) => {
-                            if let Some(msg_type) = json_value.get("type").and_then(|t| t.as_str()) {
+                            if let Some(msg_type) = json_value.get("type").and_then(|t| t.as_str())
+                            {
                                 info!("   JSON message type: {}", msg_type);
                                 if msg_type == "done" {
-                                    info!("✓ Task {} completed successfully (received 'done' event)", task_id);
+                                    info!(
+                                        "✓ Task {} completed successfully (received 'done' event)",
+                                        task_id
+                                    );
                                     task_completed = true;
-                                    
+
                                     // Update task status to done
                                     match db.update_task_status(task_id, "done", None).await {
                                         Ok(_) => {
                                             info!("✓ Task {} status updated to 'done'", task_id);
                                         }
                                         Err(e) => {
-                                            error!("✗ Failed to update task {} status to done: {}", task_id, e);
+                                            error!(
+                                                "✗ Failed to update task {} status to done: {}",
+                                                task_id, e
+                                            );
                                         }
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            warn!("⚠ Failed to parse JSON line {} for task {}: {}", line_num + 1, task_id, e);
-                            warn!("   Line: {}", if line_str.len() > 200 { 
-                                format!("{}...", &line_str[..200]) 
-                            } else { 
-                                line_str.to_string() 
-                            });
+                            warn!(
+                                "⚠ Failed to parse JSON line {} for task {}: {}",
+                                line_num + 1,
+                                task_id,
+                                e
+                            );
+                            warn!(
+                                "   Line: {}",
+                                if line_str.len() > 200 {
+                                    format!("{}...", &line_str[..200])
+                                } else {
+                                    line_str.to_string()
+                                }
+                            );
                         }
                     }
                 }
@@ -940,7 +1018,15 @@ impl SandboxProvider for DaytonaProvider {
         let repo_name = Self::extract_repo_name(repo_url)?;
         let repo_path = format!("/home/daytona/{}", repo_name);
         let repo_full_name = Self::extract_repo_full_name(repo_url)?;
-        self.configure_git(&sandbox_id, &repo_path, github_token, author_name, author_email, &repo_full_name).await?;
+        self.configure_git(
+            &sandbox_id,
+            &repo_path,
+            github_token,
+            author_name,
+            author_email,
+            &repo_full_name,
+        )
+        .await?;
 
         // Launch Claude Code with the task
         let (session_id, command_id) = self
@@ -1026,14 +1112,15 @@ impl SandboxProvider for DaytonaProvider {
         info!("Stopping sandbox {}", sandbox_id);
         self.delete_sandbox(sandbox_id).await
     }
-    
+
     async fn get_command_exit_code(
         &self,
         sandbox_id: &str,
         session_id: &str,
         command_id: &str,
     ) -> SandboxResult<Option<i32>> {
-        self.get_command_exit_code(sandbox_id, session_id, command_id).await
+        self.get_command_exit_code(sandbox_id, session_id, command_id)
+            .await
     }
 
     async fn push_changes(
@@ -1045,7 +1132,15 @@ impl SandboxProvider for DaytonaProvider {
         author_name: &str,
         author_email: &str,
     ) -> SandboxResult<()> {
-        self.push_changes(sandbox_id, repo_path, branch, task_id, author_name, author_email).await
+        self.push_changes(
+            sandbox_id,
+            repo_path,
+            branch,
+            task_id,
+            author_name,
+            author_email,
+        )
+        .await
     }
 }
 
@@ -1221,6 +1316,9 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::SandboxOperationError(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::SandboxOperationError(_)
+        ));
     }
 }
