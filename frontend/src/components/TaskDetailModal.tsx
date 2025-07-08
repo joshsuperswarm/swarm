@@ -22,7 +22,7 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
   if (!task) return null
 
   const status = statuses.find((s) => s.value === task.status)
-  const showLogs = task.status === 'spinning' || task.status === 'running'
+  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(task.status ?? '')
   
   // console.log('🔄 TaskDetailModal showLogs:', showLogs, 'status:', task.status)
 
