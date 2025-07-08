@@ -204,7 +204,6 @@ export function TasksPage() {
   // Show overlays for different states without unmounting the component
   const showAuthSpinner = !isLoaded;
   const showSignInOverlay = !isSignedIn;
-  const showLoadingOverlay = loading && !showSignInOverlay;
   const showErrorOverlay = error && !showSignInOverlay;
 
   return (
@@ -246,15 +245,6 @@ export function TasksPage() {
         </div>
       )}
 
-      {/* Loading overlay */}
-      {showLoadingOverlay && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Loading tasks...</p>
-          </div>
-        </div>
-      )}
 
       {/* Error overlay */}
       {showErrorOverlay && (
