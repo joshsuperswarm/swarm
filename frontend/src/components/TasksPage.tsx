@@ -292,7 +292,6 @@ export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
             {onCreateTask && (
               <Button
                 onClick={onCreateTask}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Create Task
               </Button>

@@ -225,7 +225,7 @@ export function TaskPage() {
       {/* Live Logs */}
       {showLogs && (
         <div className="space-y-3 mb-6">
-          <TaskLogViewer taskId={task.id} taskStatus={task.status} />
+          <TaskLogViewer taskId={task.id} taskStatus={task.status || undefined} />
         </div>
       )}
 

@@ -88,10 +88,10 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-1 w-full">
       <DataTableToolbar table={table} />
-      <div className="rounded-md border overflow-hidden flex flex-col w-full">
+      <div className="rounded-md overflow-hidden flex flex-col w-full">
         <div className="overflow-auto flex-1">
           <Table className="w-full">
-            <TableHeader className="sticky top-0 bg-white z-10">
+            <TableHeader className="shadow-[0_1px_0_0_theme(colors.border)] sticky top-0 z-20 bg-white">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {

@@ -115,7 +115,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="repository" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="repository" className="block text-xs text-muted-foreground mb-1">
               GitHub Repository
             </label>
             {userLoading ? (
@@ -138,7 +138,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="title" className="block text-xs text-muted-foreground mb-1">
               Task Title *
             </label>
             <input
@@ -153,7 +153,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="description" className="block text-xs text-muted-foreground mb-1">
               Description
             </label>
             <textarea
@@ -178,7 +178,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <button
               type="submit"
               disabled={loading || !defaultRepo || !formData.title.trim()}
-              className="flex-1 px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-md transition-colors"
+              className="flex-1 px-4 py-2 text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
             >
               {loading ? 'Creating...' : 'Create Task'}
             </button>
