@@ -1,18 +1,21 @@
 {
   "name": "Swarm Development Environment",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/workspace",
-  "shutdownAction": "stopCompose",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {
-      "version": "latest",
+      "version": "stable",
       "profile": "default"
     },
     "ghcr.io/devcontainers/features/node:1": {
       "version": "20"
     },
-    "ghcr.io/devcontainers/features/git:1": {}
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/postgres:1": {
+      "version": "16",
+      "postgresUser": "swarm",
+      "postgresPassword": "password",
+      "postgresDb": "swarm"
+    }
   },
   "customizations": {
     "vscode": {
