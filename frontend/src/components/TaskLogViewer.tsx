@@ -11,10 +11,11 @@ interface TaskLog {
 
 interface TaskLogViewerProps {
   taskId: number;
+  taskStatus?: string;
 }
 
-const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
-  console.log('🔄 TaskLogViewer render - taskId:', taskId)
+const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus }) => {
+  console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
   const [logs, setLogs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,19 +84,11 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
         lastLogIdRef.current = 0;
       }
 
-      // Check for task completion in logs (just check new logs for completion)
-      const logsToCheck = newLogs;
-      const completionFound = logsToCheck.some(log => {
-        try {
-          const jsonObj = JSON.parse(log.log_line);
-          return jsonObj.type === "done";
-        } catch {
-          return false;
-        }
-      });
-
-      // Batch all remaining state updates
-      if (completionFound && !taskCompleted) {
+      // Check if task is in finished state based on status prop
+      const isFinished = taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus);
+      
+      // Update completion state based on task status
+      if (isFinished && !taskCompleted) {
         setTaskCompleted(true);
         
         // Stop polling after a delay to catch any final logs
@@ -127,16 +120,19 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       setIsLoading(false);
       setIsPolling(false);
     }
-  }, [taskId, formatLogs]); // Remove taskCompleted dependency to prevent blocking initial fetch
+  }, [taskId, taskStatus, formatLogs]); // Add taskStatus dependency
 
   useEffect(() => {
+    // Check if task is in finished state
+    const isFinished = taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus);
+    
     // Always fetch logs initially, regardless of completion status
     fetchLogs().then(() => {
-      // Only start polling if task is not completed
-      if (!taskCompleted) {
+      // Only start polling if task is not completed and not in finished state
+      if (!taskCompleted && !isFinished) {
         intervalRef.current = setInterval(() => {
           // Only poll if we have a reference point (lastLogIdRef.current)
-          if (lastLogIdRef.current !== null && !taskCompleted) {
+          if (lastLogIdRef.current !== null && !taskCompleted && !isFinished) {
             fetchLogs(lastLogIdRef.current);
           }
         }, 3000);
@@ -149,7 +145,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [taskId, fetchLogs]); // Remove taskCompleted dependency to ensure initial fetch always happens
+  }, [taskId, taskStatus, fetchLogs]); // Add taskStatus dependency
 
 
   // Update logs when showPretty changes
@@ -159,9 +155,10 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
     }
   }, [showPretty, formatLogs]);
 
-  // Stop polling when task is completed
+  // Stop polling when task is completed or in finished state
   useEffect(() => {
-    if (taskCompleted && intervalRef.current) {
+    const isFinished = taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus);
+    if ((taskCompleted || isFinished) && intervalRef.current) {
       setTimeout(() => {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
@@ -169,7 +166,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
         }
       }, 5000); // Give it 5 seconds to catch final logs
     }
-  }, [taskCompleted]);
+  }, [taskCompleted, taskStatus]);
 
   if (error) {
     return (
@@ -198,7 +195,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
           }`} />
           <span className="text-xs text-muted-foreground">
             {isLoading ? 'Loading...' : 
-             taskCompleted ? `Task completed • ${logs.length} entries` :
+             taskCompleted || (taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus)) ? `Task completed • ${logs.length} entries` :
              isPolling ? 'Checking for new logs...' :
              `${logs.length} log entries • Polling every 3s`}
           </span>
