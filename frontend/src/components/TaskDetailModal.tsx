@@ -9,15 +9,41 @@ import {
 } from "@/components/ui/dialog"
 import { statuses } from "@/data/data"
 import { TaskLogViewer } from "@/components/TaskLogViewer"
+import { useHotkeys } from "react-hotkeys-hook"
 
 interface TaskDetailModalProps {
   task: Task | null
   isOpen: boolean
   onClose: () => void
+  onNext?: () => void
+  onPrev?: () => void
 }
 
-export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps) {
+// Key filter to ignore hotkeys when user is typing
+const keyFilter = (keyboardEvent: KeyboardEvent) => {
+  const target = keyboardEvent.target as HTMLElement;
+  const tagName = target.tagName.toLowerCase();
+  const isContentEditable = target.contentEditable === "true";
+  return !(tagName === "input" || tagName === "textarea" || isContentEditable);
+};
+
+export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskDetailModalProps) {
   // console.log('🔄 TaskDetailModal render - task:', task?.id, 'isOpen:', isOpen)
+  
+  // Modal navigation hotkeys
+  useHotkeys('j', () => {
+    if (onNext) onNext();
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e),
+    enabled: isOpen
+  });
+
+  useHotkeys('k', () => {
+    if (onPrev) onPrev();
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e),
+    enabled: isOpen
+  });
   
   if (!task) return null
 

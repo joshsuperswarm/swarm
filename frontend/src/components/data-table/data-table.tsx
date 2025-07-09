@@ -25,6 +25,7 @@ import {
 
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
+import { cn } from "@/lib/utils"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -32,6 +33,7 @@ interface DataTableProps<TData, TValue> {
   loading?: boolean
   onTaskClick?: (task: TData) => void
   onCreateTask?: () => void
+  highlightedRow?: string
 }
 
 export function DataTable<TData, TValue>({
@@ -40,6 +42,7 @@ export function DataTable<TData, TValue>({
   loading = false,
   onTaskClick,
   onCreateTask,
+  highlightedRow,
 }: DataTableProps<TData, TValue>) {
   // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
   const [columnVisibility, setColumnVisibility] =
@@ -127,7 +130,10 @@ export function DataTable<TData, TValue>({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="cursor-pointer"
+                    className={cn(
+                      "cursor-pointer",
+                      highlightedRow === row.id && "bg-blue-50"
+                    )}
                     onClick={() => onTaskClick?.(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (

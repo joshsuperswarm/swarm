@@ -80,6 +80,20 @@ docker-compose logs postgres
 - AI agent task management
 - Real-time task status tracking
 - Automatic PR creation for completed tasks
+- Vim-style keyboard navigation
+
+## Keyboard Shortcuts
+
+### Task Table Navigation
+- **j** - Move selection down one row
+- **k** - Move selection up one row  
+- **o** or **Enter** - Open selected task details modal
+
+### Task Detail Modal
+- **j** - Jump to next task (wraps around)
+- **k** - Jump to previous task (wraps around)
+
+*Note: Keyboard shortcuts are disabled while typing in input fields or text areas.*
 
 ## Development Workflow
 

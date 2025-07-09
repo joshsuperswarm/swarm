@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { useAuth, SignInButton } from "@clerk/clerk-react";
+import { useHotkeys } from "react-hotkeys-hook";
 import type { Task } from "@/types";
 import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
@@ -50,12 +51,21 @@ function mergeTaskLists(dest: Task[], src: Task[]): Task[] {
 // Memoize DataTable outside component to ensure stable reference
 const MemoizedDataTable = React.memo(DataTable<Task, unknown>); // default shallow compare
 
+// Key filter to ignore hotkeys when user is typing
+const keyFilter = (keyboardEvent: KeyboardEvent) => {
+  const target = keyboardEvent.target as HTMLElement;
+  const tagName = target.tagName.toLowerCase();
+  const isContentEditable = target.contentEditable === "true";
+  return !(tagName === "input" || tagName === "textarea" || isContentEditable);
+};
+
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
   const { isSignedIn, isLoaded } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
@@ -116,6 +126,20 @@ export function TasksPage() {
     }
   }, []);
 
+  // Keep selectedIndex within bounds when tasks change
+  useEffect(() => {
+    if (tasks.length > 0) {
+      setSelectedIndex(prev => Math.min(prev, tasks.length - 1));
+    } else {
+      setSelectedIndex(0);
+    }
+  }, [tasks]);
+
+  // Derive selectedTask from selectedIndex
+  const currentSelectedTask = useMemo(() => {
+    return tasks.length > 0 ? tasks[selectedIndex] : null;
+  }, [tasks, selectedIndex]);
+
   // Load tasks when auth is ready and JWT is available
   useEffect(() => {
     // console.log('🔄 TasksPage auth useEffect - isSignedIn:', isSignedIn)
@@ -147,6 +171,31 @@ export function TasksPage() {
     };
   }, []);
 
+  // Keyboard navigation hotkeys for table
+  useHotkeys('j', () => {
+    setSelectedIndex(i => Math.min(i + 1, tasks.length - 1));
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e),
+    enabled: !isModalOpen && tasks.length > 0
+  });
+
+  useHotkeys('k', () => {
+    setSelectedIndex(i => Math.max(i - 1, 0));
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e),
+    enabled: !isModalOpen && tasks.length > 0
+  });
+
+  useHotkeys(['o', 'enter'], () => {
+    if (currentSelectedTask) {
+      setSelectedTask(currentSelectedTask);
+      setIsModalOpen(true);
+    }
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e),
+    enabled: !isModalOpen && tasks.length > 0
+  });
+
   const handleTaskClick = useCallback((task: Task) => {
     // console.log('🔄 TasksPage handleTaskClick - opening modal for task:', task.id)
     setSelectedTask(task);
@@ -157,6 +206,18 @@ export function TasksPage() {
     // console.log('🔄 TasksPage handleCloseModal - closing modal')
     setIsModalOpen(false);
     setSelectedTask(null);
+  };
+
+  const handleNextTask = () => {
+    const nextIndex = (selectedIndex + 1) % tasks.length;
+    setSelectedIndex(nextIndex);
+    setSelectedTask(tasks[nextIndex]);
+  };
+
+  const handlePrevTask = () => {
+    const prevIndex = (selectedIndex - 1 + tasks.length) % tasks.length;
+    setSelectedIndex(prevIndex);
+    setSelectedTask(tasks[prevIndex]);
   };
 
   const handleCreateTask = useCallback(() => {
@@ -274,12 +335,15 @@ export function TasksPage() {
           loading={loading && tasks.length === 0}
           onTaskClick={handleTaskClick}
           onCreateTask={handleCreateTask}
+          highlightedRow={String(currentSelectedTask?.id ?? '')}
         />
       </div>
       <TaskDetailModal
         task={selectedTask}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onNext={handleNextTask}
+        onPrev={handlePrevTask}
       />
       <CreateTaskModal
         isOpen={isCreateTaskModalOpen}
