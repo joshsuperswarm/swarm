@@ -7,10 +7,10 @@ import React, {
 } from "react";
 import { useAuth, SignInButton } from "@clerk/clerk-react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useNavigate } from "react-router-dom";
 import type { Task } from "@/types";
 import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
-import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { ApiService } from "@/services/api";
 import { getBackendJwt } from "@/lib/authToken";
 import { Button } from "@/components/ui/button";
@@ -66,12 +66,11 @@ interface TasksPageProps {
 export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
   // console.log('🔄 TasksPage render')
   const { isSignedIn, isLoaded } = useAuth();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const settledCounterRef = useRef(0);
 
@@ -179,49 +178,38 @@ export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
     setSelectedIndex(i => Math.min(i + 1, tasks.length - 1));
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: !isModalOpen && tasks.length > 0
+    enabled: tasks.length > 0
   });
 
   useHotkeys('k', () => {
     setSelectedIndex(i => Math.max(i - 1, 0));
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: !isModalOpen && tasks.length > 0
+    enabled: tasks.length > 0
   });
 
   useHotkeys(['o', 'enter'], () => {
     if (currentSelectedTask) {
-      setSelectedTask(currentSelectedTask);
-      setIsModalOpen(true);
+      navigate(`/tasks/${currentSelectedTask.id}`);
     }
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: !isModalOpen && tasks.length > 0
+    enabled: tasks.length > 0
+  });
+
+  useHotkeys('c', () => {
+    if (onCreateTask) {
+      onCreateTask();
+    }
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e)
   });
 
   const handleTaskClick = useCallback((task: Task) => {
-    // console.log('🔄 TasksPage handleTaskClick - opening modal for task:', task.id)
-    setSelectedTask(task);
-    setIsModalOpen(true);
-  }, []);
+    // console.log('🔄 TasksPage handleTaskClick - navigating to task:', task.id)
+    navigate(`/tasks/${task.id}`);
+  }, [navigate]);
 
-  const handleCloseModal = () => {
-    // console.log('🔄 TasksPage handleCloseModal - closing modal')
-    setIsModalOpen(false);
-    setSelectedTask(null);
-  };
-
-  const handleNextTask = () => {
-    const nextIndex = (selectedIndex + 1) % tasks.length;
-    setSelectedIndex(nextIndex);
-    setSelectedTask(tasks[nextIndex]);
-  };
-
-  const handlePrevTask = () => {
-    const prevIndex = (selectedIndex - 1 + tasks.length) % tasks.length;
-    setSelectedIndex(prevIndex);
-    setSelectedTask(tasks[prevIndex]);
-  };
 
 
 
@@ -319,13 +307,6 @@ export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
           highlightedRow={String(currentSelectedTask?.id ?? '')}
         />
       </div>
-      <TaskDetailModal
-        task={selectedTask}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onNext={handleNextTask}
-        onPrev={handlePrevTask}
-      />
     </div>
   );
 }

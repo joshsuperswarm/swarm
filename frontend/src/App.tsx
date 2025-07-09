@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { SignInButton, UserButton, useAuth, useUser } from '@clerk/clerk-react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
-import { TasksPage } from './components/TasksPage'
+import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService } from './services/api'
 import { setBackendJwt } from '@/lib/authToken'
@@ -88,6 +89,15 @@ function App() {
     })()
   }, [isSignedIn, getToken, user])
 
+  // Global hotkey to close create task modal
+  useHotkeys('esc', () => {
+    if (isCreateModalOpen) {
+      setIsCreateModalOpen(false);
+    }
+  }, {
+    enabled: isCreateModalOpen
+  });
+
   return (
     <Layout>
       <div className="flex flex-col h-full">
@@ -105,7 +115,7 @@ function App() {
           </div>
         </div>
 
-        <TasksPage onCreateTask={() => setIsCreateModalOpen(true)} />
+        <Router onCreateTask={() => setIsCreateModalOpen(true)} />
       </div>
 
       <CreateTaskModal
