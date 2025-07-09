@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ApiService } from "@/services/api";
+import { VirtualisedLogViewer } from "@/components/VirtualisedLogViewer";
 
 interface TaskLog {
   id: number;
@@ -14,30 +15,42 @@ interface TaskLogViewerProps {
 
 const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
   console.log('🔄 TaskLogViewer render - taskId:', taskId)
-  const [logs, setLogs] = useState<TaskLog[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [taskCompleted, setTaskCompleted] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showPretty, setShowPretty] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogIdRef = useRef<number | null>(null);
+  const rawLogsRef = useRef<TaskLog[]>([]);
 
   const copyLogsToClipboard = useCallback(async () => {
     try {
-      const allLogsText = logs.map(log => log.log_line).join('\n');
+      const allLogsText = logs.join('\n');
       await navigator.clipboard.writeText(allLogsText);
     } catch (err) {
       console.error('Failed to copy logs:', err);
       // Fallback for browsers that don't support clipboard API
       const textArea = document.createElement('textarea');
-      textArea.value = logs.map(log => log.log_line).join('\n');
+      textArea.value = logs.join('\n');
       document.body.appendChild(textArea);
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
     }
   }, [logs]);
+
+  const formatLogs = useCallback((rawLogs: TaskLog[]) => {
+    if (showPretty) {
+      return rawLogs.map(l => {
+        try { return JSON.stringify(JSON.parse(l.log_line), null, 2); }
+        catch { return l.log_line; }
+      });
+    } else {
+      return rawLogs.map(l => l.log_line);
+    }
+  }, [showPretty]);
 
   const fetchLogs = useCallback(async (since?: number) => {
     console.log('🔄 TaskLogViewer fetchLogs called - taskId:', taskId, 'since:', since)
@@ -51,14 +64,15 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
 
       if (since) {
         // Append new logs, but deduplicate based on log ID
-        setLogs(prevLogs => {
-          const existingIds = new Set(prevLogs.map(log => log.id));
-          const uniqueNewLogs = newLogs.filter(log => !existingIds.has(log.id));
-          return [...prevLogs, ...uniqueNewLogs];
-        });
+        const existingIds = new Set(rawLogsRef.current.map(log => log.id));
+        const uniqueNewLogs = newLogs.filter(log => !existingIds.has(log.id));
+        
+        rawLogsRef.current = [...rawLogsRef.current, ...uniqueNewLogs];
+        setLogs(formatLogs(rawLogsRef.current));
       } else {
         // Initial load - replace all logs
-        setLogs(newLogs);
+        rawLogsRef.current = newLogs;
+        setLogs(formatLogs(newLogs));
       }
 
       // Update last log ID for next poll
@@ -98,14 +112,14 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       setIsLoading(false);
       setIsPolling(false);
       
-      // Auto-scroll to bottom when new logs arrive
-      if (newLogs.length > 0) {
-        setTimeout(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-        }, 10);
-      }
+      // Auto-scroll to bottom when new logs arrive (handled by VirtualisedLogViewer)
+      // if (newLogs.length > 0) {
+      //   setTimeout(() => {
+      //     if (scrollRef.current) {
+      //       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      //     }
+      //   }, 10);
+      // }
     } catch (err) {
       console.error("Error fetching logs:", err);
       // Batch error state updates
@@ -113,7 +127,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       setIsLoading(false);
       setIsPolling(false);
     }
-  }, [taskId]); // Remove taskCompleted dependency to prevent blocking initial fetch
+  }, [taskId, formatLogs]); // Remove taskCompleted dependency to prevent blocking initial fetch
 
   useEffect(() => {
     // Always fetch logs initially, regardless of completion status
@@ -136,6 +150,14 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
       }
     };
   }, [taskId, fetchLogs]); // Remove taskCompleted dependency to ensure initial fetch always happens
+
+
+  // Update logs when showPretty changes
+  useEffect(() => {
+    if (rawLogsRef.current.length > 0) {
+      setLogs(formatLogs(rawLogsRef.current));
+    }
+  }, [showPretty, formatLogs]);
 
   // Stop polling when task is completed
   useEffect(() => {
@@ -190,51 +212,36 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId }) => {
                 Refresh
               </button>
               {logs.length > 0 && (
-                <button 
-                  onClick={copyLogsToClipboard}
-                  className="text-xs text-green-600 hover:text-green-800 underline"
-                  title="Copy all logs to clipboard"
-                >
-                  Copy Logs
-                </button>
+                <>
+                  <button 
+                    onClick={() => setShowPretty(!showPretty)}
+                    className="text-xs text-purple-600 hover:text-purple-800 underline"
+                    title="Toggle between pretty and raw JSON view"
+                  >
+                    {showPretty ? '< /> Raw' : '{ } Pretty'}
+                  </button>
+                  <button 
+                    onClick={copyLogsToClipboard}
+                    className="text-xs text-green-600 hover:text-green-800 underline"
+                    title="Copy all logs to clipboard"
+                  >
+                    Copy Logs
+                  </button>
+                </>
               )}
             </>
           )}
         </div>
       </div>
       
-      <div 
-        className="h-96 w-full rounded-lg border bg-gray-900 p-4 overflow-y-auto overflow-x-hidden" 
-        ref={scrollRef}
-      >
-        <div className="w-full overflow-x-auto">
-          <pre className="w-full text-xs text-gray-100">
-            {logs.length === 0 && !isLoading ? (
-              <span className="text-gray-500">No logs yet...</span>
-            ) : isLoading && logs.length === 0 ? (
-              <span className="text-gray-500">Loading logs...</span>
-            ) : (
-              logs.map((log) => {
-                try {
-                  // Try to parse as JSON for pretty printing
-                  const jsonObj = JSON.parse(log.log_line);
-                  return (
-                    <code key={log.id} className="block mb-2 whitespace-pre">
-                      {JSON.stringify(jsonObj, null, 2)}
-                    </code>
-                  );
-                } catch {
-                  // If not JSON, display as plain text
-                  return (
-                    <code key={log.id} className="block mb-1 whitespace-pre">
-                      {log.log_line}
-                    </code>
-                  );
-                }
-              })
-            )}
-          </pre>
-        </div>
+      <div className="h-96 w-full rounded-lg border bg-gray-900 p-4">
+        {logs.length === 0 && !isLoading ? (
+          <span className="text-gray-500 text-xs">No logs yet...</span>
+        ) : isLoading && logs.length === 0 ? (
+          <span className="text-gray-500 text-xs">Loading logs...</span>
+        ) : (
+          <VirtualisedLogViewer lines={logs} />
+        )}
       </div>
     </div>
   );
