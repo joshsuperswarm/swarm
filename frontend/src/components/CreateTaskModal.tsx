@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { ApiService } from '@/services/api';
 import { getBackendJwt } from '@/lib/authToken';
@@ -31,6 +31,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const [defaultRepo, setDefaultRepo] = useState<RepositoryTS | null>(null);
   const [loading, setLoading] = useState(false);
   const [userLoading, setUserLoading] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Load user profile with default repo when modal opens
   useEffect(() => {
@@ -48,6 +50,49 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
         }, 500)
       }
     }
+  }, [isOpen]);
+
+  // Auto-focus title input when modal opens
+  useEffect(() => {
+    if (isOpen && titleInputRef.current) {
+      // Small delay to ensure modal is fully rendered
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isOpen]);
+
+  // Focus trap for accessibility
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        const modal = modalRef.current;
+        if (!modal) return;
+
+        const focusableElements = modal.querySelectorAll(
+          'input, textarea, button, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
   const loadUserProfile = async () => {
@@ -102,8 +147,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div ref={modalRef} className="bg-white rounded-lg max-w-2xl w-full p-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Create New Task</h2>
           <button
             onClick={onClose}
@@ -113,72 +158,52 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="repository" className="block text-xs text-muted-foreground mb-1">
-              GitHub Repository
-            </label>
-            {userLoading ? (
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                <p className="text-gray-500 text-sm">Loading default repository...</p>
-              </div>
-            ) : defaultRepo ? (
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                <p className="text-gray-700 text-sm">
-                  <strong>{defaultRepo.full_name}</strong> {defaultRepo.is_private ? '(Private)' : '(Public)'}
-                </p>
-              </div>
-            ) : (
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                <p className="text-gray-500 text-sm">
-                  No default repository set. Please set a default repository in your settings.
-                </p>
-              </div>
-            )}
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {userLoading ? (
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+              <p className="text-gray-500 text-sm">Loading default repository...</p>
+            </div>
+          ) : defaultRepo ? (
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+              <p className="text-gray-700 text-sm">
+                <strong>{defaultRepo.full_name}</strong> {defaultRepo.is_private ? '(Private)' : '(Public)'}
+              </p>
+            </div>
+          ) : (
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+              <p className="text-gray-500 text-sm">
+                No default repository set. Please set a default repository in your settings.
+              </p>
+            </div>
+          )}
 
-          <div>
-            <label htmlFor="title" className="block text-xs text-muted-foreground mb-1">
-              Task Title *
-            </label>
+          <div className="space-y-1">
             <input
+              ref={titleInputRef}
               id="title"
               type="text"
               required
               value={formData.title}
               onChange={handleChange('title')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g., Add user authentication system"
+              className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none border-b border-gray-200 focus:border-gray-400"
+              placeholder="Issue title"
             />
-          </div>
-
-          <div>
-            <label htmlFor="description" className="block text-xs text-muted-foreground mb-1">
-              Description
-            </label>
             <textarea
               id="description"
               value={formData.description}
               onChange={handleChange('description')}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Describe what the AI agent should work on... (Markdown supported)"
+              rows={2}
+              className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none border-b border-gray-200 focus:border-gray-400 resize-none"
+              placeholder="Add description..."
             />
           </div>
 
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-            >
-              Cancel
-            </button>
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
               disabled={loading || !defaultRepo || !formData.title.trim()}
-              className="flex-1 px-4 py-2 text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
+              className="px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
             >
               {loading ? 'Creating...' : 'Create Task'}
             </button>

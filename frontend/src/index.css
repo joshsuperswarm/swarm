@@ -89,6 +89,12 @@ html, body {
   .ease-snappy {
     transition-timing-function: cubic-bezier(.16,1,.3,1);
   }
+  /* Linear-style input surface */
+  .field {
+    @apply bg-transparent border-none rounded-none
+           transition-colors duration-100
+           focus-visible:bg-transparent;
+  }
 }
 
 /* Custom utility classes */
