@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { Edit } from 'lucide-react'
 
-export function Sidebar() {
+interface SidebarProps {
+  onCreateTask?: () => void
+}
+
+export function Sidebar({ onCreateTask }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   // Toggle sidebar with cmd+b
@@ -11,6 +16,15 @@ export function Sidebar() {
     preventDefault: true
   })
 
+  // Create task with 'c' key
+  useHotkeys('c', () => {
+    if (onCreateTask) {
+      onCreateTask()
+    }
+  }, {
+    enabled: !!onCreateTask
+  })
+
   return (
     <div className={`
       flex flex-col bg-white border-r border-gray-200 transition-all duration-200 ease-in-out
@@ -18,12 +32,23 @@ export function Sidebar() {
     `}>
       {/* Header */}
       <div className="px-4 py-4 border-b border-gray-200">
-        <div className="flex items-center">
-          <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center mr-3">
-            <span className="text-white font-bold text-sm">S</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center mr-3">
+              <span className="text-white font-bold text-sm">S</span>
+            </div>
+            {!isCollapsed && (
+              <h1 className="text-xl font-bold text-gray-900">Swarm</h1>
+            )}
           </div>
-          {!isCollapsed && (
-            <h1 className="text-xl font-bold text-gray-900">Swarm</h1>
+          {onCreateTask && (
+            <button
+              onClick={onCreateTask}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              title="Create new task"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>

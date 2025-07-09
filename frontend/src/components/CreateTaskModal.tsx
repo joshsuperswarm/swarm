@@ -67,6 +67,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      
       if (e.key === 'Tab') {
         const modal = modalRef.current;
         if (!modal) return;

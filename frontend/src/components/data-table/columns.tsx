@@ -58,9 +58,6 @@ export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Tas
         </div>
       )
     },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
-    },
   },
   {
     accessorKey: "created_at",

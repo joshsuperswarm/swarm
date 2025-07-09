@@ -3,12 +3,9 @@
 import * as React from "react"
 import {
   type ColumnDef,
-  type ColumnFiltersState,
   type SortingState,
-  type VisibilityState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
@@ -22,7 +19,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { DataTableToolbar } from "./data-table-toolbar"
 import { cn } from "@/lib/utils"
 
 interface DataTableProps<TData, TValue> {
@@ -41,11 +37,6 @@ export function DataTable<TData, TValue>({
   highlightedRow,
 }: DataTableProps<TData, TValue>) {
   // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
   const [sorting, setSorting] = React.useState<SortingState>([])
 
   React.useEffect(() => {
@@ -73,21 +64,15 @@ export function DataTable<TData, TValue>({
     getRowId: row => String((row as { id: number }).id),
     state: {
       sorting,
-      columnVisibility,
-      columnFilters,
     },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     debugTable: false, // Turn off TanStack debug logs
   })
 
   return (
     <div className="space-y-1 w-full">
-      <DataTableToolbar table={table} />
       <div className="rounded-md overflow-hidden flex flex-col w-full">
         <div className="overflow-auto flex-1">
           <Table className="w-full">

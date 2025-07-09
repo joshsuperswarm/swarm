@@ -99,7 +99,7 @@ function App() {
   });
 
   return (
-    <Layout>
+    <Layout onCreateTask={() => setIsCreateModalOpen(true)}>
       <div className="flex flex-col h-full">
         <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0" style={{paddingTop: '18px', paddingBottom: '18px'}}>
           <div className="flex justify-end items-center">
@@ -115,7 +115,7 @@ function App() {
           </div>
         </div>
 
-        <Router onCreateTask={() => setIsCreateModalOpen(true)} />
+        <Router />
       </div>
 
       <CreateTaskModal

@@ -13,7 +13,6 @@ import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
 import { ApiService } from "@/services/api";
 import { getBackendJwt } from "@/lib/authToken";
-import { Button } from "@/components/ui/button";
 
 /** Build a Map id → task for quick lookup. */
 function toTaskMap(list: Task[]) {
@@ -59,11 +58,7 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
   return !(tagName === "input" || tagName === "textarea" || isContentEditable);
 };
 
-interface TasksPageProps {
-  onCreateTask?: () => void;
-}
-
-export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
+export function TasksPage() {
   // console.log('🔄 TasksPage render')
   const { isSignedIn, isLoaded } = useAuth();
   const navigate = useNavigate();
@@ -197,13 +192,6 @@ export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
     enabled: tasks.length > 0
   });
 
-  useHotkeys('c', () => {
-    if (onCreateTask) {
-      onCreateTask();
-    }
-  }, {
-    ignoreEventWhen: (e) => !keyFilter(e)
-  });
 
   const handleTaskClick = useCallback((task: Task) => {
     // console.log('🔄 TasksPage handleTaskClick - navigating to task:', task.id)
@@ -287,16 +275,7 @@ export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
       {/* Main content - always rendered to prevent unmounting */}
       <div className="flex-1 min-w-0">
         <div className="mb-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
-            {onCreateTask && (
-              <Button
-                onClick={onCreateTask}
-              >
-                Create Task
-              </Button>
-            )}
-          </div>
+          <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
         </div>
         <MemoizedDataTable
           data={tasks}
