@@ -9,7 +9,6 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
@@ -23,7 +22,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { DataTablePagination } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { cn } from "@/lib/utils"
 
@@ -32,7 +30,6 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   loading?: boolean
   onTaskClick?: (task: TData) => void
-  onCreateTask?: () => void
   highlightedRow?: string
 }
 
@@ -41,7 +38,6 @@ export function DataTable<TData, TValue>({
   data,
   loading = false,
   onTaskClick,
-  onCreateTask,
   highlightedRow,
 }: DataTableProps<TData, TValue>) {
   // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
@@ -85,17 +81,16 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     debugTable: false, // Turn off TanStack debug logs
   })
 
   return (
-    <div className="space-y-1">
-      <DataTableToolbar table={table} onCreateTask={onCreateTask} />
-      <div className="rounded-md border overflow-hidden flex flex-col">
+    <div className="space-y-1 w-full">
+      <DataTableToolbar table={table} />
+      <div className="rounded-md border overflow-hidden flex flex-col w-full">
         <div className="overflow-auto flex-1">
-          <Table>
+          <Table className="w-full">
             <TableHeader className="sticky top-0 bg-white z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -160,7 +155,6 @@ export function DataTable<TData, TValue>({
           </Table>
         </div>
       </div>
-      <DataTablePagination table={table} />
     </div>
   )
 }

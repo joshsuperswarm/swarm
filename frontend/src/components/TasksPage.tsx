@@ -11,9 +11,9 @@ import type { Task } from "@/types";
 import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
-import { CreateTaskModal } from "@/components/CreateTaskModal";
 import { ApiService } from "@/services/api";
 import { getBackendJwt } from "@/lib/authToken";
+import { Button } from "@/components/ui/button";
 
 /** Build a Map id → task for quick lookup. */
 function toTaskMap(list: Task[]) {
@@ -59,7 +59,11 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
   return !(tagName === "input" || tagName === "textarea" || isContentEditable);
 };
 
-export function TasksPage() {
+interface TasksPageProps {
+  onCreateTask?: () => void;
+}
+
+export function TasksPage({ onCreateTask }: TasksPageProps = {}) {
   // console.log('🔄 TasksPage render')
   const { isSignedIn, isLoaded } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -68,7 +72,6 @@ export function TasksPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const settledCounterRef = useRef(0);
 
@@ -220,41 +223,7 @@ export function TasksPage() {
     setSelectedTask(tasks[prevIndex]);
   };
 
-  const handleCreateTask = useCallback(() => {
-    setIsCreateTaskModalOpen(true);
-  }, []);
 
-  const handleCloseCreateTaskModal = () => {
-    setIsCreateTaskModalOpen(false);
-  };
-
-  const handleTaskCreated = async (taskData: {
-    title: string;
-    description: string;
-    repositoryId: number | null;
-  }) => {
-    try {
-      if (!taskData.repositoryId) {
-        console.error("Repository ID is required");
-        return;
-      }
-
-      await ApiService.createTask({
-        title: taskData.title,
-        description: taskData.description,
-        repository_id: taskData.repositoryId,
-      });
-
-      // Reload tasks to show the new task
-      await loadTasks();
-
-      setIsCreateTaskModalOpen(false);
-    } catch (err) {
-      console.error("Failed to create task:", err);
-      // TODO: Show error notification to user
-      setIsCreateTaskModalOpen(false);
-    }
-  };
 
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {
@@ -268,7 +237,7 @@ export function TasksPage() {
   const showErrorOverlay = error && !showSignInOverlay;
 
   return (
-    <div className="p-4 relative">
+    <div className="relative flex-1 min-w-0 overflow-hidden px-0 py-4 sm:px-6">
       {/* Auth loading overlay */}
       {showAuthSpinner && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm">
@@ -328,13 +297,25 @@ export function TasksPage() {
 
 
       {/* Main content - always rendered to prevent unmounting */}
-      <div>
+      <div className="flex-1 min-w-0">
+        <div className="mb-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
+            {onCreateTask && (
+              <Button
+                onClick={onCreateTask}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Create Task
+              </Button>
+            )}
+          </div>
+        </div>
         <MemoizedDataTable
           data={tasks}
           columns={columns}
           loading={loading && tasks.length === 0}
           onTaskClick={handleTaskClick}
-          onCreateTask={handleCreateTask}
           highlightedRow={String(currentSelectedTask?.id ?? '')}
         />
       </div>
@@ -344,11 +325,6 @@ export function TasksPage() {
         onClose={handleCloseModal}
         onNext={handleNextTask}
         onPrev={handlePrevTask}
-      />
-      <CreateTaskModal
-        isOpen={isCreateTaskModalOpen}
-        onClose={handleCloseCreateTaskModal}
-        onCreateTask={handleTaskCreated}
       />
     </div>
   );

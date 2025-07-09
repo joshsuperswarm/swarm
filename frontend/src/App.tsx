@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { SignInButton, UserButton, useAuth, useUser } from '@clerk/clerk-react'
+import { Layout } from './components/Layout'
 import { TasksPage } from './components/TasksPage'
-import { CreateSessionModal } from './components/CreateSessionModal'
+import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService } from './services/api'
 import { setBackendJwt } from '@/lib/authToken'
 import './App.css'
@@ -10,6 +11,32 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const { isSignedIn, getToken } = useAuth()
   const { user } = useUser()
+
+  const handleTaskCreated = async (taskData: {
+    title: string;
+    description: string;
+    repositoryId: number | null;
+  }) => {
+    try {
+      if (!taskData.repositoryId) {
+        console.error("Repository ID is required");
+        return;
+      }
+
+      await ApiService.createTask({
+        title: taskData.title,
+        description: taskData.description,
+        repository_id: taskData.repositoryId,
+      });
+
+      setIsCreateModalOpen(false);
+      // Note: TasksPage will auto-refresh via its polling mechanism
+    } catch (err) {
+      console.error("Failed to create task:", err);
+      // TODO: Show error notification to user
+      setIsCreateModalOpen(false);
+    }
+  };
 
   // Test backend connection on app load
   useEffect(() => {
@@ -62,31 +89,31 @@ function App() {
   }, [isSignedIn, getToken, user])
 
   return (
-    <div className="bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Swarm</h1>
-          {isSignedIn ? (
-            <UserButton />
-          ) : (
-            <SignInButton mode="modal">
-              <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
-                Sign in with GitHub
-              </button>
-            </SignInButton>
-          )}
+    <Layout>
+      <div className="flex flex-col h-full">
+        <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+          <div className="flex justify-end items-center">
+            {isSignedIn ? (
+              <UserButton />
+            ) : (
+              <SignInButton mode="modal">
+                <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+                  Sign in with GitHub
+                </button>
+              </SignInButton>
+            )}
+          </div>
         </div>
-      </header>
 
-      <main>
-        <TasksPage />
-      </main>
+        <TasksPage onCreateTask={() => setIsCreateModalOpen(true)} />
+      </div>
 
-      <CreateSessionModal
+      <CreateTaskModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        onCreateTask={handleTaskCreated}
       />
-    </div>
+    </Layout>
   )
 }
 

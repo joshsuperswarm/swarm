@@ -12,12 +12,10 @@ import { DataTableViewOptions } from "./data-table-view-options"
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>
-  onCreateTask?: () => void
 }
 
 export function DataTableToolbar<TData>({
   table,
-  onCreateTask,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0
 
@@ -51,14 +49,6 @@ export function DataTableToolbar<TData>({
         )}
       </div>
       <div className="flex items-center space-x-2">
-        {onCreateTask && (
-          <Button
-            onClick={onCreateTask}
-            className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Create Task
-          </Button>
-        )}
         <DataTableViewOptions table={table} />
       </div>
     </div>
