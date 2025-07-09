@@ -162,7 +162,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               onChange={handleChange('description')}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Describe what the AI agent should work on..."
+              placeholder="Describe what the AI agent should work on... (Markdown supported)"
             />
           </div>
 
