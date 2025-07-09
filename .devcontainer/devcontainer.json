@@ -25,6 +25,6 @@
     }
   },
   "forwardPorts": [3000, 5173, 8080],
-  "postCreateCommand": "cd backend && cp .env.example .env && cd ../frontend && npm install",
+  "postCreateCommand": "bash scripts/install-claude-code.sh && cd backend && cp .env.example .env && cargo build && cd ../frontend && npm install",
   "postStartCommand": "cd backend && cargo run & cd frontend && npm run dev"
 }
