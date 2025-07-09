@@ -54,7 +54,7 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-4xl mx-auto max-h-[80vh] overflow-y-auto">
         <DialogHeader className="pb-4">
           <DialogTitle className="flex items-start gap-3 text-lg">
             <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">

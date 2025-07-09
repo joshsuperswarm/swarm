@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { useAuth } from '@clerk/clerk-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { statuses } from '@/data/data';
 import { ApiService } from '@/services/api';
+import { getBackendJwt } from '@/lib/authToken';
 import type { Task } from '@/types';
 
 // Key filter to ignore hotkeys when user is typing
@@ -20,6 +22,7 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isSignedIn, isLoaded } = useAuth();
   const [task, setTask] = useState<Task | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,10 +60,23 @@ export function TaskPage() {
       }
     };
 
-    if (id) {
-      loadTasks();
+    // Wait for authentication to be ready and JWT to be available
+    if (isSignedIn && isLoaded && id) {
+      // Add a small delay to ensure JWT has been set in the auth store
+      const timeoutId = setTimeout(() => {
+        const jwt = getBackendJwt();
+        if (jwt) {
+          loadTasks();
+        } else {
+          console.log("TaskPage: Waiting for JWT to be available...");
+          // Try again in a moment
+          setTimeout(loadTasks, 1000);
+        }
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [id]);
+  }, [id, isSignedIn, isLoaded]);
 
   // Navigation hotkeys
   useHotkeys('j', () => {
@@ -148,7 +164,7 @@ export function TaskPage() {
   const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(task.status ?? '');
 
   return (
-    <div className="flex-1 max-w-4xl mx-auto px-4 py-6">
+    <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-4">
