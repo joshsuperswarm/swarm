@@ -91,7 +91,7 @@ function App() {
   return (
     <Layout>
       <div className="flex flex-col h-full">
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+        <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0" style={{paddingTop: '18px', paddingBottom: '18px'}}>
           <div className="flex justify-end items-center">
             {isSignedIn ? (
               <UserButton />
