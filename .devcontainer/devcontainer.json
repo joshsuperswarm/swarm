@@ -10,7 +10,7 @@
       "version": "20"
     },
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers-contrib/features/postgresql:1": {
+    "ghcr.io/itsmechlark/features/postgresql:1": {
       "version": "16",
       "user": "swarm",
       "password": "password",
