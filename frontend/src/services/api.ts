@@ -14,7 +14,7 @@ interface HealthResponse {
 
 interface CreateTaskRequest {
   title: string;
-  description?: string;
+  description?: string | undefined;
   repository_id: number;
 }
 
@@ -84,9 +84,21 @@ export class ApiService {
   }
 
   static async createTask(task: CreateTaskRequest): Promise<{ success: boolean; task: Task }> {
+    // Client-side validation
+    if (!task.title.trim()) {
+      throw new Error('Title cannot be empty');
+    }
+    
+    // Sanitize data
+    const sanitized = {
+      ...task,
+      title: task.title.trim(),
+      description: task.description?.trim() || undefined,
+    };
+    
     return this.authenticatedRequest('/api/tasks', {
       method: 'POST',
-      body: JSON.stringify(task),
+      body: JSON.stringify(sanitized),
     });
   }
 

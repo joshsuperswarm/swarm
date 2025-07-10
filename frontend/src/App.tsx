@@ -17,7 +17,7 @@ function App() {
 
   const handleTaskCreated = async (taskData: {
     title: string;
-    description: string;
+    description: string | undefined;
     repositoryId: number | null;
   }) => {
     try {

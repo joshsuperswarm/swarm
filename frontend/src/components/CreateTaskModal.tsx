@@ -4,6 +4,12 @@ import { useUserStore } from '@/store/userStore';
 
 interface CreateTaskData {
   title: string;
+  description: string | undefined;
+  repositoryId: number | null;
+}
+
+interface CreateTaskFormData {
+  title: string;
   description: string;
   repositoryId: number | null;
 }
@@ -20,7 +26,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   onClose, 
   onCreateTask 
 }) => {
-  const [formData, setFormData] = useState<CreateTaskData>({
+  const [formData, setFormData] = useState<CreateTaskFormData>({
     title: '',
     description: '',
     repositoryId: null
@@ -98,8 +104,15 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     
     if (!formData.title.trim() || !formData.repositoryId) return;
 
+    // Sanitize data: trim title and convert empty description to undefined
+    const sanitizedData: CreateTaskData = {
+      ...formData,
+      title: formData.title.trim(),
+      description: formData.description.trim() || undefined,
+    };
+
     setLoading(true);
-    onCreateTask(formData);
+    onCreateTask(sanitizedData);
 
     // Reset form
     setFormData({
@@ -111,7 +124,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     setLoading(false);
   };
 
-  const handleChange = (field: keyof CreateTaskData) => (
+  const handleChange = (field: keyof CreateTaskFormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     setFormData(prev => ({

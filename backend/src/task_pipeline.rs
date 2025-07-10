@@ -173,7 +173,10 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
 
     // Start sandbox
     let repo_url = format!("https://github.com/{}", repository.full_name);
-    let prompt = task.description.as_ref().unwrap_or(&task.title).to_string();
+    let prompt = task.description.as_ref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&task.title)
+        .to_string();
 
     let sandbox_info = match app_state
         .sandbox

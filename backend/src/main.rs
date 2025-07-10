@@ -1883,12 +1883,24 @@ async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    // Validate title is not empty
+    if payload.title.trim().is_empty() {
+        tracing::warn!("Rejected task creation: empty title");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
+    // Convert empty description to None
+    let sanitized_description = payload.description
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.trim().to_string());
+
     // Create task in database first with "pending" status
     let create_task = CreateTask {
         user_id: user.id,
         repository_id: payload.repository_id,
-        title: payload.title,
-        description: payload.description,
+        title: payload.title.trim().to_string(),
+        description: sanitized_description,
     };
 
     let task = match app_state.database.create_task(create_task).await {
