@@ -6,12 +6,14 @@ import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService } from './services/api'
 import { setBackendJwt } from '@/lib/authToken'
+import { useUserStore } from './store/userStore'
 import './App.css'
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const { isSignedIn, getToken } = useAuth()
   const { user } = useUser()
+  const { loadUserProfile, clearUserProfile } = useUserStore()
 
   const handleTaskCreated = async (taskData: {
     title: string;
@@ -57,8 +59,9 @@ function App() {
   useEffect(() => {
     (async () => {
       if (!isSignedIn || !user) {
-        // Clear JWT when signed out
+        // Clear JWT and user data when signed out
         setBackendJwt(null)
+        clearUserProfile()
         return
       }
 
@@ -83,11 +86,16 @@ function App() {
           console.log('⚠ Could not retrieve GitHub token:', tokenError)
           console.log('Will fall back to demo repositories')
         }
+
+        // 3. Load user profile data for global access
+        console.log('→ Loading user profile...')
+        await loadUserProfile()
+        console.log('✓ User profile loaded and cached')
       } catch (error) {
         console.error('✗ Failed to handle authentication:', error)
       }
     })()
-  }, [isSignedIn, getToken, user])
+  }, [isSignedIn, getToken, user, loadUserProfile, clearUserProfile])
 
   // Global hotkey to close create task modal
   useHotkeys('esc', () => {

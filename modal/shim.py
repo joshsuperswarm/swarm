@@ -26,6 +26,8 @@ class CreateSandboxReq(BaseModel):
     branch: str = "main"
     region: Optional[str] = None
     github_token: Optional[str] = None
+    author_name: Optional[str] = None
+    author_email: Optional[str] = None
 
 class CreateSandboxResp(BaseModel):
     sandbox_id: str
@@ -221,6 +223,59 @@ async def create_sandbox(req: CreateSandboxReq):
         except Exception as install_error:
             logger.error(f"Claude Code installation exception: {install_error}")
             # Don't fail sandbox creation - let the backend handle it
+        
+        # Configure git user settings during startup if provided
+        if req.author_name and req.author_email:
+            try:
+                logger.info("Configuring git user settings during startup")
+                
+                # Configure git user.name
+                git_name_proc = sb.exec("su", "-", "swarm", "-c", f"git config --global user.name '{req.author_name}'")
+                git_name_exit = git_name_proc.wait()
+                logger.info(f"Git user.name config exit code: {git_name_exit}")
+                
+                # Configure git user.email  
+                git_email_proc = sb.exec("su", "-", "swarm", "-c", f"git config --global user.email '{req.author_email}'")
+                git_email_exit = git_email_proc.wait()
+                logger.info(f"Git user.email config exit code: {git_email_exit}")
+                
+                # Configure authenticated remote if GitHub token and repo were cloned successfully
+                if req.github_token and repo_name:
+                    try:
+                        # Extract repo full name from URL (e.g., "jmvldz/swarm")
+                        repo_full_name = req.repo_url.replace("https://github.com/", "").replace(".git", "")
+                        
+                        logger.info(f"Configuring authenticated git remote for {repo_full_name}")
+                        remote_config_cmd = f'''
+                        cd /home/swarm/{repo_name} && 
+                        if [ -d .git ]; then
+                            if git remote | grep -q "^origin$"; then
+                                echo "Updating existing origin remote" && 
+                                git remote set-url origin "https://x-access-token:{req.github_token}@github.com/{repo_full_name}";
+                            else
+                                echo "Adding new origin remote" && 
+                                git remote add origin "https://x-access-token:{req.github_token}@github.com/{repo_full_name}";
+                            fi;
+                            git remote -v;
+                        else
+                            echo "No git repository found, skipping remote config";
+                        fi
+                        '''
+                        
+                        remote_proc = sb.exec("su", "-", "swarm", "-c", remote_config_cmd)
+                        remote_exit = remote_proc.wait()
+                        logger.info(f"Git remote config exit code: {remote_exit}")
+                        
+                    except Exception as remote_error:
+                        logger.warning(f"Failed to configure git remote: {remote_error}")
+                
+                logger.info("Successfully configured git settings during startup")
+                
+            except Exception as git_config_error:
+                logger.warning(f"Failed to configure git during startup: {git_config_error}")
+                # Don't fail sandbox creation - this is not critical
+        else:
+            logger.info("No git author info provided, skipping git configuration")
         
         logger.info(f"Created sandbox {sandbox_id} with repo {req.repo_url}")
         

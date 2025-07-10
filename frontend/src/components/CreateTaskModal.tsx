@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { ApiService } from '@/services/api';
-import { getBackendJwt } from '@/lib/authToken';
-import type { RepositoryTS } from '@/types/generated/RepositoryTS';
+import { useUserStore } from '@/store/userStore';
 
 interface CreateTaskData {
   title: string;
@@ -28,29 +26,22 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     repositoryId: null
   });
   
-  const [defaultRepo, setDefaultRepo] = useState<RepositoryTS | null>(null);
   const [loading, setLoading] = useState(false);
-  const [userLoading, setUserLoading] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  
+  // Get user data from store instead of fetching on every modal open
+  const { user, loading: userLoading } = useUserStore();
 
-  // Load user profile with default repo when modal opens
+  // Set default repository when modal opens and user data is available
   useEffect(() => {
-    if (isOpen) {
-      const jwt = getBackendJwt()
-      if (jwt) {
-        loadUserProfile();
-      } else {
-        console.log('Waiting for JWT before loading user profile...')
-        // Try again in a moment
-        setTimeout(() => {
-          if (getBackendJwt()) {
-            loadUserProfile();
-          }
-        }, 500)
-      }
+    if (isOpen && user?.default_repo) {
+      setFormData(prev => ({
+        ...prev,
+        repositoryId: user.default_repo!.id
+      }));
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   // Auto-focus title input when modal opens
   useEffect(() => {
@@ -101,26 +92,6 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  const loadUserProfile = async () => {
-    try {
-      setUserLoading(true);
-
-      const user = await ApiService.getUserProfile();
-      if (user.default_repo) {
-        const defaultRepo = user.default_repo;
-        setDefaultRepo(defaultRepo);
-        setFormData(prev => ({
-          ...prev,
-          repositoryId: defaultRepo.id
-        }));
-      }
-    } catch (err) {
-      console.error('Failed to load user profile:', err);
-      setDefaultRepo(null);
-    } finally {
-      setUserLoading(false);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,10 +140,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
               <p className="text-gray-500 text-sm">Loading default repository...</p>
             </div>
-          ) : defaultRepo ? (
+          ) : user?.default_repo ? (
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
               <p className="text-gray-700 text-sm">
-                <strong>{defaultRepo.full_name}</strong> {defaultRepo.is_private ? '(Private)' : '(Public)'}
+                <strong>{user.default_repo.full_name}</strong> {user.default_repo.is_private ? '(Private)' : '(Public)'}
               </p>
             </div>
           ) : (
@@ -208,7 +179,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           <div className="flex justify-end pt-1">
             <button
               type="submit"
-              disabled={loading || !defaultRepo || !formData.title.trim()}
+              disabled={loading || !user?.default_repo || !formData.title.trim()}
               className="px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
             >
               {loading ? 'Creating...' : 'Create Task'}

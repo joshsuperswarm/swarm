@@ -1,6 +1,6 @@
 use super::{SandboxError, SandboxInfo, SandboxProvider, SandboxResult, SandboxStatus};
-use async_trait::async_trait;
 use crate::error::AppResult;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
@@ -23,6 +23,10 @@ pub struct CreateSandboxRequest {
     pub region: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_email: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,14 +89,13 @@ impl ModalSandboxClient {
         }
     }
 
-    pub async fn create_sandbox(&self, req: CreateSandboxRequest) -> AppResult<CreateSandboxResponse> {
+    pub async fn create_sandbox(
+        &self,
+        req: CreateSandboxRequest,
+    ) -> AppResult<CreateSandboxResponse> {
         let url = format!("{}/sandboxes", self.base_url);
-        
-        let response = self.client
-            .post(&url)
-            .json(&req)
-            .send()
-            .await?;
+
+        let response = self.client.post(&url).json(&req).send().await?;
 
         if response.status().is_success() {
             let sandbox_resp: CreateSandboxResponse = response.json().await?;
@@ -103,14 +106,14 @@ impl ModalSandboxClient {
         }
     }
 
-    pub async fn exec_command(&self, sandbox_id: &str, req: ExecRequest) -> AppResult<ExecResponse> {
+    pub async fn exec_command(
+        &self,
+        sandbox_id: &str,
+        req: ExecRequest,
+    ) -> AppResult<ExecResponse> {
         let url = format!("{}/sandboxes/{}/exec", self.base_url, sandbox_id);
-        
-        let response = self.client
-            .post(&url)
-            .json(&req)
-            .send()
-            .await?;
+
+        let response = self.client.post(&url).json(&req).send().await?;
 
         if response.status().is_success() {
             let exec_resp: ExecResponse = response.json().await?;
@@ -121,13 +124,17 @@ impl ModalSandboxClient {
         }
     }
 
-    pub async fn get_exit_code(&self, sandbox_id: &str, proc_id: &str) -> AppResult<ExitCodeResponse> {
-        let url = format!("{}/sandboxes/{}/procs/{}/exit_code", self.base_url, sandbox_id, proc_id);
-        
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+    pub async fn get_exit_code(
+        &self,
+        sandbox_id: &str,
+        proc_id: &str,
+    ) -> AppResult<ExitCodeResponse> {
+        let url = format!(
+            "{}/sandboxes/{}/procs/{}/exit_code",
+            self.base_url, sandbox_id, proc_id
+        );
+
+        let response = self.client.get(&url).send().await?;
 
         if response.status().is_success() {
             let exit_code_resp: ExitCodeResponse = response.json().await?;
@@ -138,17 +145,22 @@ impl ModalSandboxClient {
         }
     }
 
-    pub async fn get_logs(&self, sandbox_id: &str, proc_id: &str, since: Option<u64>) -> AppResult<LogsResponse> {
-        let mut url = format!("{}/sandboxes/{}/procs/{}/logs", self.base_url, sandbox_id, proc_id);
-        
+    pub async fn get_logs(
+        &self,
+        sandbox_id: &str,
+        proc_id: &str,
+        since: Option<u64>,
+    ) -> AppResult<LogsResponse> {
+        let mut url = format!(
+            "{}/sandboxes/{}/procs/{}/logs",
+            self.base_url, sandbox_id, proc_id
+        );
+
         if let Some(offset) = since {
             url.push_str(&format!("?since={}", offset));
         }
-        
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+
+        let response = self.client.get(&url).send().await?;
 
         if response.status().is_success() {
             let logs_resp: LogsResponse = response.json().await?;
@@ -161,11 +173,8 @@ impl ModalSandboxClient {
 
     pub async fn get_sandbox_status(&self, sandbox_id: &str) -> AppResult<SandboxStatusResponse> {
         let url = format!("{}/sandboxes/{}", self.base_url, sandbox_id);
-        
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+
+        let response = self.client.get(&url).send().await?;
 
         if response.status().is_success() {
             let status_resp: SandboxStatusResponse = response.json().await?;
@@ -178,11 +187,8 @@ impl ModalSandboxClient {
 
     pub async fn terminate_sandbox(&self, sandbox_id: &str) -> AppResult<()> {
         let url = format!("{}/sandboxes/{}", self.base_url, sandbox_id);
-        
-        let response = self.client
-            .delete(&url)
-            .send()
-            .await?;
+
+        let response = self.client.delete(&url).send().await?;
 
         if response.status().is_success() {
             Ok(())
@@ -204,7 +210,7 @@ impl ModalProvider {
     /// Install Claude Code using the new installation script
     async fn install_claude_code(&self, sandbox_id: &str) -> SandboxResult<()> {
         info!("Installing Claude Code in sandbox {}", sandbox_id);
-        
+
         // Install Claude Code with proper PATH setup
         let install_cmd = r#"
             echo "Current user: $(whoami)" && \
@@ -215,111 +221,59 @@ impl ModalProvider {
             which claude && \
             claude --version
         "#;
-        
+
         let exec_req = ExecRequest {
-            cmd: vec!["bash".to_string(), "-c".to_string(), install_cmd.to_string()],
+            cmd: vec![
+                "bash".to_string(),
+                "-c".to_string(),
+                install_cmd.to_string(),
+            ],
             cwd: Some("/home".to_string()),
         };
-        
-        let exec_resp = self.client.exec_command(sandbox_id, exec_req).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to install Claude Code: {}", e)))?;
-        
+
+        let exec_resp = self
+            .client
+            .exec_command(sandbox_id, exec_req)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to install Claude Code: {}", e))
+            })?;
+
         // Wait for installation to complete
-        let exit_code = self.wait_for_process_completion(sandbox_id, &exec_resp.proc_id).await?;
-        
+        let exit_code = self
+            .wait_for_process_completion(sandbox_id, &exec_resp.proc_id)
+            .await?;
+
         if exit_code != 0 {
             // Try to get installation logs for debugging
-            match self.client.get_logs(sandbox_id, &exec_resp.proc_id, None).await {
+            match self
+                .client
+                .get_logs(sandbox_id, &exec_resp.proc_id, None)
+                .await
+            {
                 Ok(logs) => {
                     let combined_output = format!("{}{}", logs.stdout, logs.stderr);
                     return Err(SandboxError::SandboxOperationError(format!(
-                        "Claude Code installation failed with exit code {}. Output: {}", 
+                        "Claude Code installation failed with exit code {}. Output: {}",
                         exit_code, combined_output
                     )));
                 }
                 Err(_) => {
                     return Err(SandboxError::SandboxOperationError(format!(
-                        "Claude Code installation failed with exit code {} (could not retrieve logs)", 
+                        "Claude Code installation failed with exit code {} (could not retrieve logs)",
                         exit_code
                     )));
                 }
             }
         }
-        
-        info!("Successfully installed Claude Code in sandbox {}", sandbox_id);
+
+        info!(
+            "Successfully installed Claude Code in sandbox {}",
+            sandbox_id
+        );
         Ok(())
     }
 
-    /// Configure Git with author information and authenticated remote URL
-    pub async fn configure_git(
-        &self,
-        sandbox_id: &str,
-        repo_path: &str,
-        github_token: &str,
-        author_name: &str,
-        author_email: &str,
-        repo_full_name: &str,
-    ) -> SandboxResult<()> {
-        info!("Configuring git in sandbox {}", sandbox_id);
-        
-        // Configure git user and remote with proper environment setup
-        let git_config_commands = vec![
-            // Debug and setup environment first
-            "echo 'Current user:' && whoami && echo 'HOME directory:' && echo $HOME && echo 'Git version:' && git --version".to_string(),
-            // Configure git as swarm user
-            format!("git config --global user.name '{}'", author_name),
-            format!("git config --global user.email '{}'", author_email),
-            format!(
-                "bash -c 'cd \"{}\" && \
-                 echo \"Current directory: $(pwd)\" && \
-                 echo \"Directory contents: $(ls -la)\" && \
-                 echo \"Git status: $(git status --porcelain 2>&1 || echo \"Not a git repo\")\" && \
-                 if [ -d .git ]; then \
-                     echo \"Git repository found\" && \
-                     if git remote | grep -q \"^origin$\"; then \
-                         echo \"Updating existing origin remote\" && \
-                         git remote set-url origin \"https://x-access-token:{}@github.com/{}\"; \
-                     else \
-                         echo \"Adding new origin remote\" && \
-                         git remote add origin \"https://x-access-token:{}@github.com/{}\"; \
-                     fi; \
-                 else \
-                     echo \"No git repository found in {}\"; \
-                 fi'",
-                repo_path, github_token, repo_full_name, github_token, repo_full_name, repo_path
-            ),
-        ];
-
-        for (i, command) in git_config_commands.iter().enumerate() {
-            // Show first 8 characters of token for verification, mask the rest
-            let token_prefix = &github_token[..8.min(github_token.len())];
-            let masked_command = command.replace(github_token, &format!("{}***", token_prefix));
-            info!("Configuring git in sandbox {}: {}", sandbox_id, masked_command);
-            
-            // Use home directory for debug and global git config, repo directory for remote config
-            let working_dir = if i < 3 { "/home" } else { repo_path };
-            
-            let exec_req = ExecRequest {
-                cmd: vec!["bash".to_string(), "-c".to_string(), command.clone()],
-                cwd: Some(working_dir.to_string()),
-            };
-            
-            let exec_resp = self.client.exec_command(sandbox_id, exec_req).await
-                .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to configure git: {}", e)))?;
-            
-            // Wait for git config to complete
-            let exit_code = self.wait_for_process_completion(sandbox_id, &exec_resp.proc_id).await?;
-            if exit_code != 0 {
-                return Err(SandboxError::SandboxOperationError(format!(
-                    "Git configuration failed with exit code {}: {}",
-                    exit_code, masked_command
-                )));
-            }
-        }
-
-        info!("Successfully configured git in sandbox {}", sandbox_id);
-        Ok(())
-    }
 
     /// Execute Claude Code with the given task prompt
     pub async fn exec_claude_code(
@@ -335,8 +289,11 @@ impl ModalProvider {
         author_name: &str,
         author_email: &str,
     ) -> SandboxResult<String> {
-        info!("Executing Claude Code in sandbox {} for task {}", sandbox_id, task_id);
-        
+        info!(
+            "Executing Claude Code in sandbox {} for task {}",
+            sandbox_id, task_id
+        );
+
         // Set environment variables first
         let mut env_commands = vec![
             format!("export GITHUB_TOKEN='{}'", github_token),
@@ -346,12 +303,12 @@ impl ModalProvider {
             format!("export GIT_AUTHOR_NAME='{}'", author_name),
             format!("export GIT_AUTHOR_EMAIL='{}'", author_email),
         ];
-        
+
         // Add OPENAI_API_KEY if provided
         if let Some(openai_key) = openai_api_key {
             env_commands.push(format!("export OPENAI_API_KEY='{}'", openai_key));
         }
-        
+
         // Execute environment setup
         for env_cmd in env_commands {
             let masked_cmd = if env_cmd.contains("_API_KEY") || env_cmd.contains("_TOKEN") {
@@ -366,18 +323,22 @@ impl ModalProvider {
             } else {
                 env_cmd.clone()
             };
-            
+
             debug!("Setting environment variable: {}", masked_cmd);
-            
+
             let exec_req = ExecRequest {
                 cmd: vec!["bash".to_string(), "-c".to_string(), env_cmd],
                 cwd: Some(repo_path.to_string()),
             };
-            
-            self.client.exec_command(sandbox_id, exec_req).await
-                .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to set environment: {}", e)))?;
+
+            self.client
+                .exec_command(sandbox_id, exec_req)
+                .await
+                .map_err(|e| {
+                    SandboxError::SandboxOperationError(format!("Failed to set environment: {}", e))
+                })?;
         }
-        
+
         // Create the Claude prompt with artifact markers
         let claude_prompt = format!(
             "Please work on this task {}: {}.
@@ -414,21 +375,29 @@ The system requires these markers to automatically generate commit messages and 
             claude_prompt.replace("'", r"'\''")
         );
 
-        info!("Launching Claude Code in sandbox {} for task {}", sandbox_id, task_id);
-        
+        info!(
+            "Launching Claude Code in sandbox {} for task {}",
+            sandbox_id, task_id
+        );
+
         let exec_req = ExecRequest {
             cmd: vec!["bash".to_string(), "-c".to_string(), cmd],
             cwd: Some(repo_path.to_string()),
         };
-        
-        let exec_resp = self.client.exec_command(sandbox_id, exec_req).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to execute Claude Code: {}", e)))?;
+
+        let exec_resp = self
+            .client
+            .exec_command(sandbox_id, exec_req)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to execute Claude Code: {}", e))
+            })?;
 
         info!(
             "Successfully launched Claude Code in sandbox {} with proc ID {}",
             sandbox_id, exec_resp.proc_id
         );
-        
+
         // Return process ID for monitoring
         Ok(exec_resp.proc_id)
     }
@@ -445,7 +414,10 @@ The system requires these markers to automatically generate commit messages and 
         commit_title: &str,
         commit_body: &str,
     ) -> SandboxResult<()> {
-        info!("Pushing changes to branch {} in sandbox {}", branch, sandbox_id);
+        info!(
+            "Pushing changes to branch {} in sandbox {}",
+            branch, sandbox_id
+        );
 
         // Push script with correct git flow: commit first, then create branch, then push
         let push_script = format!(
@@ -482,24 +454,39 @@ git push -u origin "$branch"
             cmd: vec!["bash".to_string(), "-c".to_string(), push_script],
             cwd: Some(repo_path.to_string()),
         };
-        
-        let exec_resp = self.client.exec_command(sandbox_id, exec_req).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to push changes: {}", e)))?;
-        
+
+        let exec_resp = self
+            .client
+            .exec_command(sandbox_id, exec_req)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to push changes: {}", e))
+            })?;
+
         // Wait for push to complete
-        let exit_code = self.wait_for_process_completion(sandbox_id, &exec_resp.proc_id).await?;
+        let exit_code = self
+            .wait_for_process_completion(sandbox_id, &exec_resp.proc_id)
+            .await?;
         if exit_code != 0 {
             return Err(SandboxError::SandboxOperationError(format!(
-                "Push failed with exit code {}", exit_code
+                "Push failed with exit code {}",
+                exit_code
             )));
         }
 
-        info!("✓ Successfully pushed changes to branch {} in sandbox {}", branch, sandbox_id);
+        info!(
+            "✓ Successfully pushed changes to branch {} in sandbox {}",
+            branch, sandbox_id
+        );
         Ok(())
     }
 
     /// Wait for a process to complete and return its exit code
-    async fn wait_for_process_completion(&self, sandbox_id: &str, proc_id: &str) -> SandboxResult<i32> {
+    async fn wait_for_process_completion(
+        &self,
+        sandbox_id: &str,
+        proc_id: &str,
+    ) -> SandboxResult<i32> {
         let timeout_duration = Duration::from_secs(5 * 60); // 5 minutes for individual commands
         let poll_interval = Duration::from_secs(2);
 
@@ -519,7 +506,8 @@ git push -u origin "$branch"
                     }
                 }
             }
-        }).await;
+        })
+        .await;
 
         match result {
             Ok(exit_code) => exit_code,
@@ -535,7 +523,10 @@ git push -u origin "$branch"
         sandbox_id: &str,
         proc_id: &str,
     ) -> SandboxResult<()> {
-        info!("→ Starting log stream for task {} from proc {}", task_id, proc_id);
+        info!(
+            "→ Starting log stream for task {} from proc {}",
+            task_id, proc_id
+        );
 
         let mut log_offset = 0;
         let mut task_completed = false;
@@ -550,21 +541,25 @@ git push -u origin "$branch"
 
         // Poll logs until process completes
         loop {
-            match self.client.get_logs(sandbox_id, proc_id, Some(log_offset)).await {
+            match self
+                .client
+                .get_logs(sandbox_id, proc_id, Some(log_offset))
+                .await
+            {
                 Ok(logs_resp) => {
                     let combined_output = format!("{}{}", logs_resp.stdout, logs_resp.stderr);
-                    
+
                     if !combined_output.is_empty() {
                         let lines: Vec<&str> = combined_output.lines().collect();
-                        
+
                         for line_str in &lines {
                             let line_str = line_str.trim();
                             if line_str.is_empty() {
                                 continue;
                             }
-                            
+
                             lines_processed += 1;
-                            
+
                             // Extract text content from JSON messages for artifact parsing
                             let text_to_parse = if line_str.starts_with('{') {
                                 match serde_json::from_str::<serde_json::Value>(line_str) {
@@ -628,7 +623,9 @@ git push -u origin "$branch"
                                     }
                                     current_artifact = Some("commit_body".to_string());
                                     artifact_lines.clear();
-                                    if let Some(first_line) = text_line.strip_prefix("COMMIT_MESSAGE_BODY:") {
+                                    if let Some(first_line) =
+                                        text_line.strip_prefix("COMMIT_MESSAGE_BODY:")
+                                    {
                                         let trimmed = first_line.trim();
                                         if !trimmed.is_empty() {
                                             artifact_lines.push(trimmed.to_string());
@@ -704,23 +701,32 @@ git push -u origin "$branch"
                                             .await
                                         {
                                             Ok(_) => {
-                                                info!("✓ Stored AI-generated artifacts for task {}", task_id);
+                                                info!(
+                                                    "✓ Stored AI-generated artifacts for task {}",
+                                                    task_id
+                                                );
                                             }
                                             Err(e) => {
-                                                error!("✗ Failed to store artifacts for task {}: {}", task_id, e);
+                                                error!(
+                                                    "✗ Failed to store artifacts for task {}: {}",
+                                                    task_id, e
+                                                );
                                             }
                                         }
                                     }
-                                    
+
                                     task_completed = true;
-                                    
+
                                     // Update task status to done
                                     match db.update_task_status(task_id, "done", None).await {
                                         Ok(_) => {
                                             info!("✓ Task {} status updated to 'done'", task_id);
                                         }
                                         Err(e) => {
-                                            error!("✗ Failed to update task {} status to done: {}", task_id, e);
+                                            error!(
+                                                "✗ Failed to update task {} status to done: {}",
+                                                task_id, e
+                                            );
                                         }
                                     }
                                 } else if let Some(ref _artifact_type) = current_artifact {
@@ -734,7 +740,10 @@ git push -u origin "$branch"
                                 Ok(_) => {
                                     lines_stored += 1;
                                     if lines_stored % 10 == 0 {
-                                        info!("   Stored {} log lines for task {}", lines_stored, task_id);
+                                        info!(
+                                            "   Stored {} log lines for task {}",
+                                            lines_stored, task_id
+                                        );
                                     }
                                 }
                                 Err(e) => {
@@ -746,7 +755,9 @@ git push -u origin "$branch"
                             if line_str.starts_with('{') {
                                 match serde_json::from_str::<serde_json::Value>(line_str) {
                                     Ok(json_value) => {
-                                        if let Some(msg_type) = json_value.get("type").and_then(|t| t.as_str()) {
+                                        if let Some(msg_type) =
+                                            json_value.get("type").and_then(|t| t.as_str())
+                                        {
                                             if msg_type == "done" {
                                                 info!("✓ Task {} completed successfully (received 'done' event)", task_id);
                                                 task_completed = true;
@@ -759,7 +770,7 @@ git push -u origin "$branch"
                                 }
                             }
                         }
-                        
+
                         // Update offset for next fetch
                         log_offset += combined_output.len() as u64;
                     }
@@ -795,7 +806,10 @@ git push -u origin "$branch"
         if !task_completed {
             match self.get_sandbox_status(sandbox_id).await {
                 Ok(SandboxStatus::Stopped) => {
-                    info!("Task {} sandbox stopped without 'done' event, marking as failed", task_id);
+                    info!(
+                        "Task {} sandbox stopped without 'done' event, marking as failed",
+                        task_id
+                    );
                     if let Err(e) = db.update_task_status(task_id, "failed", None).await {
                         error!("Failed to update task {} status to failed: {}", task_id, e);
                     }
@@ -882,7 +896,10 @@ impl SandboxProvider for ModalProvider {
         author_name: &str,
         author_email: &str,
     ) -> SandboxResult<SandboxInfo> {
-        info!("Starting Modal sandbox for task {}, repository: {}", task_id, repo_url);
+        info!(
+            "Starting Modal sandbox for task {}, repository: {}",
+            task_id, repo_url
+        );
 
         // Create sandbox
         let create_request = CreateSandboxRequest {
@@ -890,10 +907,17 @@ impl SandboxProvider for ModalProvider {
             branch: "main".to_string(), // Clone from main, we'll create branch later
             region: self.region.clone(),
             github_token: Some(github_token.to_string()),
+            author_name: Some(author_name.to_string()),
+            author_email: Some(author_email.to_string()),
         };
 
-        let sandbox_resp = self.client.create_sandbox(create_request).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to create sandbox: {}", e)))?;
+        let sandbox_resp = self
+            .client
+            .create_sandbox(create_request)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to create sandbox: {}", e))
+            })?;
 
         let sandbox_id = sandbox_resp.sandbox_id.clone();
 
@@ -905,56 +929,57 @@ impl SandboxProvider for ModalProvider {
             .max_delay(Duration::from_secs(10))
             .take(30); // Limit to 30 retries (about 5 minutes total)
 
-        let _ready = timeout(Duration::from_secs(10 * 60), Retry::spawn(retry_strategy, || async {
-            match self.client.get_sandbox_status(&sandbox_id).await {
-                Ok(status_resp) => {
-                    let status = Self::map_modal_status(&status_resp.status);
-                    match status {
-                        SandboxStatus::Running => {
-                            info!("Sandbox {} is running", sandbox_id);
-                            Ok(())
-                        }
-                        SandboxStatus::Failed => {
-                            error!("Sandbox {} failed to start", sandbox_id);
-                            Err(SandboxError::SandboxOperationError("Sandbox failed to start".to_string()))
-                        }
-                        SandboxStatus::Starting => {
-                            debug!("Sandbox {} still starting, retrying...", sandbox_id);
-                            Err(SandboxError::SandboxOperationError("Sandbox still starting".to_string()))
-                        }
-                        SandboxStatus::Stopped => {
-                            error!("Sandbox {} stopped unexpectedly", sandbox_id);
-                            Err(SandboxError::SandboxOperationError("Sandbox stopped unexpectedly".to_string()))
+        let _ready = timeout(
+            Duration::from_secs(10 * 60),
+            Retry::spawn(retry_strategy, || async {
+                match self.client.get_sandbox_status(&sandbox_id).await {
+                    Ok(status_resp) => {
+                        let status = Self::map_modal_status(&status_resp.status);
+                        match status {
+                            SandboxStatus::Running => {
+                                info!("Sandbox {} is running", sandbox_id);
+                                Ok(())
+                            }
+                            SandboxStatus::Failed => {
+                                error!("Sandbox {} failed to start", sandbox_id);
+                                Err(SandboxError::SandboxOperationError(
+                                    "Sandbox failed to start".to_string(),
+                                ))
+                            }
+                            SandboxStatus::Starting => {
+                                debug!("Sandbox {} still starting, retrying...", sandbox_id);
+                                Err(SandboxError::SandboxOperationError(
+                                    "Sandbox still starting".to_string(),
+                                ))
+                            }
+                            SandboxStatus::Stopped => {
+                                error!("Sandbox {} stopped unexpectedly", sandbox_id);
+                                Err(SandboxError::SandboxOperationError(
+                                    "Sandbox stopped unexpectedly".to_string(),
+                                ))
+                            }
                         }
                     }
+                    Err(e) => {
+                        warn!("Error checking sandbox status: {}", e);
+                        Err(SandboxError::SandboxOperationError(
+                            "Error checking status".to_string(),
+                        ))
+                    }
                 }
-                Err(e) => {
-                    warn!("Error checking sandbox status: {}", e);
-                    Err(SandboxError::SandboxOperationError("Error checking status".to_string()))
-                }
-            }
-        }))
+            }),
+        )
         .await
         .map_err(|_| {
             error!("Timeout waiting for sandbox {} to be ready", sandbox_id);
             SandboxError::TimeoutError
         })??;
 
-        // Claude Code is now installed during sandbox creation in the Modal shim
+        // Claude Code and Git are now configured during sandbox creation in the Modal shim
 
-        // Configure Git with author information and authenticated remote
+        // Get repo info for Claude Code execution
         let repo_name = Self::extract_repo_name(repo_url)?;
         let repo_path = format!("/home/swarm/{}", repo_name);
-        let repo_full_name = Self::extract_repo_full_name(repo_url)?;
-        self.configure_git(
-            &sandbox_id,
-            &repo_path,
-            github_token,
-            author_name,
-            author_email,
-            &repo_full_name,
-        )
-        .await?;
 
         // Launch Claude Code with the task
         let proc_id = self
@@ -979,20 +1004,25 @@ impl SandboxProvider for ModalProvider {
             "Modal sandbox {} started successfully with hostname: {} and Claude Code running",
             sandbox_id, hostname
         );
-        
+
         Ok(SandboxInfo {
             id: sandbox_id,
             hostname,
             status,
             session_id: "modal".to_string(), // Modal doesn't use sessions, use placeholder
-            command_id: proc_id, // Use proc_id as command_id
+            command_id: proc_id,             // Use proc_id as command_id
             branch: branch.to_string(),
         })
     }
 
     async fn get_sandbox_status(&self, sandbox_id: &str) -> SandboxResult<SandboxStatus> {
-        let status_resp = self.client.get_sandbox_status(sandbox_id).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to get status: {}", e)))?;
+        let status_resp = self
+            .client
+            .get_sandbox_status(sandbox_id)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to get status: {}", e))
+            })?;
 
         let status = Self::map_modal_status(&status_resp.status);
         debug!("Modal sandbox {} status: {:?}", sandbox_id, status);
@@ -1003,15 +1033,21 @@ impl SandboxProvider for ModalProvider {
         let timeout_duration = Duration::from_secs(30 * 60); // 30 minutes
         let poll_interval = Duration::from_secs(30);
 
-        info!("Waiting for Modal sandbox {} completion (timeout: 30 minutes)", sandbox_id);
-        
+        info!(
+            "Waiting for Modal sandbox {} completion (timeout: 30 minutes)",
+            sandbox_id
+        );
+
         let result = timeout(timeout_duration, async {
             loop {
                 let status = self.get_sandbox_status(sandbox_id).await?;
 
                 match status {
                     SandboxStatus::Stopped | SandboxStatus::Failed => {
-                        info!("Modal sandbox {} completed with status: {:?}", sandbox_id, status);
+                        info!(
+                            "Modal sandbox {} completed with status: {:?}",
+                            sandbox_id, status
+                        );
                         return Ok(status);
                     }
                     SandboxStatus::Starting | SandboxStatus::Running => {
@@ -1030,7 +1066,10 @@ impl SandboxProvider for ModalProvider {
         match result {
             Ok(status) => status,
             Err(_) => {
-                warn!("Modal sandbox {} timed out after 30 minutes, attempting to stop", sandbox_id);
+                warn!(
+                    "Modal sandbox {} timed out after 30 minutes, attempting to stop",
+                    sandbox_id
+                );
                 // Timeout occurred, try to stop the sandbox
                 let _ = self.stop_sandbox(sandbox_id).await;
                 Err(SandboxError::TimeoutError)
@@ -1040,19 +1079,26 @@ impl SandboxProvider for ModalProvider {
 
     async fn stop_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {
         info!("Stopping Modal sandbox {}", sandbox_id);
-        self.client.terminate_sandbox(sandbox_id).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to stop sandbox: {}", e)))
+        self.client
+            .terminate_sandbox(sandbox_id)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to stop sandbox: {}", e))
+            })
     }
 
     async fn get_command_exit_code(
         &self,
         sandbox_id: &str,
         _session_id: &str, // Modal doesn't use sessions
-        command_id: &str,   // This is the proc_id
+        command_id: &str,  // This is the proc_id
     ) -> SandboxResult<Option<i32>> {
         match self.client.get_exit_code(sandbox_id, command_id).await {
             Ok(exit_code_resp) => Ok(exit_code_resp.code),
-            Err(e) => Err(SandboxError::SandboxOperationError(format!("Failed to get exit code: {}", e))),
+            Err(e) => Err(SandboxError::SandboxOperationError(format!(
+                "Failed to get exit code: {}",
+                e
+            ))),
         }
     }
 
@@ -1081,8 +1127,12 @@ impl SandboxProvider for ModalProvider {
     }
 
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {
-        self.client.terminate_sandbox(sandbox_id).await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to delete sandbox: {}", e)))
+        self.client
+            .terminate_sandbox(sandbox_id)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to delete sandbox: {}", e))
+            })
     }
 }
 
