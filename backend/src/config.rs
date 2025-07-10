@@ -11,6 +11,8 @@ pub struct Config {
     pub daytona_api_key: Option<String>,
     pub daytona_organization_id: Option<String>,
     pub daytona_region: String,
+    pub modal_url: Option<String>,
+    pub modal_region: Option<String>,
     pub openai_api_key: Option<String>,
 }
 
@@ -37,6 +39,8 @@ impl Config {
         let daytona_api_key = env::var("DAYTONA_API_KEY").ok();
         let daytona_organization_id = env::var("DAYTONA_ORGANIZATION_ID").ok();
         let daytona_region = env::var("DAYTONA_REGION").unwrap_or_else(|_| "us".to_string());
+        let modal_url = env::var("MODAL_URL").ok();
+        let modal_region = env::var("MODAL_REGION").ok();
         let openai_api_key = env::var("OPENAI_API_KEY").ok();
 
         Ok(Config {
@@ -48,6 +52,8 @@ impl Config {
             daytona_api_key,
             daytona_organization_id,
             daytona_region,
+            modal_url,
+            modal_region,
             openai_api_key,
         })
     }

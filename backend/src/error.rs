@@ -28,6 +28,15 @@ pub enum AppError {
 
     #[error("Internal server error: {0}")]
     Internal(String),
+
+    #[error("HTTP request error: {0}")]
+    Http(#[from] reqwest::Error),
+}
+
+impl From<String> for AppError {
+    fn from(message: String) -> Self {
+        AppError::Internal(message)
+    }
 }
 
 impl IntoResponse for AppError {
@@ -60,6 +69,10 @@ impl IntoResponse for AppError {
             AppError::Internal(ref message) => {
                 tracing::error!("Internal error: {}", message);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            }
+            AppError::Http(ref e) => {
+                tracing::error!("HTTP request error: {}", e);
+                (StatusCode::BAD_GATEWAY, "HTTP request failed")
             }
         };
 

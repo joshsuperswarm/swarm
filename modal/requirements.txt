@@ -2,3 +2,6 @@ modal==1.0.5   # Modal SDK
 fastapi
 uvicorn[standard]
 python-dotenv
+pydantic[email]
+httpx
+pytest

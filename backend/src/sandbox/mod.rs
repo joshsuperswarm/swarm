@@ -3,6 +3,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod daytona;
+pub mod modal;
 
 #[derive(Debug, Error)]
 #[allow(clippy::enum_variant_names)]

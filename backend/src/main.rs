@@ -29,7 +29,7 @@ use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser, UserWithDefaultRepo, RepositoryTS, _force_ts_generation};
-use sandbox::{daytona::DaytonaProvider, DynSandbox, SandboxStatus};
+use sandbox::{daytona::DaytonaProvider, modal::ModalProvider, DynSandbox, SandboxStatus};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -205,9 +205,39 @@ async fn sandbox_poller(app_state: AppState) {
                         {
                             tracing::info!("→ Collecting final logs for successful task {}", task.id);
 
-                            // Create temporary Daytona provider for log collection
+                            // Create temporary provider for log collection
                             if let Ok(config) = crate::config::Config::from_env() {
-                                if let (Some(url), Some(api_key)) =
+                                // Try Modal first, then Daytona
+                                if let Some(modal_url) = config.modal_url {
+                                    let modal = sandbox::modal::ModalProvider::new(
+                                        modal_url,
+                                        config.modal_region,
+                                    );
+                                    // For Modal, command_id is the proc_id
+                                    match modal
+                                        .stream_command_logs(
+                                            &app_state.database,
+                                            task.id,
+                                            sandbox_id,
+                                            command_id, // This is proc_id for Modal
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            tracing::info!(
+                                                "✓ Final log collection completed for successful task {}",
+                                                task.id
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                "⚠ Final log collection failed for successful task {}: {}",
+                                                task.id,
+                                                e
+                                            );
+                                        }
+                                    }
+                                } else if let (Some(url), Some(api_key)) =
                                     (config.daytona_url, config.daytona_api_key)
                                 {
                                     let daytona = sandbox::daytona::DaytonaProvider::new(
@@ -241,6 +271,8 @@ async fn sandbox_poller(app_state: AppState) {
                                             );
                                         }
                                     }
+                                } else {
+                                    tracing::warn!("No sandbox provider configured for log collection");
                                 }
                             }
                         }
@@ -907,8 +939,14 @@ async fn main() -> AppResult<()> {
 
     let database = Database::new(pool);
 
-    // Initialize sandbox provider
-    let sandbox: DynSandbox = if let (Some(url), Some(api_key)) =
+    // Initialize sandbox provider - prefer Modal over Daytona
+    let sandbox: DynSandbox = if let Some(modal_url) = config.modal_url.as_ref() {
+        tracing::info!("Initializing Modal sandbox provider");
+        Arc::new(ModalProvider::new(
+            modal_url.clone(),
+            config.modal_region.clone(),
+        ))
+    } else if let (Some(url), Some(api_key)) =
         (config.daytona_url.as_ref(), config.daytona_api_key.as_ref())
     {
         tracing::info!("Initializing Daytona sandbox provider");
@@ -920,8 +958,9 @@ async fn main() -> AppResult<()> {
         ))
     } else {
         tracing::warn!(
-            "DAYTONA_URL or DAYTONA_API_KEY not configured. Tasks will fail to start sandboxes."
+            "Neither MODAL_URL nor DAYTONA_URL/DAYTONA_API_KEY configured. Tasks will fail to start sandboxes."
         );
+        tracing::info!("Consider setting MODAL_URL=http://localhost:8000 for local development");
         // For now, we'll use a dummy provider that errors out
         Arc::new(DaytonaProvider::new(
             "".to_string(),
