@@ -173,7 +173,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
 
     // Start sandbox
     let repo_url = format!("https://github.com/{}", repository.full_name);
-    let prompt = task.description.as_deref().unwrap_or(&task.title);
+    let prompt = task.description.as_ref().unwrap_or(&task.title).to_string();
 
     let sandbox_info = match app_state
         .sandbox
@@ -181,7 +181,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
             task.id,
             &repo_url,
             &github_token,
-            prompt,
+            &prompt,
             &anthropic_api_key,
             app_state.config.openai_api_key.as_deref(),
             &branch,

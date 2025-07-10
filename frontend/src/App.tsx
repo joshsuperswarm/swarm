@@ -79,6 +79,15 @@ function App() {
             console.log('→ Connecting GitHub via backend...')
             await ApiService.connectGitHub()
             console.log('✓ GitHub token retrieved and cached successfully')
+
+            // 2.5. Fetch user repositories from GitHub and cache them
+            console.log('→ Fetching user repositories...')
+            try {
+              const repoResponse = await ApiService.getUserRepositories()
+              console.log(`✓ Fetched ${repoResponse.count} repositories from GitHub`)
+            } catch (repoError) {
+              console.log('⚠ Could not fetch repositories:', repoError)
+            }
           } else {
             console.log('ℹ No GitHub account connected - will show demo repositories')
           }

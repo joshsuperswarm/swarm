@@ -56,6 +56,26 @@ class WorkflowReq(BaseModel):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
 
+class ClaudeCodeExecReq(BaseModel):
+    repo_path: str
+    prompt: str
+    task_id: int
+    github_token: str
+    anthropic_api_key: str
+    openai_api_key: Optional[str] = None
+    branch: str
+    author_name: str
+    author_email: str
+
+class PushChangesReq(BaseModel):
+    repo_path: str
+    branch: str
+    task_id: int
+    author_name: str
+    author_email: str
+    commit_title: str
+    commit_body: str
+
 # FastAPI app
 app = FastAPI(title="Modal Sandbox Shim", version="1.0.0")
 
@@ -510,6 +530,331 @@ async def push_changes(sandbox_id: str, req: WorkflowReq):
         cwd="/home/swarm"  # This would need to be updated to use the actual repo folder
     )
     return await exec_command(sandbox_id, exec_req)
+
+# New Claude Code specific endpoints
+@app.post("/sandboxes/{sandbox_id}/install_claude_code", response_model=ExecResp)
+async def install_claude_code(sandbox_id: str):
+    """Install Claude Code with proper PATH setup."""
+    try:
+        logger.info(f"Installing Claude Code in sandbox {sandbox_id}")
+        
+        # Install Claude Code with proper PATH setup
+        install_cmd = '''
+            curl -fsSL http://claude.ai/install.sh | bash && \
+            export PATH="$HOME/.local/bin:$PATH" && \
+            which claude && \
+            claude --version
+        '''
+        
+        exec_req = ExecReq(
+            cmd=["bash", "-c", install_cmd],
+            cwd="/home/swarm"
+        )
+        
+        return await exec_command(sandbox_id, exec_req)
+        
+    except Exception as e:
+        logger.error(f"Failed to install Claude Code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to install Claude Code: {str(e)}")
+
+@app.post("/sandboxes/{sandbox_id}/exec_claude_code", response_model=ExecResp)
+async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
+    """Execute Claude Code with the given task prompt and environment setup."""
+    try:
+        logger.info(f"Executing Claude Code in sandbox {sandbox_id} for task {req.task_id}")
+        
+        # Create the Claude prompt with artifact markers
+        claude_prompt = f"""Please work on this task {req.task_id}: {req.prompt}.
+
+After completing the task, you MUST output the following markers in this exact format:
+
+COMMIT_MESSAGE_TITLE: Your commit title here
+COMMIT_MESSAGE_BODY: Your detailed commit message body here
+PR_TITLE: Your pull request title here
+PR_BODY: Your detailed pull request description here
+DONE
+
+The system requires these markers to automatically generate commit messages and pull requests. Without them, the task will fail."""
+        
+        # Build environment variables
+        env_vars = {
+            'GITHUB_TOKEN': req.github_token,
+            'ANTHROPIC_API_KEY': req.anthropic_api_key,
+            'SWARM_BRANCH': req.branch,
+            'SWARM_TASK_ID': str(req.task_id),
+            'GIT_AUTHOR_NAME': req.author_name,
+            'GIT_AUTHOR_EMAIL': req.author_email
+        }
+        
+        if req.openai_api_key:
+            env_vars['OPENAI_API_KEY'] = req.openai_api_key
+        
+        # Create environment setup command
+        env_setup = " && ".join([f"export {key}='{value}'" for key, value in env_vars.items()])
+        
+        # Write prompt to a temporary file and pipe it to claude
+        prompt_setup = f'''
+            {env_setup} && \
+            export PATH="$HOME/.local/bin:$PATH" && \
+            cd "{req.repo_path}" && \
+            cat > /tmp/claude_prompt_{req.task_id}.txt << 'PROMPT_EOF'
+{claude_prompt}
+PROMPT_EOF
+            cat /tmp/claude_prompt_{req.task_id}.txt | claude -p "" \
+                --dangerously-skip-permissions \
+                --verbose \
+                --output-format stream-json && \
+            rm -f /tmp/claude_prompt_{req.task_id}.txt
+        '''
+        
+        exec_req = ExecReq(
+            cmd=["bash", "-c", prompt_setup],
+            cwd=req.repo_path
+        )
+        
+        return await exec_command(sandbox_id, exec_req)
+        
+    except Exception as e:
+        logger.error(f"Failed to execute Claude Code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to execute Claude Code: {str(e)}")
+
+@app.post("/sandboxes/{sandbox_id}/push_changes_advanced", response_model=ExecResp)
+async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
+    """Push changes to GitHub branch with proper commit information."""
+    try:
+        logger.info(f"Pushing changes to branch {req.branch} in sandbox {sandbox_id}")
+        
+        # Create push script with correct git flow
+        push_script = f'''
+            cd "{req.repo_path}" || {{ echo "cd failed"; exit 1; }}
+            set -e
+            
+            # Set git author info
+            export GIT_AUTHOR_NAME="{req.author_name}"
+            export GIT_AUTHOR_EMAIL="{req.author_email}"
+            
+            # Stage all changes
+            git add -A
+            
+            # Create commit message
+            cat > /tmp/commit_message << 'EOF'
+{req.commit_title}
+
+{req.commit_body}
+EOF
+            
+            # Commit changes to current branch
+            git commit --author "$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" -F /tmp/commit_message
+            
+            # Create new branch from the commit
+            git checkout -B "{req.branch}"
+            
+            # Push the branch to origin
+            git push -u origin "{req.branch}"
+        '''
+        
+        exec_req = ExecReq(
+            cmd=["bash", "-c", push_script],
+            cwd=req.repo_path
+        )
+        
+        return await exec_command(sandbox_id, exec_req)
+        
+    except Exception as e:
+        logger.error(f"Failed to push changes: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to push changes: {str(e)}")
+
+@app.get("/sandboxes/{sandbox_id}/stream_logs/{proc_id}")
+async def stream_logs(sandbox_id: str, proc_id: str):
+    """Stream command logs and parse artifacts from Claude Code execution."""
+    try:
+        logger.info(f"Starting log stream for sandbox {sandbox_id}, proc {proc_id}")
+        
+        if sandbox_id not in PROCS or proc_id not in PROCS[sandbox_id]:
+            raise HTTPException(status_code=404, detail="Process not found")
+            
+        proc = PROCS[sandbox_id][proc_id]
+        
+        # Initialize artifact parsing state
+        commit_title = None
+        commit_body = None
+        pr_title = None
+        pr_body = None
+        current_artifact = None
+        artifact_lines = []
+        task_completed = False
+        
+        # Stream logs with artifact parsing
+        logs_data = {
+            "stdout": "",
+            "stderr": "",
+            "artifacts": {},
+            "completed": False
+        }
+        
+        try:
+            # Get all available logs
+            if hasattr(proc, 'stdout') and proc.stdout:
+                if hasattr(proc.stdout, 'read'):
+                    stdout_data = proc.stdout.read()
+                else:
+                    stdout_data = str(proc.stdout)
+                logs_data["stdout"] = stdout_data
+                
+                # Parse artifacts from stdout
+                for line in stdout_data.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Extract text content from JSON messages for artifact parsing
+                    text_to_parse = line
+                    if line.startswith('{'):
+                        try:
+                            import json
+                            json_value = json.loads(line)
+                            # Extract text from message content
+                            content = json_value.get("message", {}).get("content", [])
+                            if isinstance(content, list) and len(content) > 0:
+                                text_item = content[0]
+                                if isinstance(text_item, dict) and "text" in text_item:
+                                    text_to_parse = text_item["text"]
+                        except:
+                            pass
+                    
+                    # Parse artifact markers from extracted text
+                    for text_line in text_to_parse.split('\n'):
+                        text_line = text_line.strip()
+                        if not text_line:
+                            continue
+                        
+                        # Check for artifact markers
+                        if text_line.startswith("COMMIT_MESSAGE_TITLE:"):
+                            if current_artifact and artifact_lines:
+                                # Complete previous artifact
+                                content = '\n'.join(artifact_lines)
+                                if current_artifact == "commit_body":
+                                    commit_body = content
+                                elif current_artifact == "pr_title":
+                                    pr_title = content
+                                elif current_artifact == "pr_body":
+                                    pr_body = content
+                            
+                            commit_title = text_line.replace("COMMIT_MESSAGE_TITLE:", "").strip()
+                            current_artifact = None
+                            artifact_lines = []
+                            
+                        elif text_line.startswith("COMMIT_MESSAGE_BODY:"):
+                            if current_artifact and artifact_lines:
+                                content = '\n'.join(artifact_lines)
+                                if current_artifact == "commit_body":
+                                    commit_body = content
+                                elif current_artifact == "pr_title":
+                                    pr_title = content
+                                elif current_artifact == "pr_body":
+                                    pr_body = content
+                            
+                            current_artifact = "commit_body"
+                            artifact_lines = []
+                            first_line = text_line.replace("COMMIT_MESSAGE_BODY:", "").strip()
+                            if first_line:
+                                artifact_lines.append(first_line)
+                                
+                        elif text_line.startswith("PR_TITLE:"):
+                            if current_artifact and artifact_lines:
+                                content = '\n'.join(artifact_lines)
+                                if current_artifact == "commit_body":
+                                    commit_body = content
+                                elif current_artifact == "pr_title":
+                                    pr_title = content
+                                elif current_artifact == "pr_body":
+                                    pr_body = content
+                            
+                            current_artifact = "pr_title"
+                            artifact_lines = []
+                            first_line = text_line.replace("PR_TITLE:", "").strip()
+                            if first_line:
+                                artifact_lines.append(first_line)
+                                
+                        elif text_line.startswith("PR_BODY:"):
+                            if current_artifact and artifact_lines:
+                                content = '\n'.join(artifact_lines)
+                                if current_artifact == "commit_body":
+                                    commit_body = content
+                                elif current_artifact == "pr_title":
+                                    pr_title = content
+                                elif current_artifact == "pr_body":
+                                    pr_body = content
+                            
+                            current_artifact = "pr_body"
+                            artifact_lines = []
+                            first_line = text_line.replace("PR_BODY:", "").strip()
+                            if first_line:
+                                artifact_lines.append(first_line)
+                                
+                        elif text_line == "DONE":
+                            # Complete any remaining artifact
+                            if current_artifact and artifact_lines:
+                                content = '\n'.join(artifact_lines)
+                                if current_artifact == "commit_body":
+                                    commit_body = content
+                                elif current_artifact == "pr_title":
+                                    pr_title = content
+                                elif current_artifact == "pr_body":
+                                    pr_body = content
+                            
+                            current_artifact = None
+                            artifact_lines = []
+                            task_completed = True
+                            
+                        elif current_artifact:
+                            # Accumulate lines for current artifact
+                            artifact_lines.append(text_line)
+            
+            if hasattr(proc, 'stderr') and proc.stderr:
+                if hasattr(proc.stderr, 'read'):
+                    stderr_data = proc.stderr.read()
+                else:
+                    stderr_data = str(proc.stderr)
+                logs_data["stderr"] = stderr_data
+            
+            # Add parsed artifacts to response
+            if commit_title:
+                logs_data["artifacts"]["commit_title"] = commit_title
+            if commit_body:
+                logs_data["artifacts"]["commit_body"] = commit_body
+            if pr_title:
+                logs_data["artifacts"]["pr_title"] = pr_title
+            if pr_body:
+                logs_data["artifacts"]["pr_body"] = pr_body
+                
+            logs_data["completed"] = task_completed
+            
+            # Check if process has completed
+            exit_code = proc.poll()
+            if exit_code is not None:
+                logs_data["exit_code"] = exit_code
+                logs_data["process_finished"] = True
+            else:
+                logs_data["process_finished"] = False
+            
+            return logs_data
+            
+        except Exception as log_error:
+            logger.error(f"Error processing logs: {str(log_error)}")
+            return {
+                "stdout": "",
+                "stderr": f"Error processing logs: {str(log_error)}",
+                "artifacts": {},
+                "completed": False,
+                "error": str(log_error)
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to stream logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to stream logs: {str(e)}")
 
 # Legacy endpoint for backward compatibility
 @app.post("/create_sandbox", response_model=CreateSandboxResp)
