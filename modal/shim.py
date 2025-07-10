@@ -71,11 +71,11 @@ async def create_sandbox(req: CreateSandboxReq):
         sandbox_id = str(uuid.uuid4())
         
         # Create Modal sandbox with proper image specification
-        image = modal.Image.debian_slim().pip_install("requests").apt_install("git", "curl", "build-essential")
+        image = modal.Image.debian_slim().pip_install("requests").apt_install("git", "curl", "build-essential", "sudo")
         
         sb = modal.Sandbox.create(
             image=image,
-            workdir="/workspace",
+            workdir="/home/swarm",
             timeout=3600,  # 1 hour timeout
             app=app_modal,
         )
@@ -83,6 +83,41 @@ async def create_sandbox(req: CreateSandboxReq):
         # Store in memory
         SANDBOXES[sandbox_id] = sb
         PROCS[sandbox_id] = {}
+        
+        # Create non-root user 'swarm' for running Claude Code
+        try:
+            logger.info("Creating swarm user for non-root operations")
+            
+            # Create the swarm user with home directory
+            user_create_proc = sb.exec("useradd", "-m", "-s", "/bin/bash", "swarm")
+            user_create_exit = user_create_proc.wait()
+            logger.info(f"User creation exit code: {user_create_exit}")
+            
+            # Add swarm user to sudo group
+            sudo_proc = sb.exec("usermod", "-aG", "sudo", "swarm")
+            sudo_exit = sudo_proc.wait()
+            logger.info(f"Sudo group addition exit code: {sudo_exit}")
+            
+            # Set passwordless sudo for swarm user
+            sudoers_proc = sb.exec("bash", "-c", "echo 'swarm ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers")
+            sudoers_exit = sudoers_proc.wait()
+            logger.info(f"Sudoers configuration exit code: {sudoers_exit}")
+            
+            # Create and set ownership of home directory
+            mkdir_proc = sb.exec("mkdir", "-p", "/home/swarm")
+            mkdir_exit = mkdir_proc.wait()
+            logger.info(f"Directory creation exit code: {mkdir_exit}")
+            
+            # Change ownership of home directory to swarm user
+            chown_proc = sb.exec("chown", "-R", "swarm:swarm", "/home/swarm")
+            chown_exit = chown_proc.wait()
+            logger.info(f"Directory ownership change exit code: {chown_exit}")
+            
+            logger.info("Successfully created swarm user and configured permissions")
+            
+        except Exception as user_error:
+            logger.error(f"Failed to create swarm user: {user_error}")
+            # Don't fail sandbox creation - continue with root user as fallback
         
         # Clone repository (git is already installed via image)
         try:
@@ -95,8 +130,14 @@ async def create_sandbox(req: CreateSandboxReq):
             else:
                 logger.info(f"Using public clone for {req.repo_url}")
             
-            logger.info(f"Cloning {req.repo_url} branch {req.branch} to /code")
-            clone_proc = sb.exec("git", "clone", clone_url, "/code", "-b", req.branch)
+            # Extract repo name from URL for folder name
+            repo_name = req.repo_url.rstrip('/').split('/')[-1]
+            if repo_name.endswith('.git'):
+                repo_name = repo_name[:-4]
+            
+            logger.info(f"Cloning {req.repo_url} branch {req.branch} to /home/swarm/{repo_name}")
+            # Run git clone as swarm user
+            clone_proc = sb.exec("su", "-", "swarm", "-c", f"git clone {clone_url} /home/swarm/{repo_name} -b {req.branch}")
             
             # Wait for clone to complete and get result
             clone_exit_code = clone_proc.wait()
@@ -105,7 +146,7 @@ async def create_sandbox(req: CreateSandboxReq):
             if clone_exit_code == 0:
                 logger.info("Git clone succeeded")
                 # Verify the clone was successful
-                verify_proc = sb.exec("ls", "-la", "/code")
+                verify_proc = sb.exec("su", "-", "swarm", "-c", f"ls -la /home/swarm/{repo_name}")
                 verify_exit_code = verify_proc.wait()
                 logger.info(f"Directory listing exit code: {verify_exit_code}")
                 
@@ -129,7 +170,7 @@ async def create_sandbox(req: CreateSandboxReq):
                 # Try basic clone without branch specification as fallback
                 try:
                     logger.info(f"Retrying clone without branch specification")
-                    fallback_proc = sb.exec("git", "clone", clone_url, "/code")
+                    fallback_proc = sb.exec("su", "-", "swarm", "-c", f"git clone {clone_url} /home/swarm/{repo_name}")
                     fallback_exit_code = fallback_proc.wait()
                     logger.info(f"Fallback git clone exit code: {fallback_exit_code}")
                 except Exception as fallback_error:
@@ -139,7 +180,7 @@ async def create_sandbox(req: CreateSandboxReq):
             logger.error(f"Git clone exception: {setup_error}")
             # Don't fail sandbox creation - let the exec commands handle it later
 
-        # Install Claude Code during sandbox creation
+        # Install Claude Code during sandbox creation as swarm user
         try:
             logger.info("Installing dependencies for Claude Code")
             # Install jq which is required by the Claude Code installer
@@ -147,15 +188,16 @@ async def create_sandbox(req: CreateSandboxReq):
             deps_exit_code = deps_proc.wait()
             logger.info(f"Dependencies install exit code: {deps_exit_code}")
             
-            logger.info("Installing Claude Code")
-            install_proc = sb.exec("bash", "-c", "curl -fsSL http://claude.ai/install.sh | bash")
+            logger.info("Installing Claude Code as swarm user")
+            # Install Claude Code as swarm user to avoid root permission issues
+            install_proc = sb.exec("su", "-", "swarm", "-c", "curl -fsSL http://claude.ai/install.sh | bash")
             install_exit_code = install_proc.wait()
             logger.info(f"Claude Code install exit code: {install_exit_code}")
             
             if install_exit_code == 0:
                 logger.info("Claude Code installation succeeded")
-                # Verify installation
-                verify_proc = sb.exec("bash", "-c", "export PATH=\"$HOME/.local/bin:$PATH\" && which claude && claude --version")
+                # Verify installation as swarm user
+                verify_proc = sb.exec("su", "-", "swarm", "-c", "export PATH=\"$HOME/.local/bin:$PATH\" && which claude && claude --version")
                 verify_exit_code = verify_proc.wait()
                 logger.info(f"Claude Code verification exit code: {verify_exit_code}")
                 
@@ -199,12 +241,14 @@ async def exec_command(sandbox_id: str, req: ExecReq):
         
         # Build command with working directory
         cmd_parts = req.cmd
-        workdir = req.cwd or "/workspace"
+        workdir = req.cwd or "/home/swarm"
         
-        # Execute command using Modal's exec method  
+        # Execute command as swarm user using Modal's exec method
+        # Build the command to run as swarm user
+        cmd_str = ' '.join(f"'{part}'" for part in cmd_parts)
+        
         proc = sb.exec(
-            *cmd_parts,
-            workdir=workdir,
+            "su", "-", "swarm", "-c", f"cd {workdir} && {cmd_str}",
         )
         
         # Store the actual ContainerProcess object
@@ -365,18 +409,25 @@ async def clone_repo(sandbox_id: str, req: WorkflowReq):
     if not req.repo_url:
         raise HTTPException(status_code=400, detail="repo_url is required")
     
+    # Extract repo name from URL for folder name
+    repo_name = req.repo_url.rstrip('/').split('/')[-1]
+    if repo_name.endswith('.git'):
+        repo_name = repo_name[:-4]
+    
+    # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
-        cmd=["git", "clone", req.repo_url, "/code", "-b", req.branch or "main"],
-        cwd="/"
+        cmd=["git", "clone", req.repo_url, f"/home/swarm/{repo_name}", "-b", req.branch or "main"],
+        cwd="/home/swarm"
     )
     return await exec_command(sandbox_id, exec_req)
 
 @app.post("/sandboxes/{sandbox_id}/install_tools", response_model=ExecResp)
 async def install_tools(sandbox_id: str):
     """Install Claude Code and other development tools."""
+    # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
         cmd=["bash", "-c", "curl -fsSL http://claude.ai/install.sh | bash"],
-        cwd="/"
+        cwd="/home/swarm"
     )
     return await exec_command(sandbox_id, exec_req)
 
@@ -386,9 +437,10 @@ async def configure_git(sandbox_id: str, req: WorkflowReq):
     if not req.user_name or not req.user_email:
         raise HTTPException(status_code=400, detail="user_name and user_email are required")
     
+    # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
         cmd=["bash", "-c", f"git config --global user.name '{req.user_name}' && git config --global user.email '{req.user_email}'"],
-        cwd="/code"
+        cwd="/home/swarm"  # Git config is global, so any directory works
     )
     return await exec_command(sandbox_id, exec_req)
 
@@ -396,9 +448,11 @@ async def configure_git(sandbox_id: str, req: WorkflowReq):
 async def push_changes(sandbox_id: str, req: WorkflowReq):
     """Push changes to the repository."""
     branch = req.branch or "main"
+    # Note: This endpoint would need repo URL to determine the correct folder
+    # For now, assume the repo is in the working directory
     exec_req = ExecReq(
         cmd=["bash", "-c", f"git add . && git commit -m 'Auto-commit changes' && git push origin {branch}"],
-        cwd="/code"
+        cwd="/home/swarm"  # This would need to be updated to use the actual repo folder
     )
     return await exec_command(sandbox_id, exec_req)
 

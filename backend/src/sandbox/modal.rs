@@ -266,9 +266,9 @@ impl ModalProvider {
         let git_config_commands = vec![
             // Debug and setup environment first
             "echo 'Current user:' && whoami && echo 'HOME directory:' && echo $HOME && echo 'Git version:' && git --version".to_string(),
-            // Set HOME and create git config, then configure git
-            format!("export HOME=/home && mkdir -p $HOME && git config --global user.name '{}'", author_name),
-            format!("export HOME=/home && git config --global user.email '{}'", author_email),
+            // Configure git as swarm user
+            format!("git config --global user.name '{}'", author_name),
+            format!("git config --global user.email '{}'", author_email),
             format!(
                 "bash -c 'cd \"{}\" && \
                  echo \"Current directory: $(pwd)\" && \
@@ -404,10 +404,10 @@ The system requires these markers to automatically generate commit messages and 
                 echo "PATH: $PATH"
                 echo "which claude: $(which claude)"
                 claude -p "{}" \
+                    --dangerously-skip-permissions \
                     --verbose \
                     --output-format stream-json \
                     --max-turns 100 \
-                    --dangerously-skip-permissions \
                     < /dev/null
             '"#,
             repo_path,
@@ -943,8 +943,8 @@ impl SandboxProvider for ModalProvider {
         // Claude Code is now installed during sandbox creation in the Modal shim
 
         // Configure Git with author information and authenticated remote
-        let _repo_name = Self::extract_repo_name(repo_url)?;
-        let repo_path = format!("/code");
+        let repo_name = Self::extract_repo_name(repo_url)?;
+        let repo_path = format!("/home/swarm/{}", repo_name);
         let repo_full_name = Self::extract_repo_full_name(repo_url)?;
         self.configure_git(
             &sandbox_id,
