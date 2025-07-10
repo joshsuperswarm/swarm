@@ -10,11 +10,11 @@
       "version": "20"
     },
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/postgres:1": {
+    "ghcr.io/devcontainers-contrib/features/postgresql:1": {
       "version": "16",
-      "postgresUser": "swarm",
-      "postgresPassword": "password",
-      "postgresDb": "swarm"
+      "user": "swarm",
+      "password": "password",
+      "database": "swarm"
     }
   },
   "customizations": {
