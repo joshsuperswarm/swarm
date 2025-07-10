@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  # 🟢 main workspace container
+  app:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu-22.04   # any slim Linux base is fine
+    network_mode: service:db     # shares the db container's network namespace
+    volumes:
+      - ..:/workspace:cached      # your repo
+    environment:
+      - USERNAME=vscode
+    command: sleep infinity       # stay alive for VS Code to attach
+    depends_on:
+      - db
+
+  # 🟡 Postgres service (official image)
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: swarm
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: swarm
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

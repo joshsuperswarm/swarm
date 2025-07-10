@@ -1,27 +1,28 @@
 {
   "name": "Swarm Development Environment",
+
+  // 1️⃣ use the compose stack
+  "dockerComposeFile": "docker-compose.yaml",
+  "service": "app",
+  "runServices": ["db"],
+
+  // 2️⃣ keep all your existing features
   "features": {
-    "ghcr.io/devcontainers/features/rust:1": {
-      "version": "stable",
-      "profile": "default"
-    },
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "20"
-    },
+    "ghcr.io/devcontainers/features/rust:1":      { "version": "stable", "profile": "default" },
+    "ghcr.io/devcontainers/features/node:1":      { "version": "20" },
     "ghcr.io/prulloac/devcontainer-features/bun:1": {},
-    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/git:1":       {},
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": false,
       "username": "automatic",
       "upgradePackages": true
-    },
-    "ghcr.io/itsmechlark/features/postgresql:1": {
-      "version": "16",
-      "user": "swarm",
-      "password": "password",
-      "database": "swarm"
     }
+    //  🚫 Postgres feature removed
   },
+
+  // 3️⃣ web-facing ports (db is only local to the compose network)
+  "forwardPorts": [3000, 5173, 8080],
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -32,7 +33,8 @@
       ]
     }
   },
-  "forwardPorts": [3000, 5173, 8080],
+
+  // 4️⃣ your bootstrap scripts stay the same
   "postCreateCommand": "bash scripts/install-claude-code.sh && cd backend && cp .env.example .env && cargo build && cd ../frontend && bun install",
-  "postStartCommand": "cd backend && cargo run & cd frontend && bun run dev"
+  "postStartCommand":  "cd backend && cargo run & cd frontend && bun run dev"
 }
