@@ -21,6 +21,8 @@ pub struct CreateSandboxRequest {
     pub branch: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,7 +205,16 @@ impl ModalProvider {
     async fn install_claude_code(&self, sandbox_id: &str) -> SandboxResult<()> {
         info!("Installing Claude Code in sandbox {}", sandbox_id);
         
-        let install_cmd = "curl -fsSL http://claude.ai/install.sh | bash";
+        // Install Claude Code with proper PATH setup
+        let install_cmd = r#"
+            echo "Current user: $(whoami)" && \
+            echo "Home directory: $HOME" && \
+            curl -fsSL http://claude.ai/install.sh | bash && \
+            export PATH="$HOME/.local/bin:$PATH" && \
+            echo "PATH after install: $PATH" && \
+            which claude && \
+            claude --version
+        "#;
         
         let exec_req = ExecRequest {
             cmd: vec!["bash".to_string(), "-c".to_string(), install_cmd.to_string()],
@@ -214,7 +225,26 @@ impl ModalProvider {
             .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to install Claude Code: {}", e)))?;
         
         // Wait for installation to complete
-        self.wait_for_process_completion(sandbox_id, &exec_resp.proc_id).await?;
+        let exit_code = self.wait_for_process_completion(sandbox_id, &exec_resp.proc_id).await?;
+        
+        if exit_code != 0 {
+            // Try to get installation logs for debugging
+            match self.client.get_logs(sandbox_id, &exec_resp.proc_id, None).await {
+                Ok(logs) => {
+                    let combined_output = format!("{}{}", logs.stdout, logs.stderr);
+                    return Err(SandboxError::SandboxOperationError(format!(
+                        "Claude Code installation failed with exit code {}. Output: {}", 
+                        exit_code, combined_output
+                    )));
+                }
+                Err(_) => {
+                    return Err(SandboxError::SandboxOperationError(format!(
+                        "Claude Code installation failed with exit code {} (could not retrieve logs)", 
+                        exit_code
+                    )));
+                }
+            }
+        }
         
         info!("Successfully installed Claude Code in sandbox {}", sandbox_id);
         Ok(())
@@ -232,30 +262,46 @@ impl ModalProvider {
     ) -> SandboxResult<()> {
         info!("Configuring git in sandbox {}", sandbox_id);
         
-        // Configure git user and remote
+        // Configure git user and remote with proper environment setup
         let git_config_commands = vec![
-            format!("git config --global user.name '{}'", author_name),
-            format!("git config --global user.email '{}'", author_email),
+            // Debug and setup environment first
+            "echo 'Current user:' && whoami && echo 'HOME directory:' && echo $HOME && echo 'Git version:' && git --version".to_string(),
+            // Set HOME and create git config, then configure git
+            format!("export HOME=/home && mkdir -p $HOME && git config --global user.name '{}'", author_name),
+            format!("export HOME=/home && git config --global user.email '{}'", author_email),
             format!(
                 "bash -c 'cd \"{}\" && \
-                 if git remote | grep -q \"^origin$\"; then \
-                     git remote set-url origin \"https://x-access-token:{}@github.com/{}\"; \
+                 echo \"Current directory: $(pwd)\" && \
+                 echo \"Directory contents: $(ls -la)\" && \
+                 echo \"Git status: $(git status --porcelain 2>&1 || echo \"Not a git repo\")\" && \
+                 if [ -d .git ]; then \
+                     echo \"Git repository found\" && \
+                     if git remote | grep -q \"^origin$\"; then \
+                         echo \"Updating existing origin remote\" && \
+                         git remote set-url origin \"https://x-access-token:{}@github.com/{}\"; \
+                     else \
+                         echo \"Adding new origin remote\" && \
+                         git remote add origin \"https://x-access-token:{}@github.com/{}\"; \
+                     fi; \
                  else \
-                     git remote add origin \"https://x-access-token:{}@github.com/{}\"; \
+                     echo \"No git repository found in {}\"; \
                  fi'",
-                repo_path, github_token, repo_full_name, github_token, repo_full_name
+                repo_path, github_token, repo_full_name, github_token, repo_full_name, repo_path
             ),
         ];
 
-        for command in git_config_commands {
+        for (i, command) in git_config_commands.iter().enumerate() {
             // Show first 8 characters of token for verification, mask the rest
             let token_prefix = &github_token[..8.min(github_token.len())];
             let masked_command = command.replace(github_token, &format!("{}***", token_prefix));
             info!("Configuring git in sandbox {}: {}", sandbox_id, masked_command);
             
+            // Use home directory for debug and global git config, repo directory for remote config
+            let working_dir = if i < 3 { "/home" } else { repo_path };
+            
             let exec_req = ExecRequest {
-                cmd: vec!["bash".to_string(), "-c".to_string(), command],
-                cwd: Some(repo_path.to_string()),
+                cmd: vec!["bash".to_string(), "-c".to_string(), command.clone()],
+                cwd: Some(working_dir.to_string()),
             };
             
             let exec_resp = self.client.exec_command(sandbox_id, exec_req).await
@@ -348,11 +394,15 @@ The system requires these markers to automatically generate commit messages and 
             task_id, prompt
         );
 
-        // Execute Claude Code
+        // Execute Claude Code with proper PATH
         let cmd = format!(
             r#"bash -c '
+                export PATH="$HOME/.local/bin:$PATH"
                 cd "{}" || {{ echo "cd failed"; exit 1; }}
                 set -euo pipefail
+                echo "About to run claude as user: $(whoami)"
+                echo "PATH: $PATH"
+                echo "which claude: $(which claude)"
                 claude -p "{}" \
                     --verbose \
                     --output-format stream-json \
@@ -839,6 +889,7 @@ impl SandboxProvider for ModalProvider {
             repo_url: repo_url.to_string(),
             branch: "main".to_string(), // Clone from main, we'll create branch later
             region: self.region.clone(),
+            github_token: Some(github_token.to_string()),
         };
 
         let sandbox_resp = self.client.create_sandbox(create_request).await
@@ -889,8 +940,7 @@ impl SandboxProvider for ModalProvider {
             SandboxError::TimeoutError
         })??;
 
-        // Install Claude Code
-        self.install_claude_code(&sandbox_id).await?;
+        // Claude Code is now installed during sandbox creation in the Modal shim
 
         // Configure Git with author information and authenticated remote
         let _repo_name = Self::extract_repo_name(repo_url)?;

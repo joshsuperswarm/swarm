@@ -339,9 +339,39 @@ async fn sandbox_poller(app_state: AppState) {
                         {
                             tracing::info!("→ Collecting final logs for failed task {}", task.id);
 
-                            // Create temporary Daytona provider for log collection
+                            // Create temporary provider for log collection
                             if let Ok(config) = crate::config::Config::from_env() {
-                                if let (Some(url), Some(api_key)) =
+                                // Try Modal first, then Daytona
+                                if let Some(modal_url) = config.modal_url {
+                                    let modal = sandbox::modal::ModalProvider::new(
+                                        modal_url,
+                                        config.modal_region,
+                                    );
+                                    // For Modal, command_id is the proc_id
+                                    match modal
+                                        .stream_command_logs(
+                                            &app_state.database,
+                                            task.id,
+                                            sandbox_id,
+                                            command_id, // This is proc_id for Modal
+                                        )
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            tracing::info!(
+                                                "✓ Final log collection completed for failed task {}",
+                                                task.id
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                "⚠ Final log collection failed for failed task {}: {}",
+                                                task.id,
+                                                e
+                                            );
+                                        }
+                                    }
+                                } else if let (Some(url), Some(api_key)) =
                                     (config.daytona_url, config.daytona_api_key)
                                 {
                                     let daytona = sandbox::daytona::DaytonaProvider::new(
@@ -375,6 +405,8 @@ async fn sandbox_poller(app_state: AppState) {
                                             );
                                         }
                                     }
+                                } else {
+                                    tracing::warn!("No sandbox provider configured for log collection");
                                 }
                             }
                         }
@@ -442,9 +474,39 @@ async fn sandbox_poller(app_state: AppState) {
                     {
                         tracing::info!("→ Collecting final logs for stopped task {}", task.id);
 
-                        // Create temporary Daytona provider for log collection
+                        // Create temporary provider for log collection
                         if let Ok(config) = crate::config::Config::from_env() {
-                            if let (Some(url), Some(api_key)) =
+                            // Try Modal first, then Daytona
+                            if let Some(modal_url) = config.modal_url {
+                                let modal = sandbox::modal::ModalProvider::new(
+                                    modal_url,
+                                    config.modal_region,
+                                );
+                                // For Modal, command_id is the proc_id
+                                match modal
+                                    .stream_command_logs(
+                                        &app_state.database,
+                                        task.id,
+                                        sandbox_id,
+                                        command_id, // This is proc_id for Modal
+                                    )
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        tracing::info!(
+                                            "✓ Final log collection completed for task {}",
+                                            task.id
+                                        );
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "⚠ Final log collection failed for task {}: {}",
+                                            task.id,
+                                            e
+                                        );
+                                    }
+                                }
+                            } else if let (Some(url), Some(api_key)) =
                                 (config.daytona_url, config.daytona_api_key)
                             {
                                 let daytona = sandbox::daytona::DaytonaProvider::new(
@@ -478,6 +540,8 @@ async fn sandbox_poller(app_state: AppState) {
                                         );
                                     }
                                 }
+                            } else {
+                                tracing::warn!("No sandbox provider configured for log collection");
                             }
                         }
                     }
@@ -569,9 +633,39 @@ async fn sandbox_poller(app_state: AppState) {
                     {
                         tracing::info!("→ Collecting logs for running task {}", task.id);
 
-                        // Create temporary Daytona provider for log collection
+                        // Create temporary provider for log collection
                         if let Ok(config) = crate::config::Config::from_env() {
-                            if let (Some(url), Some(api_key)) =
+                            // Try Modal first, then Daytona
+                            if let Some(modal_url) = config.modal_url {
+                                let modal = sandbox::modal::ModalProvider::new(
+                                    modal_url,
+                                    config.modal_region,
+                                );
+                                // For Modal, command_id is the proc_id
+                                match modal
+                                    .stream_command_logs(
+                                        &app_state.database,
+                                        task.id,
+                                        sandbox_id,
+                                        command_id, // This is proc_id for Modal
+                                    )
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        tracing::debug!(
+                                            "✓ Log collection completed for running task {}",
+                                            task.id
+                                        );
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "⚠ Log collection failed for running task {}: {}",
+                                            task.id,
+                                            e
+                                        );
+                                    }
+                                }
+                            } else if let (Some(url), Some(api_key)) =
                                 (config.daytona_url, config.daytona_api_key)
                             {
                                 let daytona = sandbox::daytona::DaytonaProvider::new(
@@ -605,6 +699,8 @@ async fn sandbox_poller(app_state: AppState) {
                                         );
                                     }
                                 }
+                            } else {
+                                tracing::warn!("No sandbox provider configured for log collection");
                             }
                         }
                     }

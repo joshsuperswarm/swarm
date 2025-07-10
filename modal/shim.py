@@ -25,6 +25,7 @@ class CreateSandboxReq(BaseModel):
     repo_url: str
     branch: str = "main"
     region: Optional[str] = None
+    github_token: Optional[str] = None
 
 class CreateSandboxResp(BaseModel):
     sandbox_id: str
@@ -69,9 +70,11 @@ async def create_sandbox(req: CreateSandboxReq):
         # Create unique sandbox ID
         sandbox_id = str(uuid.uuid4())
         
-        # Create Modal sandbox with app
+        # Create Modal sandbox with proper image specification
+        image = modal.Image.debian_slim().pip_install("requests").apt_install("git", "curl", "build-essential")
+        
         sb = modal.Sandbox.create(
-            "python:3.11-slim",  # Base image
+            image=image,
             workdir="/workspace",
             timeout=3600,  # 1 hour timeout
             app=app_modal,
@@ -81,10 +84,101 @@ async def create_sandbox(req: CreateSandboxReq):
         SANDBOXES[sandbox_id] = sb
         PROCS[sandbox_id] = {}
         
-        # Install git and clone repository
-        sb.exec("apt-get", "update")
-        sb.exec("apt-get", "install", "-y", "git", "curl")
-        sb.exec("git", "clone", req.repo_url, "/code", "-b", req.branch)
+        # Clone repository (git is already installed via image)
+        try:
+            # Use authenticated URL if GitHub token is provided
+            clone_url = req.repo_url
+            if req.github_token and "github.com" in req.repo_url:
+                # Convert https://github.com/user/repo to https://token@github.com/user/repo
+                clone_url = req.repo_url.replace("https://github.com", f"https://x-access-token:{req.github_token}@github.com")
+                logger.info(f"Using authenticated clone for {req.repo_url}")
+            else:
+                logger.info(f"Using public clone for {req.repo_url}")
+            
+            logger.info(f"Cloning {req.repo_url} branch {req.branch} to /code")
+            clone_proc = sb.exec("git", "clone", clone_url, "/code", "-b", req.branch)
+            
+            # Wait for clone to complete and get result
+            clone_exit_code = clone_proc.wait()
+            logger.info(f"Git clone exit code: {clone_exit_code}")
+            
+            if clone_exit_code == 0:
+                logger.info("Git clone succeeded")
+                # Verify the clone was successful
+                verify_proc = sb.exec("ls", "-la", "/code")
+                verify_exit_code = verify_proc.wait()
+                logger.info(f"Directory listing exit code: {verify_exit_code}")
+                
+                # Try to get output
+                try:
+                    if hasattr(verify_proc, 'stdout') and verify_proc.stdout:
+                        stdout = verify_proc.stdout.read() if hasattr(verify_proc.stdout, 'read') else str(verify_proc.stdout)
+                        logger.info(f"Directory contents: {stdout}")
+                except Exception as output_error:
+                    logger.warning(f"Could not read directory listing output: {output_error}")
+            else:
+                logger.error(f"Git clone failed with exit code {clone_exit_code}")
+                # Try to get error output
+                try:
+                    if hasattr(clone_proc, 'stderr') and clone_proc.stderr:
+                        stderr = clone_proc.stderr.read() if hasattr(clone_proc.stderr, 'read') else str(clone_proc.stderr)
+                        logger.error(f"Git clone error: {stderr}")
+                except Exception as error_output:
+                    logger.warning(f"Could not read git clone error: {error_output}")
+                
+                # Try basic clone without branch specification as fallback
+                try:
+                    logger.info(f"Retrying clone without branch specification")
+                    fallback_proc = sb.exec("git", "clone", clone_url, "/code")
+                    fallback_exit_code = fallback_proc.wait()
+                    logger.info(f"Fallback git clone exit code: {fallback_exit_code}")
+                except Exception as fallback_error:
+                    logger.error(f"Fallback git clone also failed: {fallback_error}")
+            
+        except Exception as setup_error:
+            logger.error(f"Git clone exception: {setup_error}")
+            # Don't fail sandbox creation - let the exec commands handle it later
+
+        # Install Claude Code during sandbox creation
+        try:
+            logger.info("Installing dependencies for Claude Code")
+            # Install jq which is required by the Claude Code installer
+            deps_proc = sb.exec("bash", "-c", "apt-get update && apt-get install -y jq")
+            deps_exit_code = deps_proc.wait()
+            logger.info(f"Dependencies install exit code: {deps_exit_code}")
+            
+            logger.info("Installing Claude Code")
+            install_proc = sb.exec("bash", "-c", "curl -fsSL http://claude.ai/install.sh | bash")
+            install_exit_code = install_proc.wait()
+            logger.info(f"Claude Code install exit code: {install_exit_code}")
+            
+            if install_exit_code == 0:
+                logger.info("Claude Code installation succeeded")
+                # Verify installation
+                verify_proc = sb.exec("bash", "-c", "export PATH=\"$HOME/.local/bin:$PATH\" && which claude && claude --version")
+                verify_exit_code = verify_proc.wait()
+                logger.info(f"Claude Code verification exit code: {verify_exit_code}")
+                
+                # Try to get verification output
+                try:
+                    if hasattr(verify_proc, 'stdout') and verify_proc.stdout:
+                        stdout = verify_proc.stdout.read() if hasattr(verify_proc.stdout, 'read') else str(verify_proc.stdout)
+                        logger.info(f"Claude Code verification output: {stdout}")
+                except Exception as output_error:
+                    logger.warning(f"Could not read Claude Code verification output: {output_error}")
+            else:
+                logger.error(f"Claude Code installation failed with exit code {install_exit_code}")
+                # Try to get error output
+                try:
+                    if hasattr(install_proc, 'stderr') and install_proc.stderr:
+                        stderr = install_proc.stderr.read() if hasattr(install_proc.stderr, 'read') else str(install_proc.stderr)
+                        logger.error(f"Claude Code install error: {stderr}")
+                except Exception as error_output:
+                    logger.warning(f"Could not read Claude Code install error: {error_output}")
+                    
+        except Exception as install_error:
+            logger.error(f"Claude Code installation exception: {install_error}")
+            # Don't fail sandbox creation - let the backend handle it
         
         logger.info(f"Created sandbox {sandbox_id} with repo {req.repo_url}")
         
@@ -107,7 +201,7 @@ async def exec_command(sandbox_id: str, req: ExecReq):
         cmd_parts = req.cmd
         workdir = req.cwd or "/workspace"
         
-        # Execute command using Modal's exec method
+        # Execute command using Modal's exec method  
         proc = sb.exec(
             *cmd_parts,
             workdir=workdir,
@@ -156,14 +250,37 @@ async def get_logs(sandbox_id: str, proc_id: str, since: int = 0):
         stdout = ""
         stderr = ""
         
+        logger.info(f"Getting logs for proc {proc_id}, process type: {type(proc)}")
+        logger.info(f"Process attributes: {dir(proc)}")
+        
         try:
-            if hasattr(proc, 'stdout') and proc.stdout:
-                stdout_data = proc.stdout.read() if hasattr(proc.stdout, 'read') else str(proc.stdout)
-                stdout = stdout_data[since:] if since > 0 and len(stdout_data) > since else stdout_data
+            # Check what attributes the process actually has
+            if hasattr(proc, 'stdout'):
+                logger.info(f"Process has stdout: {proc.stdout}, type: {type(proc.stdout)}")
+                if proc.stdout:
+                    if hasattr(proc.stdout, 'read'):
+                        stdout_data = proc.stdout.read()
+                        logger.info(f"Read stdout data: {stdout_data}")
+                    else:
+                        stdout_data = str(proc.stdout)
+                        logger.info(f"Converted stdout to string: {stdout_data}")
+                    stdout = stdout_data[since:] if since > 0 and len(stdout_data) > since else stdout_data
+            else:
+                logger.info("Process does not have stdout attribute")
                 
-            if hasattr(proc, 'stderr') and proc.stderr:
-                stderr_data = proc.stderr.read() if hasattr(proc.stderr, 'read') else str(proc.stderr)
-                stderr = stderr_data[since:] if since > 0 and len(stderr_data) > since else stderr_data
+            if hasattr(proc, 'stderr'):
+                logger.info(f"Process has stderr: {proc.stderr}, type: {type(proc.stderr)}")
+                if proc.stderr:
+                    if hasattr(proc.stderr, 'read'):
+                        stderr_data = proc.stderr.read()
+                        logger.info(f"Read stderr data: {stderr_data}")
+                    else:
+                        stderr_data = str(proc.stderr)
+                        logger.info(f"Converted stderr to string: {stderr_data}")
+                    stderr = stderr_data[since:] if since > 0 and len(stderr_data) > since else stderr_data
+            else:
+                logger.info("Process does not have stderr attribute")
+                
         except Exception as e:
             logger.warning(f"Could not read stdout/stderr: {str(e)}")
         
