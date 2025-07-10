@@ -21,7 +21,7 @@ docker-compose up -d
 cd backend && cargo run
 
 # Run frontend  
-cd frontend && npm install && npm run dev
+cd frontend && bun install && bun run dev
 ```
 
 ### Backend (Rust)
@@ -36,10 +36,10 @@ cargo check             # Type/compile check
 ### Frontend (React/TypeScript)
 ```bash
 cd frontend
-npm install        # Install dependencies
-npm run dev        # Development server (localhost:5173)
-npm run build      # Production build (includes TypeScript compilation)
-npm run lint       # ESLint
+bun install        # Install dependencies
+bun run dev        # Development server (localhost:5173)
+bun run build      # Production build (includes TypeScript compilation)
+bun run lint       # ESLint
 ```
 
 ### Database Management
@@ -53,8 +53,8 @@ docker-compose down -v  # Reset database (deletes all data)
 - **Database**: PostgreSQL in Docker container (one command setup)
 - **Real persistence**: Users, repositories, and tasks stored in database
 - **GitHub integration**: Ready for GitHub OAuth and repository access
-- **Git Hook**: Pre-commit hook runs both `cargo check` and `npm run build`
-- **Linting**: Run `npm run lint` in frontend before commits
+- **Git Hook**: Pre-commit hook runs both `cargo check` and `bun run build`
+- **Linting**: Run `bun run lint` in frontend before commits
 - **Logging**: Console logs use unicode characters (✓ ✗ ⚠ →) instead of emojis for clean output
 
 ## Project Structure

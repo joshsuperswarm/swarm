@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Install dependencies
-npm install
+bun install
 
 # Build the application
-npm run build
+bun run build
