@@ -740,22 +740,10 @@ impl ModalProvider {
         sandbox_id: &str,
         proc_id: &str,
     ) -> SandboxResult<()> {
-        // Get current log offset from database or use 0
-        let current_offset = match sqlx::query_scalar!(
-            "SELECT COALESCE(MAX(id), 0) FROM task_logs WHERE task_id = $1",
-            task_id
-        )
-        .fetch_one(&db.pool)
-        .await
-        {
-            Ok(offset) => offset.unwrap_or(0) as u64,
-            Err(_) => 0,
-        };
-
-        // Get logs since last offset (non-blocking)
+        // Get logs without offset - Modal handles deduplication
         let logs_resp = self
             .client
-            .get_logs(sandbox_id, proc_id, Some(current_offset))
+            .get_logs(sandbox_id, proc_id, None)
             .await
             .map_err(|e| {
                 SandboxError::SandboxOperationError(format!("Failed to get logs: {}", e))
@@ -776,7 +764,7 @@ impl ModalProvider {
         Ok(())
     }
 
-    /// Process Modal log stream with robust JSON-Lines parsing
+    /// Process Modal log stream with StreamDeserializer for proper JSON object parsing
     pub async fn process_modal_log_stream(
         &self,
         db: &crate::database::Database,
@@ -785,57 +773,53 @@ impl ModalProvider {
         buffer: &mut String,
         state: &mut ArtifactParsingState,
     ) -> SandboxResult<usize> {
-        let mut lines_processed = 0;
-
-        // Append new chunk to buffer
+        // Accumulate new data in buffer
         buffer.push_str(raw_stream);
 
-        // Process complete lines from buffer
-        while let Some(newline_pos) = buffer.find('\n') {
-            let line = buffer[..newline_pos].to_string();
-            buffer.drain(..=newline_pos); // Remove processed line including newline
+        // Create StreamDeserializer from current buffer
+        let de = serde_json::Deserializer::from_str(buffer);
+        let mut stream = de.into_iter::<ModalLogLine>();
+        let mut lines_processed = 0;
 
-            if line.trim().is_empty() {
-                continue;
-            }
+        // Process all complete JSON objects
+        while let Some(result) = stream.next() {
+            match result {
+                Ok(modal_log) => {
+                    // Successfully parsed complete JSON object
+                    let json_str = serde_json::to_string(&modal_log).map_err(|e| {
+                        SandboxError::SandboxOperationError(format!(
+                            "Failed to serialize JSON: {}",
+                            e
+                        ))
+                    })?;
 
-            // Attempt to parse as JSON
-            match serde_json::from_str::<ModalLogLine>(&line) {
-                Ok(_modal_log) => {
-                    // Successfully parsed JSON line
-                    if let Err(e) = db.insert_task_log(task_id, &line).await {
+                    if let Err(e) = db.insert_task_log(task_id, &json_str).await {
                         warn!("✗ Failed to store log line for task {}: {}", task_id, e);
                     } else {
                         lines_processed += 1;
                     }
 
                     // Extract text content for artifact parsing
-                    let text_to_parse = Self::extract_text_from_json_line(&line);
+                    let text_to_parse = Self::extract_text_from_json_line(&json_str);
                     for text_line in text_to_parse.lines() {
                         Self::process_artifact_line(text_line, state);
                     }
                 }
+                Err(e) if e.is_eof() => {
+                    // Hit incomplete JSON - break and save remaining data for next iteration
+                    break;
+                }
                 Err(e) => {
-                    // Check if this is an EOF error (incomplete JSON)
-                    if e.is_eof() {
-                        // Put the line back in buffer for next iteration
-                        buffer.insert_str(0, &format!("{}\n", line));
-                        break; // Wait for more data
-                    } else {
-                        // Real syntax error, log as warning and continue
-                        warn!("Failed to parse Modal log line as JSON: {}", e);
-                        warn!(
-                            "Line: {}",
-                            if line.len() > 200 {
-                                format!("{}...", &line[..200])
-                            } else {
-                                line
-                            }
-                        );
-                    }
+                    // Real syntax error - log and continue
+                    debug!("JSON parse error: {}", e);
+                    break;
                 }
             }
         }
+
+        // Keep only the unparsed remainder for next iteration
+        let parsed_bytes = stream.byte_offset();
+        buffer.drain(..parsed_bytes);
 
         Ok(lines_processed)
     }
@@ -1389,12 +1373,10 @@ mod tests {
         let mut state = ArtifactParsingState::default();
         let task_id = 1;
 
-        // Test case: JSON object split across boundaries
-        let chunk1 = r#"{"type":"assistant"#;
-        let chunk2 = r#"}"#;
-        let chunk3 = "\n";
-        let chunk4 = r#"{"type":"user", "msg":"hi"}"#;
-        let chunk5 = "\n";
+        // Test case: JSON object with embedded newlines (from source code)
+        let chunk1 = r#"{"type":"assistant","message":{"content":[{"text":"function hello() {\n  console.log(\"world\");\n}"#;
+        let chunk2 = r#"}]}}"#;
+        let chunk3 = r#"{"type":"user","msg":"hi"}"#;
 
         // Process first chunk (incomplete JSON)
         let result1 = provider
@@ -1405,33 +1387,20 @@ mod tests {
         assert_eq!(result1.unwrap(), 0);
         assert!(!buffer.is_empty()); // Should have buffered content
 
-        // Process second chunk (still incomplete)
+        // Process second chunk (completes first JSON)
         let result2 = provider
             .process_modal_log_stream(&db, task_id, chunk2, &mut buffer, &mut state)
             .await;
-        assert!(result2.is_ok());
-        assert_eq!(result2.unwrap(), 0);
+        // This will fail with database connection error in test, but parsing logic should work
+        // The important thing is StreamDeserializer can handle JSON with embedded newlines
+        assert!(result2.is_err() || result2.unwrap() == 1);
 
-        // Process third chunk (completes first JSON with newline)
+        // Process third chunk (complete second JSON)
         let result3 = provider
             .process_modal_log_stream(&db, task_id, chunk3, &mut buffer, &mut state)
             .await;
-        // Note: This will fail with database connection error in test, but that's expected
-        // The important thing is that parsing logic works
-        assert!(result3.is_err() || result3.unwrap() == 1);
-
-        // Process chunks 4 and 5 (complete second JSON)
-        let result4 = provider
-            .process_modal_log_stream(
-                &db,
-                task_id,
-                &format!("{}{}", chunk4, chunk5),
-                &mut buffer,
-                &mut state,
-            )
-            .await;
         // Again, will fail with DB error but parsing should work
-        assert!(result4.is_err() || result4.unwrap() == 1);
+        assert!(result3.is_err() || result3.unwrap() == 1);
     }
 
     #[test]
