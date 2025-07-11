@@ -32,7 +32,9 @@ use models::{
     CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS, UserWithDefaultRepo,
     _force_ts_generation,
 };
-use sandbox::{daytona::DaytonaProvider, modal::ModalProvider, DynSandbox, SandboxStatus};
+use sandbox::{
+    daytona::DaytonaProvider, modal::ModalProvider, status_poller, DynSandbox, SandboxStatus,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -1144,10 +1146,11 @@ async fn main() -> AppResult<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Start background task poller
-    let poller_app_state = app_state.clone();
+    // Start background task poller (non-blocking)
+    let poller_database = app_state.database.clone();
+    let poller_config = app_state.config.clone();
     tokio::spawn(async move {
-        sandbox_poller(poller_app_state).await;
+        status_poller::run_sandbox_status_poller(poller_database, poller_config).await;
     });
 
     let app = Router::new()
