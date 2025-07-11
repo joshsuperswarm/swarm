@@ -918,7 +918,7 @@ async fn handle_task_success(
 
     // Create repo path
     let repo_name = repository.name.clone();
-    let repo_path = format!("/home/daytona/{}", repo_name);
+    let repo_path = format!("/home/swarm/{}", repo_name);
 
     // Validate that AI-generated artifacts are present
     let commit_title = match task.commit_title.as_ref() {

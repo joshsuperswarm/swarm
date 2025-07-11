@@ -99,21 +99,21 @@ def _tail_process_output(proc, key):
                 LOG_BUFFERS[key]["stdout"].append(line)
         except Exception as e:
             logger.warning(f"Error reading stdout for {key}: {str(e)}")
-    
+
     def consume_stderr():
         try:
             for line in proc.stderr:
                 LOG_BUFFERS[key]["stderr"].append(line)
         except Exception as e:
             logger.warning(f"Error reading stderr for {key}: {str(e)}")
-    
+
     # Start background threads to consume streams
     stdout_thread = threading.Thread(target=consume_stdout, daemon=True)
     stderr_thread = threading.Thread(target=consume_stderr, daemon=True)
-    
+
     stdout_thread.start()
     stderr_thread.start()
-    
+
     logger.debug(f"Started background streaming for process {key}")
 
 def _cleanup_process_logs(sandbox_id, proc_id):
@@ -129,56 +129,56 @@ async def create_sandbox(req: CreateSandboxReq):
     try:
         # Create unique sandbox ID
         sandbox_id = str(uuid.uuid4())
-        
+
         # Create Modal sandbox with proper image specification
         image = modal.Image.debian_slim().pip_install("requests").apt_install("git", "curl", "build-essential", "sudo")
-        
+
         sb = modal.Sandbox.create(
             image=image,
             workdir="/home/swarm",
             timeout=3600,  # 1 hour timeout
             app=app_modal,
         )
-        
+
         # Store in memory
         SANDBOXES[sandbox_id] = sb
         PROCS[sandbox_id] = {}
-        
+
         # Create non-root user 'swarm' for running Claude Code
         try:
             logger.info("Creating swarm user for non-root operations")
-            
+
             # Create the swarm user with home directory
             user_create_proc = sb.exec("useradd", "-m", "-s", "/bin/bash", "swarm")
             user_create_exit = user_create_proc.wait()
             logger.info(f"User creation exit code: {user_create_exit}")
-            
+
             # Add swarm user to sudo group
             sudo_proc = sb.exec("usermod", "-aG", "sudo", "swarm")
             sudo_exit = sudo_proc.wait()
             logger.info(f"Sudo group addition exit code: {sudo_exit}")
-            
+
             # Set passwordless sudo for swarm user
             sudoers_proc = sb.exec("bash", "-c", "echo 'swarm ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers")
             sudoers_exit = sudoers_proc.wait()
             logger.info(f"Sudoers configuration exit code: {sudoers_exit}")
-            
+
             # Create and set ownership of home directory
             mkdir_proc = sb.exec("mkdir", "-p", "/home/swarm")
             mkdir_exit = mkdir_proc.wait()
             logger.info(f"Directory creation exit code: {mkdir_exit}")
-            
+
             # Change ownership of home directory to swarm user
             chown_proc = sb.exec("chown", "-R", "swarm:swarm", "/home/swarm")
             chown_exit = chown_proc.wait()
             logger.info(f"Directory ownership change exit code: {chown_exit}")
-            
+
             logger.info("Successfully created swarm user and configured permissions")
-            
+
         except Exception as user_error:
             logger.error(f"Failed to create swarm user: {user_error}")
             # Don't fail sandbox creation - continue with root user as fallback
-        
+
         # Clone repository (git is already installed via image)
         try:
             # Use authenticated URL if GitHub token is provided
@@ -189,34 +189,22 @@ async def create_sandbox(req: CreateSandboxReq):
                 logger.info(f"Using authenticated clone for {req.repo_url}")
             else:
                 logger.info(f"Using public clone for {req.repo_url}")
-            
+
             # Extract repo name from URL for folder name
             repo_name = req.repo_url.rstrip('/').split('/')[-1]
             if repo_name.endswith('.git'):
                 repo_name = repo_name[:-4]
-            
+
             logger.info(f"Cloning {req.repo_url} branch {req.branch} to /home/swarm/{repo_name}")
             # Run git clone as swarm user
             clone_proc = sb.exec("su", "-", "swarm", "-c", f"git clone {clone_url} /home/swarm/{repo_name} -b {req.branch}")
-            
+
             # Wait for clone to complete and get result
             clone_exit_code = clone_proc.wait()
             logger.info(f"Git clone exit code: {clone_exit_code}")
-            
+
             if clone_exit_code == 0:
                 logger.info("Git clone succeeded")
-                # Verify the clone was successful
-                verify_proc = sb.exec("su", "-", "swarm", "-c", f"ls -la /home/swarm/{repo_name}")
-                verify_exit_code = verify_proc.wait()
-                logger.info(f"Directory listing exit code: {verify_exit_code}")
-                
-                # Try to get output
-                try:
-                    if hasattr(verify_proc, 'stdout') and verify_proc.stdout:
-                        stdout = verify_proc.stdout.read() if hasattr(verify_proc.stdout, 'read') else str(verify_proc.stdout)
-                        logger.info(f"Directory contents: {stdout}")
-                except Exception as output_error:
-                    logger.warning(f"Could not read directory listing output: {output_error}")
             else:
                 logger.error(f"Git clone failed with exit code {clone_exit_code}")
                 # Try to get error output
@@ -226,7 +214,7 @@ async def create_sandbox(req: CreateSandboxReq):
                         logger.error(f"Git clone error: {stderr}")
                 except Exception as error_output:
                     logger.warning(f"Could not read git clone error: {error_output}")
-                
+
                 # Try basic clone without branch specification as fallback
                 try:
                     logger.info(f"Retrying clone without branch specification")
@@ -235,7 +223,7 @@ async def create_sandbox(req: CreateSandboxReq):
                     logger.info(f"Fallback git clone exit code: {fallback_exit_code}")
                 except Exception as fallback_error:
                     logger.error(f"Fallback git clone also failed: {fallback_error}")
-            
+
         except Exception as setup_error:
             logger.error(f"Git clone exception: {setup_error}")
             # Don't fail sandbox creation - let the exec commands handle it later
@@ -247,20 +235,20 @@ async def create_sandbox(req: CreateSandboxReq):
             deps_proc = sb.exec("bash", "-c", "apt-get update && apt-get install -y jq")
             deps_exit_code = deps_proc.wait()
             logger.info(f"Dependencies install exit code: {deps_exit_code}")
-            
+
             logger.info("Installing Claude Code as swarm user")
             # Install Claude Code as swarm user to avoid root permission issues
             install_proc = sb.exec("su", "-", "swarm", "-c", "curl -fsSL http://claude.ai/install.sh | bash")
             install_exit_code = install_proc.wait()
             logger.info(f"Claude Code install exit code: {install_exit_code}")
-            
+
             if install_exit_code == 0:
                 logger.info("Claude Code installation succeeded")
                 # Verify installation as swarm user
                 verify_proc = sb.exec("su", "-", "swarm", "-c", "export PATH=\"$HOME/.local/bin:$PATH\" && which claude && claude --version")
                 verify_exit_code = verify_proc.wait()
                 logger.info(f"Claude Code verification exit code: {verify_exit_code}")
-                
+
                 # Try to get verification output
                 try:
                     if hasattr(verify_proc, 'stdout') and verify_proc.stdout:
@@ -277,41 +265,41 @@ async def create_sandbox(req: CreateSandboxReq):
                         logger.error(f"Claude Code install error: {stderr}")
                 except Exception as error_output:
                     logger.warning(f"Could not read Claude Code install error: {error_output}")
-                    
+
         except Exception as install_error:
             logger.error(f"Claude Code installation exception: {install_error}")
             # Don't fail sandbox creation - let the backend handle it
-        
+
         # Configure git user settings during startup if provided
         if req.author_name and req.author_email:
             try:
                 logger.info("Configuring git user settings during startup")
-                
+
                 # Configure git user.name
                 git_name_proc = sb.exec("su", "-", "swarm", "-c", f"git config --global user.name '{req.author_name}'")
                 git_name_exit = git_name_proc.wait()
                 logger.info(f"Git user.name config exit code: {git_name_exit}")
-                
-                # Configure git user.email  
+
+                # Configure git user.email
                 git_email_proc = sb.exec("su", "-", "swarm", "-c", f"git config --global user.email '{req.author_email}'")
                 git_email_exit = git_email_proc.wait()
                 logger.info(f"Git user.email config exit code: {git_email_exit}")
-                
+
                 # Configure authenticated remote if GitHub token and repo were cloned successfully
                 if req.github_token and repo_name:
                     try:
                         # Extract repo full name from URL (e.g., "jmvldz/swarm")
                         repo_full_name = req.repo_url.replace("https://github.com/", "").replace(".git", "")
-                        
+
                         logger.info(f"Configuring authenticated git remote for {repo_full_name}")
                         remote_config_cmd = f'''
-                        cd /home/swarm/{repo_name} && 
+                        cd /home/swarm/{repo_name} &&
                         if [ -d .git ]; then
                             if git remote | grep -q "^origin$"; then
-                                echo "Updating existing origin remote" && 
+                                echo "Updating existing origin remote" &&
                                 git remote set-url origin "https://x-access-token:{req.github_token}@github.com/{repo_full_name}";
                             else
-                                echo "Adding new origin remote" && 
+                                echo "Adding new origin remote" &&
                                 git remote add origin "https://x-access-token:{req.github_token}@github.com/{repo_full_name}";
                             fi;
                             git remote -v;
@@ -319,24 +307,24 @@ async def create_sandbox(req: CreateSandboxReq):
                             echo "No git repository found, skipping remote config";
                         fi
                         '''
-                        
+
                         remote_proc = sb.exec("su", "-", "swarm", "-c", remote_config_cmd)
                         remote_exit = remote_proc.wait()
                         logger.info(f"Git remote config exit code: {remote_exit}")
-                        
+
                     except Exception as remote_error:
                         logger.warning(f"Failed to configure git remote: {remote_error}")
-                
+
                 logger.info("Successfully configured git settings during startup")
-                
+
             except Exception as git_config_error:
                 logger.warning(f"Failed to configure git during startup: {git_config_error}")
                 # Don't fail sandbox creation - this is not critical
         else:
             logger.info("No git author info provided, skipping git configuration")
-        
+
         logger.info(f"Created sandbox {sandbox_id} with repo {req.repo_url}")
-        
+
         return CreateSandboxResp(
             sandbox_id=sandbox_id,
             hostname=f"sandbox-{sandbox_id}"
@@ -351,34 +339,34 @@ async def exec_command(sandbox_id: str, req: ExecReq):
     try:
         sb = get_sb(sandbox_id)
         proc_id = str(uuid.uuid4())
-        
+
         # Build command with working directory
         cmd_parts = req.cmd
         workdir = req.cwd or "/home/swarm"
-        
+
         # Execute command as swarm user using Modal's exec method
         # Build the command to run as swarm user
         cmd_str = ' '.join(f"'{part}'" for part in cmd_parts)
-        
+
         proc = sb.exec(
             "su", "-", "swarm", "-c", f"cd {workdir} && {cmd_str}",
             stdout=StreamType.PIPE,
             stderr=StreamType.PIPE
         )
-        
+
         # Create buffer key and start background thread to consume output
         buffer_key = (sandbox_id, proc_id)
         _tail_process_output(proc, buffer_key)
-        
+
         # Store the actual ContainerProcess object and thread info
         PROCS[sandbox_id][proc_id] = {
             "proc": proc,
             "buffer_key": buffer_key
         }
-        
+
         logger.info(f"Executed command in sandbox {sandbox_id}: {' '.join(req.cmd)}")
         return ExecResp(proc_id=proc_id)
-        
+
     except Exception as e:
         logger.error(f"Failed to execute command: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to execute command: {str(e)}")
@@ -389,19 +377,19 @@ async def get_exit_code(sandbox_id: str, proc_id: str):
     try:
         if sandbox_id not in PROCS or proc_id not in PROCS[sandbox_id]:
             raise HTTPException(status_code=404, detail="Process not found")
-            
+
         proc_info = PROCS[sandbox_id][proc_id]
         proc = proc_info["proc"] if isinstance(proc_info, dict) else proc_info
-        
+
         # Use Modal's poll method - returns exit code if finished, None if running
         exit_code = proc.poll()
-        
+
         # Clean up log buffer if process is completed
         if exit_code is not None:
             _cleanup_process_logs(sandbox_id, proc_id)
-        
+
         return ExitCodeResp(code=exit_code)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -414,24 +402,24 @@ async def get_logs(sandbox_id: str, proc_id: str, since: int = 0):
     try:
         if sandbox_id not in PROCS or proc_id not in PROCS[sandbox_id]:
             raise HTTPException(status_code=404, detail="Process not found")
-        
+
         buffer_key = (sandbox_id, proc_id)
         buffer = LOG_BUFFERS[buffer_key]
-        
+
         # Get current buffer contents
         stdout_lines = list(buffer["stdout"])
         stderr_lines = list(buffer["stderr"])
-        
+
         # Apply since offset (character-based for backward compatibility)
         stdout = "".join(stdout_lines)
         stderr = "".join(stderr_lines)
-        
+
         if since > 0:
             stdout = stdout[since:] if len(stdout) > since else ""
             stderr = stderr[since:] if len(stderr) > since else ""
-        
+
         return LogsResp(stdout=stdout, stderr=stderr)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -444,16 +432,16 @@ async def get_logs_once(sandbox_id: str, proc_id: str):
     try:
         if sandbox_id not in PROCS or proc_id not in PROCS[sandbox_id]:
             raise HTTPException(status_code=404, detail="Process not found")
-        
+
         buffer_key = (sandbox_id, proc_id)
         buffer = LOG_BUFFERS[buffer_key]
-        
+
         # Return current buffer contents immediately
         stdout = "".join(buffer["stdout"])
         stderr = "".join(buffer["stderr"])
-        
+
         return LogsResp(stdout=stdout, stderr=stderr)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -465,7 +453,7 @@ async def terminate_sandbox(sandbox_id: str):
     """Terminate a sandbox."""
     try:
         sb = get_sb(sandbox_id)
-        
+
         # Kill all processes first and clean up logs
         if sandbox_id in PROCS:
             for proc_id, proc_info in PROCS[sandbox_id].items():
@@ -477,10 +465,10 @@ async def terminate_sandbox(sandbox_id: str):
                         proc.kill()
                 except Exception as e:
                     logger.warning(f"Could not terminate process {proc_id}: {str(e)}")
-                
+
                 # Clean up log buffer for this process
                 _cleanup_process_logs(sandbox_id, proc_id)
-        
+
         # Terminate the sandbox
         try:
             if hasattr(sb, 'terminate'):
@@ -489,16 +477,16 @@ async def terminate_sandbox(sandbox_id: str):
                 sb.close()
         except Exception as e:
             logger.warning(f"Could not terminate sandbox: {str(e)}")
-        
+
         # Clean up from memory
         if sandbox_id in SANDBOXES:
             del SANDBOXES[sandbox_id]
         if sandbox_id in PROCS:
             del PROCS[sandbox_id]
-            
+
         logger.info(f"Terminated sandbox {sandbox_id}")
         return {"message": "Sandbox terminated"}
-        
+
     except Exception as e:
         logger.error(f"Failed to terminate sandbox: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to terminate sandbox: {str(e)}")
@@ -508,11 +496,11 @@ async def get_sandbox_status(sandbox_id: str):
     """Get the status of a sandbox."""
     try:
         sb = get_sb(sandbox_id)
-        
+
         # For now, assume running if we can get the sandbox
         # In a real implementation, you'd check Modal's status API
         return SandboxStatusResp(status="running")
-        
+
     except HTTPException:
         # If sandbox not found, assume it's stopped
         return SandboxStatusResp(status="stopped")
@@ -524,7 +512,7 @@ async def get_sandbox_status(sandbox_id: str):
 async def health_check():
     """Health check endpoint."""
     return {
-        "status": "healthy", 
+        "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "sandboxes": len(SANDBOXES),
         "processes": sum(len(procs) for procs in PROCS.values())
@@ -536,12 +524,12 @@ async def clone_repo(sandbox_id: str, req: WorkflowReq):
     """Clone a repository to the sandbox."""
     if not req.repo_url:
         raise HTTPException(status_code=400, detail="repo_url is required")
-    
+
     # Extract repo name from URL for folder name
     repo_name = req.repo_url.rstrip('/').split('/')[-1]
     if repo_name.endswith('.git'):
         repo_name = repo_name[:-4]
-    
+
     # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
         cmd=["git", "clone", req.repo_url, f"/home/swarm/{repo_name}", "-b", req.branch or "main"],
@@ -564,7 +552,7 @@ async def configure_git(sandbox_id: str, req: WorkflowReq):
     """Configure Git user settings."""
     if not req.user_name or not req.user_email:
         raise HTTPException(status_code=400, detail="user_name and user_email are required")
-    
+
     # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
         cmd=["bash", "-c", f"git config --global user.name '{req.user_name}' && git config --global user.email '{req.user_email}'"],
@@ -590,7 +578,7 @@ async def install_claude_code(sandbox_id: str):
     """Install Claude Code with proper PATH setup."""
     try:
         logger.info(f"Installing Claude Code in sandbox {sandbox_id}")
-        
+
         # Install Claude Code with proper PATH setup
         install_cmd = '''
             curl -fsSL http://claude.ai/install.sh | bash && \
@@ -598,14 +586,14 @@ async def install_claude_code(sandbox_id: str):
             which claude && \
             claude --version
         '''
-        
+
         exec_req = ExecReq(
             cmd=["bash", "-c", install_cmd],
             cwd="/home/swarm"
         )
-        
+
         return await exec_command(sandbox_id, exec_req)
-        
+
     except Exception as e:
         logger.error(f"Failed to install Claude Code: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to install Claude Code: {str(e)}")
@@ -615,7 +603,7 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     """Execute Claude Code with the given task prompt and environment setup."""
     try:
         logger.info(f"Executing Claude Code in sandbox {sandbox_id} for task {req.task_id}")
-        
+
         # Create the Claude prompt with artifact markers
         claude_prompt = f"""Please work on this task {req.task_id}: {req.prompt}.
 
@@ -628,7 +616,7 @@ PR_BODY: Your detailed pull request description here
 DONE
 
 The system requires these markers to automatically generate commit messages and pull requests. Without them, the task will fail."""
-        
+
         # Build environment variables
         env_vars = {
             'GITHUB_TOKEN': req.github_token,
@@ -638,13 +626,13 @@ The system requires these markers to automatically generate commit messages and 
             'GIT_AUTHOR_NAME': req.author_name,
             'GIT_AUTHOR_EMAIL': req.author_email
         }
-        
+
         if req.openai_api_key:
             env_vars['OPENAI_API_KEY'] = req.openai_api_key
-        
+
         # Create environment setup command
         env_setup = " && ".join([f"export {key}='{value}'" for key, value in env_vars.items()])
-        
+
         # Write prompt to a temporary file and pipe it to claude
         prompt_setup = f'''
             {env_setup} && \
@@ -659,14 +647,14 @@ PROMPT_EOF
                 --output-format stream-json && \
             rm -f /tmp/claude_prompt_{req.task_id}.txt
         '''
-        
+
         exec_req = ExecReq(
             cmd=["bash", "-c", prompt_setup],
             cwd=req.repo_path
         )
-        
+
         return await exec_command(sandbox_id, exec_req)
-        
+
     except Exception as e:
         logger.error(f"Failed to execute Claude Code: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to execute Claude Code: {str(e)}")
@@ -677,47 +665,80 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
     try:
         logger.info(f"Pushing changes to branch {req.branch} in sandbox {sandbox_id}")
         
-        # Create push script with correct git flow matching Daytona's approach
-        push_script = f'''
-            cd "{req.repo_path}" || {{ echo "cd failed"; exit 1; }}
-            set -euo pipefail
-            
-            # Set git author info and branch environment variable
-            export GIT_AUTHOR_NAME="{req.author_name}"
-            export GIT_AUTHOR_EMAIL="{req.author_email}"
-            export SWARM_BRANCH="{req.branch}"
-            
-            # Stage all changes
-            git add -A
-            
-            # Write full commit message to temporary file
-            cat > /tmp/commit_message << 'EOF'
-{req.commit_title}
+        sb = get_sb(sandbox_id)
+        
+        # Step 1: Change to repository directory
+        logger.info(f"Step 1: Changing to repository directory {req.repo_path}")
+        cd_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && pwd")
+        cd_exit_code = cd_proc.wait()
+        logger.info(f"Directory change exit code: {cd_exit_code}")
+        
+        if cd_exit_code != 0:
+            raise HTTPException(status_code=500, detail=f"Failed to change to directory {req.repo_path}")
+        
+        # Step 2: Stage all changes
+        logger.info("Step 2: Staging all changes")
+        add_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git add -A")
+        add_exit_code = add_proc.wait()
+        logger.info(f"Git add exit code: {add_exit_code}")
+        
+        if add_exit_code != 0:
+            raise HTTPException(status_code=500, detail="Failed to stage changes")
+        
+        # Step 3: Write commit message to temporary file
+        logger.info("Step 3: Writing commit message to temporary file")
+        commit_msg_content = f"{req.commit_title}\n\n{req.commit_body}"
+        write_msg_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && cat > /tmp/commit_message_{req.task_id} << 'EOF'\n{commit_msg_content}\nEOF")
+        write_msg_exit_code = write_msg_proc.wait()
+        logger.info(f"Commit message write exit code: {write_msg_exit_code}")
+        
+        if write_msg_exit_code != 0:
+            raise HTTPException(status_code=500, detail="Failed to write commit message")
+        
+        # Step 4: Commit changes to current branch
+        logger.info("Step 4: Committing changes to current branch")
+        commit_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git commit -F /tmp/commit_message_{req.task_id}")
+        commit_exit_code = commit_proc.wait()
+        logger.info(f"Git commit exit code: {commit_exit_code}")
+        
+        if commit_exit_code != 0:
+            raise HTTPException(status_code=500, detail="Failed to commit changes")
+        
+        # Step 5: Create new branch from the commit
+        logger.info(f"Step 5: Creating new branch {req.branch}")
+        branch_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git checkout -B {req.branch}")
+        branch_exit_code = branch_proc.wait()
+        logger.info(f"Git branch creation exit code: {branch_exit_code}")
+        
+        if branch_exit_code != 0:
+            raise HTTPException(status_code=500, detail=f"Failed to create branch {req.branch}")
+        
+        # Step 6: Push the branch to origin
+        logger.info(f"Step 6: Pushing branch {req.branch} to origin")
+        push_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git push -u origin {req.branch}")
+        push_exit_code = push_proc.wait()
+        logger.info(f"Git push exit code: {push_exit_code}")
+        
+        if push_exit_code != 0:
+            raise HTTPException(status_code=500, detail=f"Failed to push branch {req.branch}")
+        
+        # Step 7: Clean up temporary commit message file
+        logger.info("Step 7: Cleaning up temporary files")
+        cleanup_proc = sb.exec("su", "-", "swarm", "-c", f"rm -f /tmp/commit_message_{req.task_id}")
+        cleanup_exit_code = cleanup_proc.wait()
+        logger.info(f"Cleanup exit code: {cleanup_exit_code}")
+        
+        # Don't fail if cleanup fails, just log a warning
+        if cleanup_exit_code != 0:
+            logger.warning(f"Failed to cleanup temporary file, but continuing")
+        
+        logger.info(f"Successfully pushed changes to branch {req.branch}")
+        
+        # Return a dummy process ID since we executed multiple commands
+        return ExecResp(proc_id="push_changes_completed")
 
-{req.commit_body}
-EOF
-            
-            # Commit changes to current branch
-            git commit --author "$GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>" \\
-                       -F /tmp/commit_message
-            
-            # Create new branch from the commit
-            git checkout -B "$SWARM_BRANCH"
-            
-            # Push the branch to origin
-            git push -u origin "$SWARM_BRANCH"
-            
-            # Clean up temporary file
-            rm -f /tmp/commit_message
-        '''
-        
-        exec_req = ExecReq(
-            cmd=["bash", "-c", push_script],
-            cwd=req.repo_path
-        )
-        
-        return await exec_command(sandbox_id, exec_req)
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to push changes: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to push changes: {str(e)}")
