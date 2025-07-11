@@ -138,6 +138,7 @@ async def create_sandbox(req: CreateSandboxReq):
             workdir="/home/swarm",
             timeout=3600,  # 1 hour timeout
             app=app_modal,
+            verbose=True,
         )
 
         # Store in memory
