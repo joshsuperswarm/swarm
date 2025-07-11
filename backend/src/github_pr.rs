@@ -59,12 +59,7 @@ impl GitHubPRClient {
                 prs
             }
             Err(e) => {
-                tracing::error!(
-                    "Failed to check existing PRs for {}/{}: {}",
-                    owner,
-                    repo,
-                    e
-                );
+                tracing::error!("Failed to check existing PRs for {}/{}: {}", owner, repo, e);
                 return Err(e.into());
             }
         };
@@ -82,11 +77,14 @@ impl GitHubPRClient {
         // Find PR with exact branch and repo match
         let expected_repo_full_name = format!("{}/{}", owner, repo);
         let matching_pr = all_open_prs.items.iter().find(|pr| {
-            pr.head.ref_field == branch && 
-            pr.head.repo.as_ref()
-                .and_then(|r| r.full_name.as_ref())
-                .map(|name| name == &expected_repo_full_name)
-                .unwrap_or(false)
+            pr.head.ref_field == branch
+                && pr
+                    .head
+                    .repo
+                    .as_ref()
+                    .and_then(|r| r.full_name.as_ref())
+                    .map(|name| name == &expected_repo_full_name)
+                    .unwrap_or(false)
         });
 
         if let Some(existing_pr) = matching_pr {
@@ -246,15 +244,22 @@ mod tests {
         let task = Task {
             id: 789,
             title: "Fix critical bug in authentication".to_string(),
-            description: Some("This task fixes a critical security vulnerability in the auth module".to_string()),
+            description: Some(
+                "This task fixes a critical security vulnerability in the auth module".to_string(),
+            ),
             ..create_mock_task()
         };
-        
+
         let expected_title = "Swarm: Fix critical bug in authentication";
         let expected_body = "This task fixes a critical security vulnerability in the auth module";
-        
+
         assert_eq!(format!("Swarm: {}", task.title), expected_title);
-        assert_eq!(task.description.as_deref().unwrap_or("Automated changes by Swarm AI agent"), expected_body);
+        assert_eq!(
+            task.description
+                .as_deref()
+                .unwrap_or("Automated changes by Swarm AI agent"),
+            expected_body
+        );
     }
 
     #[test]
@@ -265,12 +270,17 @@ mod tests {
             description: None,
             ..create_mock_task()
         };
-        
+
         let expected_title = "Swarm: Simple task";
         let expected_body = "Automated changes by Swarm AI agent";
-        
+
         assert_eq!(format!("Swarm: {}", task.title), expected_title);
-        assert_eq!(task.description.as_deref().unwrap_or("Automated changes by Swarm AI agent"), expected_body);
+        assert_eq!(
+            task.description
+                .as_deref()
+                .unwrap_or("Automated changes by Swarm AI agent"),
+            expected_body
+        );
     }
 
     #[tokio::test]
@@ -280,14 +290,17 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test] 
+    #[test]
     fn test_url_formatting() {
         // Test URL formatting logic used in PR creation
         let owner = "test-owner";
         let repo = "test-repo";
         let number = 42;
-        
+
         let expected_url = format!("https://github.com/{}/{}/pull/{}", owner, repo, number);
-        assert_eq!(expected_url, "https://github.com/test-owner/test-repo/pull/42");
+        assert_eq!(
+            expected_url,
+            "https://github.com/test-owner/test-repo/pull/42"
+        );
     }
 }

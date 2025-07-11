@@ -160,8 +160,7 @@ impl GitHubClient {
     }
 }
 
-pub async fn fetch_current_user(access_token: &str)
-    -> anyhow::Result<(String, i32)>         // (login, id)
+pub async fn fetch_current_user(access_token: &str) -> anyhow::Result<(String, i32)> // (login, id)
 {
     use octocrab::Octocrab;
     let octo = Octocrab::builder()
