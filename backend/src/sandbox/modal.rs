@@ -15,6 +15,18 @@ pub struct ModalProvider {
     region: Option<String>,
 }
 
+#[derive(Debug, Default)]
+struct ArtifactParsingState {
+    commit_title: Option<String>,
+    commit_body: Option<String>,
+    pr_title: Option<String>,
+    pr_body: Option<String>,
+    current_artifact: Option<String>,
+    artifact_lines: Vec<String>,
+    task_completed: bool,
+    last_processed_offset: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSandboxRequest {
     pub repo_url: String,
@@ -151,19 +163,32 @@ impl ModalSandboxClient {
         proc_id: &str,
         since: Option<u64>,
     ) -> AppResult<LogsResponse> {
-        let mut url = format!(
-            "{}/sandboxes/{}/procs/{}/logs",
+        // Use the new non-blocking logs_once endpoint for immediate log retrieval
+        let url = format!(
+            "{}/sandboxes/{}/procs/{}/logs_once",
             self.base_url, sandbox_id, proc_id
         );
-
-        if let Some(offset) = since {
-            url.push_str(&format!("?since={}", offset));
-        }
 
         let response = self.client.get(&url).send().await?;
 
         if response.status().is_success() {
-            let logs_resp: LogsResponse = response.json().await?;
+            let mut logs_resp: LogsResponse = response.json().await?;
+
+            // Apply since offset if provided (for backward compatibility)
+            if let Some(offset) = since {
+                let offset = offset as usize;
+                if logs_resp.stdout.len() > offset {
+                    logs_resp.stdout = logs_resp.stdout[offset..].to_string();
+                } else {
+                    logs_resp.stdout = String::new();
+                }
+                if logs_resp.stderr.len() > offset {
+                    logs_resp.stderr = logs_resp.stderr[offset..].to_string();
+                } else {
+                    logs_resp.stderr = String::new();
+                }
+            }
+
             Ok(logs_resp)
         } else {
             let error_text = response.text().await?;
@@ -240,33 +265,43 @@ impl ModalProvider {
         });
 
         // Make HTTP request to modal shim for Claude Code execution
-        let url = format!("{}/sandboxes/{}/exec_claude_code", self.client.base_url, sandbox_id);
-        let response = self.client.client
+        let url = format!(
+            "{}/sandboxes/{}/exec_claude_code",
+            self.client.base_url, sandbox_id
+        );
+        let response = self
+            .client
+            .client
             .post(&url)
             .json(&claude_req)
             .send()
             .await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e))
+            })?;
 
         if response.status().is_success() {
-            let exec_resp: ExecResponse = response.json().await
-                .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e)))?;
-            
+            let exec_resp: ExecResponse = response.json().await.map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e))
+            })?;
+
             info!(
                 "Successfully launched Claude Code in sandbox {} with proc ID {}",
                 sandbox_id, exec_resp.proc_id
             );
-            
+
             Ok(exec_resp.proc_id)
         } else {
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             Err(SandboxError::SandboxOperationError(format!(
-                "Failed to execute Claude Code: {}", error_text
+                "Failed to execute Claude Code: {}",
+                error_text
             )))
         }
     }
-
 
     /// Push changes to GitHub branch - delegates to modal shim
     pub async fn push_changes(
@@ -297,30 +332,395 @@ impl ModalProvider {
         });
 
         // Make HTTP request to modal shim for push changes
-        let url = format!("{}/sandboxes/{}/push_changes_advanced", self.client.base_url, sandbox_id);
-        let response = self.client.client
+        let url = format!(
+            "{}/sandboxes/{}/push_changes_advanced",
+            self.client.base_url, sandbox_id
+        );
+        let response = self
+            .client
+            .client
             .post(&url)
             .json(&push_req)
             .send()
             .await
-            .map_err(|e| SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e))
+            })?;
 
         if response.status().is_success() {
-            let _exec_resp: ExecResponse = response.json().await
-                .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e)))?;
-            
+            let _exec_resp: ExecResponse = response.json().await.map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e))
+            })?;
+
             info!(
                 "✓ Successfully pushed changes to branch {} in sandbox {}",
                 branch, sandbox_id
             );
-            
+
             Ok(())
         } else {
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             Err(SandboxError::SandboxOperationError(format!(
-                "Failed to push changes: {}", error_text
+                "Failed to push changes: {}",
+                error_text
             )))
+        }
+    }
+
+    /// Post-completion workflow: push changes, create PR, and cleanup after task completion
+    pub async fn run_post_completion_workflow(
+        &self,
+        db: &crate::database::Database,
+        task_id: i32,
+        sandbox_id: &str,
+    ) -> SandboxResult<()> {
+        info!("→ Starting post-completion workflow for task {}", task_id);
+
+        // Get task information
+        let task = db
+            .get_task_by_id(task_id)
+            .await
+            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to get task: {}", e)))?
+            .ok_or_else(|| SandboxError::SandboxOperationError("Task not found".to_string()))?;
+
+        let user = db
+            .get_user_by_id(task.user_id)
+            .await
+            .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to get user: {}", e)))?
+            .ok_or_else(|| SandboxError::SandboxOperationError("User not found".to_string()))?;
+
+        let repository = db
+            .get_repository_by_id(task.repository_id, task.user_id)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to get repository: {}", e))
+            })?
+            .ok_or_else(|| {
+                SandboxError::SandboxOperationError("Repository not found".to_string())
+            })?;
+
+        // Check if we have all required artifacts
+        if task.commit_title.is_none()
+            || task.commit_body.is_none()
+            || task.pr_title.is_none()
+            || task.pr_body.is_none()
+        {
+            warn!(
+                "⚠ Task {} missing artifacts, skipping post-completion workflow",
+                task_id
+            );
+            return Ok(());
+        }
+
+        let commit_title = task.commit_title.as_ref().unwrap();
+        let commit_body = task.commit_body.as_ref().unwrap();
+        let pr_title = task.pr_title.as_ref().unwrap();
+        let pr_body = task.pr_body.as_ref().unwrap();
+
+        // Step 1: Push changes to GitHub
+        let repo_name =
+            Self::extract_repo_name(&format!("https://github.com/{}", repository.full_name))?;
+        let repo_path = format!("/home/swarm/{}", repo_name);
+        let default_branch = format!("swarm/task-{}", task_id);
+        let branch = task.github_branch.as_ref().unwrap_or(&default_branch);
+
+        info!(
+            "→ Pushing changes to branch {} for task {}",
+            branch, task_id
+        );
+
+        match self
+            .push_changes(
+                sandbox_id,
+                &repo_path,
+                branch,
+                task_id,
+                &user
+                    .github_username
+                    .as_ref()
+                    .unwrap_or(&"swarm-bot".to_string()),
+                &user
+                    .email
+                    .as_ref()
+                    .unwrap_or(&"swarm@example.com".to_string()),
+                commit_title,
+                commit_body,
+            )
+            .await
+        {
+            Ok(_) => {
+                info!(
+                    "✓ Successfully pushed changes to branch {} for task {}",
+                    branch, task_id
+                );
+
+                // Step 2: Create GitHub PR
+                match self
+                    .create_github_pr(
+                        &repository.full_name,
+                        branch,
+                        "main", // base branch
+                        pr_title,
+                        pr_body,
+                        &user,
+                        db,
+                    )
+                    .await
+                {
+                    Ok(pr_url) => {
+                        info!("✓ Successfully created PR for task {}: {}", task_id, pr_url);
+
+                        // Update task with PR URL
+                        if let Err(e) = db.update_task_pr_url(task_id, &pr_url).await {
+                            error!("✗ Failed to update task {} with PR URL: {}", task_id, e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("✗ Failed to create PR for task {}: {}", task_id, e);
+                        // Don't fail the entire workflow for PR creation failure
+                    }
+                }
+            }
+            Err(e) => {
+                error!("✗ Failed to push changes for task {}: {}", task_id, e);
+                return Err(e);
+            }
+        }
+
+        // Step 3: Terminate sandbox
+        info!("→ Terminating sandbox {} for task {}", sandbox_id, task_id);
+        match self.stop_sandbox(sandbox_id).await {
+            Ok(_) => {
+                info!(
+                    "✓ Successfully terminated sandbox {} for task {}",
+                    sandbox_id, task_id
+                );
+            }
+            Err(e) => {
+                error!(
+                    "✗ Failed to terminate sandbox {} for task {}: {}",
+                    sandbox_id, task_id, e
+                );
+                // Don't fail the workflow for cleanup issues
+            }
+        }
+
+        info!("✓ Post-completion workflow completed for task {}", task_id);
+        Ok(())
+    }
+
+    /// Create a GitHub Pull Request using the GitHub API
+    async fn create_github_pr(
+        &self,
+        repo_full_name: &str,
+        head_branch: &str,
+        base_branch: &str,
+        pr_title: &str,
+        pr_body: &str,
+        user: &crate::models::User,
+        db: &crate::database::Database,
+    ) -> SandboxResult<String> {
+        info!(
+            "Creating GitHub PR for {} from {} to {}",
+            repo_full_name, head_branch, base_branch
+        );
+
+        // Get GitHub token for the user
+        let github_token = db
+            .get_github_token(user.id)
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to get GitHub token: {}", e))
+            })?
+            .ok_or_else(|| {
+                SandboxError::SandboxOperationError("No GitHub token available".to_string())
+            })?;
+
+        // Create PR request payload
+        let pr_request = serde_json::json!({
+            "title": pr_title,
+            "body": pr_body,
+            "head": head_branch,
+            "base": base_branch
+        });
+
+        // Make GitHub API request to create PR
+        let github_url = format!("https://api.github.com/repos/{}/pulls", repo_full_name);
+        let response = self
+            .client
+            .client
+            .post(&github_url)
+            .header(
+                "Authorization",
+                format!("token {}", github_token.access_token),
+            )
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "swarm-bot")
+            .json(&pr_request)
+            .send()
+            .await
+            .map_err(|e| {
+                SandboxError::SandboxOperationError(format!("GitHub API request failed: {}", e))
+            })?;
+
+        if response.status().is_success() {
+            let pr_response: serde_json::Value = response.json().await.map_err(|e| {
+                SandboxError::SandboxOperationError(format!(
+                    "Failed to parse GitHub response: {}",
+                    e
+                ))
+            })?;
+
+            let pr_url = pr_response
+                .get("html_url")
+                .and_then(|url| url.as_str())
+                .ok_or_else(|| {
+                    SandboxError::SandboxOperationError("Missing PR URL in response".to_string())
+                })?;
+
+            info!("✓ Successfully created GitHub PR: {}", pr_url);
+            Ok(pr_url.to_string())
+        } else {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            Err(SandboxError::SandboxOperationError(format!(
+                "Failed to create GitHub PR: {}",
+                error_text
+            )))
+        }
+    }
+
+    /// Extract text content from JSON messages for artifact parsing
+    fn extract_text_from_json_line(line: &str) -> String {
+        if line.starts_with('{') {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+                // Extract text from message content
+                if let Some(text) = json_value
+                    .get("message")
+                    .and_then(|msg| msg.get("content"))
+                    .and_then(|content| content.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|item| item.get("text"))
+                    .and_then(|text| text.as_str())
+                {
+                    return text.to_string();
+                }
+            }
+        }
+        line.to_string()
+    }
+
+    /// Process artifact parsing for a single text line
+    fn process_artifact_line(line: &str, state: &mut ArtifactParsingState) {
+        let line = line.trim();
+        if line.is_empty() {
+            return;
+        }
+
+        // Check for artifact markers
+        if line.starts_with("COMMIT_MESSAGE_TITLE:") {
+            // Complete previous artifact if any
+            if let Some(ref artifact_type) = state.current_artifact {
+                let content = state.artifact_lines.join("\n");
+                match artifact_type.as_str() {
+                    "commit_body" => state.commit_body = Some(content),
+                    "pr_title" => state.pr_title = Some(content),
+                    "pr_body" => state.pr_body = Some(content),
+                    _ => {}
+                }
+            }
+
+            state.commit_title = Some(
+                line.strip_prefix("COMMIT_MESSAGE_TITLE:")
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+            );
+            state.current_artifact = None;
+            state.artifact_lines.clear();
+        } else if line.starts_with("COMMIT_MESSAGE_BODY:") {
+            // Complete previous artifact if any
+            if let Some(ref artifact_type) = state.current_artifact {
+                let content = state.artifact_lines.join("\n");
+                match artifact_type.as_str() {
+                    "commit_body" => state.commit_body = Some(content),
+                    "pr_title" => state.pr_title = Some(content),
+                    "pr_body" => state.pr_body = Some(content),
+                    _ => {}
+                }
+            }
+
+            state.current_artifact = Some("commit_body".to_string());
+            state.artifact_lines.clear();
+            if let Some(first_line) = line.strip_prefix("COMMIT_MESSAGE_BODY:") {
+                let trimmed = first_line.trim();
+                if !trimmed.is_empty() {
+                    state.artifact_lines.push(trimmed.to_string());
+                }
+            }
+        } else if line.starts_with("PR_TITLE:") {
+            // Complete previous artifact if any
+            if let Some(ref artifact_type) = state.current_artifact {
+                let content = state.artifact_lines.join("\n");
+                match artifact_type.as_str() {
+                    "commit_body" => state.commit_body = Some(content),
+                    "pr_title" => state.pr_title = Some(content),
+                    "pr_body" => state.pr_body = Some(content),
+                    _ => {}
+                }
+            }
+
+            state.current_artifact = Some("pr_title".to_string());
+            state.artifact_lines.clear();
+            if let Some(first_line) = line.strip_prefix("PR_TITLE:") {
+                let trimmed = first_line.trim();
+                if !trimmed.is_empty() {
+                    state.artifact_lines.push(trimmed.to_string());
+                }
+            }
+        } else if line.starts_with("PR_BODY:") {
+            // Complete previous artifact if any
+            if let Some(ref artifact_type) = state.current_artifact {
+                let content = state.artifact_lines.join("\n");
+                match artifact_type.as_str() {
+                    "commit_body" => state.commit_body = Some(content),
+                    "pr_title" => state.pr_title = Some(content),
+                    "pr_body" => state.pr_body = Some(content),
+                    _ => {}
+                }
+            }
+
+            state.current_artifact = Some("pr_body".to_string());
+            state.artifact_lines.clear();
+            if let Some(first_line) = line.strip_prefix("PR_BODY:") {
+                let trimmed = first_line.trim();
+                if !trimmed.is_empty() {
+                    state.artifact_lines.push(trimmed.to_string());
+                }
+            }
+        } else if line == "DONE" {
+            // Complete any remaining artifact
+            if let Some(ref artifact_type) = state.current_artifact {
+                let content = state.artifact_lines.join("\n");
+                match artifact_type.as_str() {
+                    "commit_body" => state.commit_body = Some(content),
+                    "pr_title" => state.pr_title = Some(content),
+                    "pr_body" => state.pr_body = Some(content),
+                    _ => {}
+                }
+            }
+
+            state.current_artifact = None;
+            state.artifact_lines.clear();
+            state.task_completed = true;
+        } else if state.current_artifact.is_some() {
+            // Accumulate lines for current artifact
+            state.artifact_lines.push(line.to_string());
         }
     }
 
@@ -337,94 +737,150 @@ impl ModalProvider {
             task_id, proc_id
         );
 
-        let mut task_completed = false;
+        let mut state = ArtifactParsingState::default();
         let mut lines_stored = 0;
 
         // Poll logs from modal shim until process completes
         loop {
-            // Get logs and artifacts from modal shim
-            let url = format!("{}/sandboxes/{}/stream_logs/{}", self.client.base_url, sandbox_id, proc_id);
-            let response = self.client.client
-                .get(&url)
-                .send()
+            // Get logs using non-blocking /logs_once endpoint
+            let logs_resp = self
+                .client
+                .get_logs(sandbox_id, proc_id, None)
                 .await
-                .map_err(|e| SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e)))?;
+                .map_err(|e| {
+                    SandboxError::SandboxOperationError(format!("Failed to get logs: {}", e))
+                })?;
 
-            if response.status().is_success() {
-                let logs_data: serde_json::Value = response.json().await
-                    .map_err(|e| SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e)))?;
+            // Get combined output
+            let combined_output = format!("{}{}", logs_resp.stdout, logs_resp.stderr);
 
-                // Store logs in database
-                let combined_output = format!(
-                    "{}{}",
-                    logs_data.get("stdout").and_then(|v| v.as_str()).unwrap_or(""),
-                    logs_data.get("stderr").and_then(|v| v.as_str()).unwrap_or("")
+            // Process only new content to avoid duplicates
+            let new_content = if combined_output.len() > state.last_processed_offset {
+                &combined_output[state.last_processed_offset..]
+            } else {
+                ""
+            };
+
+            // Update processed offset
+            state.last_processed_offset = combined_output.len();
+
+            if !new_content.is_empty() {
+                // Process new log lines
+                for line in new_content.lines() {
+                    let line = line.trim();
+                    if !line.is_empty() {
+                        // Store line in database
+                        if let Err(e) = db.insert_task_log(task_id, line).await {
+                            warn!("✗ Failed to store log line for task {}: {}", task_id, e);
+                        } else {
+                            lines_stored += 1;
+                            if lines_stored % 10 == 0 {
+                                info!("   Stored {} log lines for task {}", lines_stored, task_id);
+                            }
+                        }
+
+                        // Extract text content from JSON messages for artifact parsing
+                        let text_to_parse = Self::extract_text_from_json_line(line);
+
+                        // Parse artifact markers from extracted text
+                        for text_line in text_to_parse.lines() {
+                            Self::process_artifact_line(text_line, &mut state);
+                        }
+                    }
+                }
+            }
+
+            // Check if we have all artifacts and should store them
+            if state.commit_title.is_some()
+                && state.commit_body.is_some()
+                && state.pr_title.is_some()
+                && state.pr_body.is_some()
+            {
+                info!("✓ Found all 4 AI artifacts for task {}", task_id);
+
+                match db
+                    .set_task_artifacts(
+                        task_id,
+                        state.commit_title.clone(),
+                        state.commit_body.clone(),
+                        state.pr_title.clone(),
+                        state.pr_body.clone(),
+                    )
+                    .await
+                {
+                    Ok(_) => {
+                        info!("✓ Stored AI-generated artifacts for task {}", task_id);
+                    }
+                    Err(e) => {
+                        error!("✗ Failed to store artifacts for task {}: {}", task_id, e);
+                    }
+                }
+            }
+
+            // Check if task is completed via DONE marker
+            if state.task_completed {
+                info!(
+                    "✓ Task {} completed successfully (found DONE marker)",
+                    task_id
                 );
 
-                if !combined_output.is_empty() {
-                    for line in combined_output.lines() {
-                        let line = line.trim();
-                        if !line.is_empty() {
-                            if let Err(e) = db.insert_task_log(task_id, line).await {
-                                warn!("✗ Failed to store log line for task {}: {}", task_id, e);
-                            } else {
-                                lines_stored += 1;
-                                if lines_stored % 10 == 0 {
-                                    info!("   Stored {} log lines for task {}", lines_stored, task_id);
+                // Update task status to done
+                match db.update_task_status(task_id, "done", None).await {
+                    Ok(_) => {
+                        info!("✓ Task {} status updated to 'done'", task_id);
+                    }
+                    Err(e) => {
+                        error!("✗ Failed to update task {} status to done: {}", task_id, e);
+                    }
+                }
+                break;
+            }
+
+            // ── ✨ Option-1 final sweep: if we already saw an exit-code
+            // outside the loop (unlikely) we still want one extra pass
+            if state.task_completed {
+                break;
+            }
+
+            // Check if process has finished by getting exit code
+            match self.client.get_exit_code(sandbox_id, proc_id).await {
+                Ok(exit_code_resp) => {
+                    if exit_code_resp.code.is_some() {
+                        // ── We have an exit-code → grab *one last* chunk of logs
+                        if let Ok(last_logs) = self
+                            .client
+                            .get_logs(
+                                sandbox_id,
+                                proc_id,
+                                Some(state.last_processed_offset as u64),
+                            )
+                            .await
+                        {
+                            let final_output = format!("{}{}", last_logs.stdout, last_logs.stderr);
+                            if !final_output.is_empty() {
+                                // Re-use the same processing path for new lines
+                                for line in final_output.lines() {
+                                    let trimmed = line.trim();
+                                    if !trimmed.is_empty() {
+                                        // store & parse just like above
+                                        if let Err(e) = db.insert_task_log(task_id, trimmed).await {
+                                            warn!("✗ Failed to store final log line: {}", e);
+                                        }
+                                        let parsed = Self::extract_text_from_json_line(trimmed);
+                                        for l in parsed.lines() {
+                                            Self::process_artifact_line(l, &mut state);
+                                        }
+                                    }
                                 }
+                                state.last_processed_offset += final_output.len();
                             }
                         }
+                        break; // ✅ exit after final sweep
                     }
                 }
-
-                // Check if artifacts are complete
-                if let Some(artifacts) = logs_data.get("artifacts").and_then(|v| v.as_object()) {
-                    if artifacts.contains_key("commit_title") 
-                        && artifacts.contains_key("commit_body")
-                        && artifacts.contains_key("pr_title")
-                        && artifacts.contains_key("pr_body") {
-                        
-                        info!("✓ Found all 4 AI artifacts for task {}", task_id);
-                        
-                        let commit_title = artifacts.get("commit_title").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        let commit_body = artifacts.get("commit_body").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        let pr_title = artifacts.get("pr_title").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        let pr_body = artifacts.get("pr_body").and_then(|v| v.as_str()).map(|s| s.to_string());
-
-                        match db.set_task_artifacts(task_id, commit_title, commit_body, pr_title, pr_body).await {
-                            Ok(_) => {
-                                info!("✓ Stored AI-generated artifacts for task {}", task_id);
-                            }
-                            Err(e) => {
-                                error!("✗ Failed to store artifacts for task {}: {}", task_id, e);
-                            }
-                        }
-                    }
+                Err(e) => {
+                    warn!("Failed to get exit code for process {}: {}", proc_id, e);
                 }
-
-                // Check if task is completed
-                if logs_data.get("completed").and_then(|v| v.as_bool()).unwrap_or(false) {
-                    task_completed = true;
-                    
-                    // Update task status to done
-                    match db.update_task_status(task_id, "done", None).await {
-                        Ok(_) => {
-                            info!("✓ Task {} status updated to 'done'", task_id);
-                        }
-                        Err(e) => {
-                            error!("✗ Failed to update task {} status to done: {}", task_id, e);
-                        }
-                    }
-                    break;
-                }
-
-                // Check if process has finished
-                if logs_data.get("process_finished").and_then(|v| v.as_bool()).unwrap_or(false) {
-                    break;
-                }
-
-            } else {
-                warn!("Error fetching logs for task {}: HTTP {}", task_id, response.status());
             }
 
             // Small delay before next poll
@@ -433,11 +889,14 @@ impl ModalProvider {
 
         info!("▬ Log processing summary for task {}:", task_id);
         info!("   Lines stored in DB: {}", lines_stored);
-        info!("   Task completed: {}", task_completed);
+        info!("   Task completed: {}", state.task_completed);
 
         // If stream ended without completion, mark as failed
-        if !task_completed {
-            info!("Task {} ended without completion, marking as failed", task_id);
+        if !state.task_completed {
+            info!(
+                "Task {} ended without completion, marking as failed",
+                task_id
+            );
             if let Err(e) = db.update_task_status(task_id, "failed", None).await {
                 error!("Failed to update task {} status to failed: {}", task_id, e);
             }

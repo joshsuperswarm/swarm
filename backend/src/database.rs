@@ -290,6 +290,18 @@ impl Database {
         Ok(task)
     }
 
+    pub async fn update_task_pr_url(&self, task_id: i32, pr_url: &str) -> AppResult<Task> {
+        let task = sqlx::query_as!(
+            Task,
+            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING *",
+            pr_url,
+            task_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(task)
+    }
+
     pub async fn set_task_artifacts(
         &self,
         task_id: i32,

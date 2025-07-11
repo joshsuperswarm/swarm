@@ -28,7 +28,10 @@ use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
-use models::{CreateGitHubToken, CreateRepository, CreateTask, CreateUser, UserWithDefaultRepo, RepositoryTS, _force_ts_generation};
+use models::{
+    CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS, UserWithDefaultRepo,
+    _force_ts_generation,
+};
 use sandbox::{daytona::DaytonaProvider, modal::ModalProvider, DynSandbox, SandboxStatus};
 use std::sync::Arc;
 use std::time::Duration;
@@ -100,14 +103,14 @@ async fn store_github_token(
     {
         Ok(_) => {
             tracing::info!("Successfully stored GitHub token for user {}", db_user.id);
-            
+
             if let Ok((login, gh_id)) = github::fetch_current_user(&body.access_token).await {
                 let _ = app_state
                     .database
                     .update_user_github_info(db_user.id, Some(login), Some(gh_id))
                     .await;
             }
-            
+
             Ok(Json(json!({ "success": true })))
         }
         Err(e) => {
@@ -169,7 +172,7 @@ async fn sandbox_poller(app_state: AppState) {
         let active_tasks_query = sqlx::query!(
             "SELECT id, user_id, daytona_sandbox_id, daytona_session_id, daytona_command_id, status FROM tasks 
              WHERE daytona_sandbox_id IS NOT NULL 
-             AND status IN ('spinning', 'running')"
+             AND status IN ('spinning', 'running', 'done')"
         );
 
         let active_tasks = match active_tasks_query.fetch_all(&app_state.database.pool).await {
@@ -185,6 +188,64 @@ async fn sandbox_poller(app_state: AppState) {
                 Some(id) => id.as_str(),
                 None => continue,
             };
+
+            // Handle tasks that are already in 'done' state - transition to PR creation
+            if task.status.as_deref() == Some("done") {
+                tracing::info!(
+                    "Task {} is in 'done' state, initiating PR creation",
+                    task.id
+                );
+
+                // Atomically update task status to 'pushing' to prevent duplicate workers
+                let update_result = sqlx::query!(
+                    r#"
+                    UPDATE tasks
+                    SET    status = 'pushing'
+                    WHERE  id = $1
+                      AND  status = 'done'
+                    RETURNING id
+                    "#,
+                    task.id
+                )
+                .fetch_optional(&app_state.database.pool)
+                .await;
+
+                match update_result {
+                    Ok(Some(_)) => {
+                        // We were the first to update - safe to spawn background job
+                        tracing::info!(
+                            "Task {} status updated from 'done' to 'pushing', spawning PR creation job",
+                            task.id
+                        );
+                        let app_state_clone = app_state.clone();
+                        let task_id = task.id;
+                        tokio::spawn(async move {
+                            if let Err(e) = handle_task_success(app_state_clone, task_id).await {
+                                tracing::error!(
+                                    "Error handling task {} PR creation: {}",
+                                    task_id,
+                                    e
+                                );
+                            }
+                        });
+                    }
+                    Ok(None) => {
+                        // Task was already updated by another worker
+                        tracing::debug!(
+                            "Task {} already transitioned from 'done' state by another worker",
+                            task.id
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Error updating task {} status from 'done' to 'pushing': {}",
+                            task.id,
+                            e
+                        );
+                    }
+                }
+                continue; // Skip sandbox status checks for done tasks
+            }
 
             // Check command exit code first if we have session and command IDs
             if let (Some(session_id), Some(command_id)) =
@@ -203,7 +264,10 @@ async fn sandbox_poller(app_state: AppState) {
                         if let (Some(session_id), Some(command_id)) =
                             (&task.daytona_session_id, &task.daytona_command_id)
                         {
-                            tracing::info!("→ Collecting final logs for successful task {}", task.id);
+                            tracing::info!(
+                                "→ Collecting final logs for successful task {}",
+                                task.id
+                            );
 
                             // Create temporary provider for log collection
                             if let Ok(config) = crate::config::Config::from_env() {
@@ -228,6 +292,29 @@ async fn sandbox_poller(app_state: AppState) {
                                                 "✓ Final log collection completed for successful task {}",
                                                 task.id
                                             );
+
+                                            // Run post-completion workflow: push changes, create PR, terminate sandbox
+                                            match modal
+                                                .run_post_completion_workflow(
+                                                    &app_state.database,
+                                                    task.id,
+                                                    sandbox_id,
+                                                )
+                                                .await
+                                            {
+                                                Ok(_) => {
+                                                    tracing::info!(
+                                                        "✓ Post-completion workflow completed for task {}",
+                                                        task.id
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        "✗ Post-completion workflow failed for task {}: {}",
+                                                        task.id, e
+                                                    );
+                                                }
+                                            }
                                         }
                                         Err(e) => {
                                             tracing::warn!(
@@ -272,7 +359,9 @@ async fn sandbox_poller(app_state: AppState) {
                                         }
                                     }
                                 } else {
-                                    tracing::warn!("No sandbox provider configured for log collection");
+                                    tracing::warn!(
+                                        "No sandbox provider configured for log collection"
+                                    );
                                 }
                             }
                         }
@@ -406,16 +495,15 @@ async fn sandbox_poller(app_state: AppState) {
                                         }
                                     }
                                 } else {
-                                    tracing::warn!("No sandbox provider configured for log collection");
+                                    tracing::warn!(
+                                        "No sandbox provider configured for log collection"
+                                    );
                                 }
                             }
                         }
 
                         // Skip if already in terminal state
-                        if !matches!(
-                            task.status.as_deref(),
-                            Some("done") | Some("failed") | Some("pr_opened")
-                        ) {
+                        if !matches!(task.status.as_deref(), Some("failed") | Some("pr_opened")) {
                             if let Err(e) = app_state
                                 .database
                                 .update_task_status(task.id, "failed", None)
@@ -443,7 +531,10 @@ async fn sandbox_poller(app_state: AppState) {
                                     e
                                 );
                             } else {
-                                tracing::info!("✓ Sandbox {} deleted after task failure", sandbox_id);
+                                tracing::info!(
+                                    "✓ Sandbox {} deleted after task failure",
+                                    sandbox_id
+                                );
                             }
                         }
                         continue; // Skip sandbox status check
@@ -554,10 +645,7 @@ async fn sandbox_poller(app_state: AppState) {
                     );
 
                     // Skip if already in terminal state
-                    if !matches!(
-                        task.status.as_deref(),
-                        Some("done") | Some("failed") | Some("pr_opened")
-                    ) {
+                    if !matches!(task.status.as_deref(), Some("failed") | Some("pr_opened")) {
                         if let Err(e) = app_state
                             .database
                             .update_task_status(task.id, "failed", None)
@@ -576,7 +664,10 @@ async fn sandbox_poller(app_state: AppState) {
                         }
 
                         // Clean up sandbox after task failure
-                        tracing::info!("Deleting sandbox {} after task failure (stopped without exit code)", sandbox_id);
+                        tracing::info!(
+                            "Deleting sandbox {} after task failure (stopped without exit code)",
+                            sandbox_id
+                        );
                         if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
                             tracing::warn!(
                                 "⚠ Failed to delete sandbox {} after task failure: {}",
@@ -797,7 +888,11 @@ async fn handle_task_success(
     let author_name = match user.github_username.clone() {
         Some(username) => username,
         None => {
-            tracing::error!("No GitHub username available for user {} in task {}", user.id, task_id);
+            tracing::error!(
+                "No GitHub username available for user {} in task {}",
+                user.id,
+                task_id
+            );
             let _ = app_state
                 .database
                 .update_task_status(task_id, "failed", None)
@@ -808,7 +903,11 @@ async fn handle_task_success(
     let author_email = match user.email.clone() {
         Some(email) => email,
         None => {
-            tracing::error!("No email available for user {} in task {}", user.id, task_id);
+            tracing::error!(
+                "No email available for user {} in task {}",
+                user.id,
+                task_id
+            );
             let _ = app_state
                 .database
                 .update_task_status(task_id, "failed", None)
@@ -871,7 +970,10 @@ async fn handle_task_success(
     };
 
     // Push changes to GitHub
-    tracing::info!("Pushing changes for task {} with AI-generated commit message", task_id);
+    tracing::info!(
+        "Pushing changes for task {} with AI-generated commit message",
+        task_id
+    );
     if let Err(e) = app_state
         .sandbox
         .push_changes(
@@ -922,7 +1024,14 @@ async fn handle_task_success(
     };
 
     let pr_url = match pr_client
-        .create_or_update_pr(&repository.owner, &repository.name, branch, &task, pr_title, pr_body)
+        .create_or_update_pr(
+            &repository.owner,
+            &repository.name,
+            branch,
+            &task,
+            pr_title,
+            pr_body,
+        )
         .await
     {
         Ok(url) => {
@@ -998,7 +1107,7 @@ async fn handle_task_success(
 async fn main() -> AppResult<()> {
     // Force TypeScript generation for exported types
     _force_ts_generation();
-    
+
     // Export the types explicitly
     UserWithDefaultRepo::export().unwrap();
     RepositoryTS::export().unwrap();
@@ -1530,7 +1639,11 @@ async fn get_user_profile(
         Ok(Some(db_user)) => {
             // Get default repository if set
             let default_repo = if let Some(default_repo_id) = db_user.default_repo_id {
-                if let Ok(Some(repo)) = app_state.database.get_repository_by_id(default_repo_id, db_user.id).await {
+                if let Ok(Some(repo)) = app_state
+                    .database
+                    .get_repository_by_id(default_repo_id, db_user.id)
+                    .await
+                {
                     Some(models::RepositoryTS {
                         id: repo.id,
                         github_repo_id: repo.github_repo_id,
@@ -1548,7 +1661,7 @@ async fn get_user_profile(
             } else {
                 None
             };
-            
+
             Ok(Json(models::UserWithDefaultRepo {
                 id: db_user.id,
                 clerk_user_id: db_user.clerk_user_id,
@@ -1561,7 +1674,7 @@ async fn get_user_profile(
                 created_at: db_user.created_at.map(|dt| dt.to_rfc3339()),
                 updated_at: db_user.updated_at.map(|dt| dt.to_rfc3339()),
             }))
-        },
+        }
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -1888,9 +2001,10 @@ async fn create_task(
         tracing::warn!("Rejected task creation: empty title");
         return Err(StatusCode::BAD_REQUEST);
     }
-    
+
     // Convert empty description to None
-    let sanitized_description = payload.description
+    let sanitized_description = payload
+        .description
         .as_ref()
         .filter(|s| !s.trim().is_empty())
         .map(|s| s.trim().to_string());
@@ -1961,14 +2075,14 @@ async fn connect_github(
                 })
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-                
+
             if let Ok((login, gh_id)) = github::fetch_current_user(&token).await {
                 let _ = app_state
                     .database
                     .update_user_github_info(user.id, Some(login), Some(gh_id))
                     .await;
             }
-            
+
             Ok(Json(json!({ "success": true })))
         }
         Err(e) => {
