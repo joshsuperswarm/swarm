@@ -97,20 +97,19 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
         }
     };
 
-    // Get user's Anthropic API key
-    let anthropic_api_key = match user.anthropic_api_key {
-        Some(key) => key,
+    // Get Anthropic API key from environment
+    let anthropic_api_key = match app_state.config.anthropic_api_key.as_ref() {
+        Some(key) => key.clone(),
         None => {
             tracing::error!(
-                "No Anthropic API key available for user {} in task {}",
-                user.id,
+                "No Anthropic API key configured in environment for task {}",
                 task.id
             );
             let _ = app_state
                 .database
                 .update_task_status(task.id, "failed", None)
                 .await;
-            return Err(anyhow::anyhow!("No Anthropic API key available"));
+            return Err(anyhow::anyhow!("No Anthropic API key configured"));
         }
     };
 

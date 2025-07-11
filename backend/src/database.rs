@@ -40,7 +40,7 @@ impl Database {
     }
 
     pub async fn get_user_by_id(&self, user_id: i32) -> AppResult<Option<User>> {
-        let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+        let user = sqlx::query_as!(User, "SELECT id, clerk_user_id, github_username, github_user_id, email, default_repo_id, created_at, updated_at FROM users WHERE id = $1", user_id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -74,23 +74,6 @@ impl Database {
         let user = sqlx::query_file_as!(User, "sql/set_default_repository.sql", user_id, repo_id)
             .fetch_one(&self.pool)
             .await?;
-
-        Ok(user)
-    }
-
-    pub async fn update_user_anthropic_key(
-        &self,
-        user_id: i32,
-        anthropic_api_key: Option<String>,
-    ) -> AppResult<User> {
-        let user = sqlx::query_file_as!(
-            User,
-            "sql/update_user_anthropic_key.sql",
-            user_id,
-            anthropic_api_key
-        )
-        .fetch_one(&self.pool)
-        .await?;
 
         Ok(user)
     }

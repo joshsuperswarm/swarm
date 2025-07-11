@@ -20,11 +20,6 @@ pub struct GitHubTokenBody {
     pub access_token: String,
 }
 
-#[derive(Deserialize)]
-pub struct AnthropicApiKeyBody {
-    pub api_key: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ClerkClaims {
     sub: String, // Clerk user ID

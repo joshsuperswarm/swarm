@@ -12,7 +12,6 @@ pub struct User {
     pub github_user_id: Option<i32>,
     pub email: Option<String>,
     pub default_repo_id: Option<i32>,
-    pub anthropic_api_key: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -27,7 +26,6 @@ pub struct UserWithDefaultRepo {
     pub email: Option<String>,
     pub default_repo_id: Option<i32>,
     pub default_repo: Option<RepositoryTS>,
-    pub anthropic_api_key: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
@@ -43,7 +41,6 @@ pub fn _force_ts_generation() {
         email: None,
         default_repo_id: None,
         default_repo: None,
-        anthropic_api_key: None,
         created_at: None,
         updated_at: None,
     };

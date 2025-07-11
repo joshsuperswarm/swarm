@@ -14,6 +14,7 @@ pub struct Config {
     pub modal_url: Option<String>,
     pub modal_region: Option<String>,
     pub openai_api_key: Option<String>,
+    pub anthropic_api_key: Option<String>,
 }
 
 impl Config {
@@ -42,6 +43,7 @@ impl Config {
         let modal_url = env::var("MODAL_URL").ok();
         let modal_region = env::var("MODAL_REGION").ok();
         let openai_api_key = env::var("OPENAI_API_KEY").ok();
+        let anthropic_api_key = env::var("ANTHROPIC_API_KEY").ok();
 
         Ok(Config {
             database_url,
@@ -55,6 +57,7 @@ impl Config {
             modal_url,
             modal_region,
             openai_api_key,
+            anthropic_api_key,
         })
     }
 }
