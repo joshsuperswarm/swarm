@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
 
-pub mod daytona;
 pub mod modal;
 pub mod status_poller;
 

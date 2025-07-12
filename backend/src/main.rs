@@ -33,7 +33,7 @@ use models::{
     CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS, UserWithDefaultRepo,
     _force_ts_generation,
 };
-use sandbox::{daytona::DaytonaProvider, modal::ModalProvider, DynSandbox};
+use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
 use ts_rs::TS;
 
@@ -178,7 +178,7 @@ async fn handle_task_success(
     };
 
     // Extract necessary information
-    let sandbox_id = match task.daytona_sandbox_id.as_ref() {
+    let sandbox_id = match task.sandbox_id.as_ref() {
         Some(id) => id,
         None => {
             tracing::error!("No sandbox ID for task {}", task_id);
@@ -454,35 +454,18 @@ async fn main() -> AppResult<()> {
 
     let database = Database::new(pool);
 
-    // Initialize sandbox provider - prefer Modal over Daytona
+    // Initialize sandbox provider - using Modal
     let sandbox: DynSandbox = if let Some(modal_url) = config.modal_url.as_ref() {
         tracing::info!("Initializing Modal sandbox provider");
         Arc::new(ModalProvider::new(
             modal_url.clone(),
             config.modal_region.clone(),
         ))
-    } else if let (Some(url), Some(api_key)) =
-        (config.daytona_url.as_ref(), config.daytona_api_key.as_ref())
-    {
-        tracing::info!("Initializing Daytona sandbox provider");
-        Arc::new(DaytonaProvider::new(
-            url.clone(),
-            api_key.clone(),
-            config.daytona_organization_id.clone(),
-            config.daytona_region.clone(),
-        ))
     } else {
-        tracing::warn!(
-            "Neither MODAL_URL nor DAYTONA_URL/DAYTONA_API_KEY configured. Tasks will fail to start sandboxes."
-        );
+        tracing::warn!("MODAL_URL not configured. Tasks will fail to start sandboxes.");
         tracing::info!("Consider setting MODAL_URL=http://localhost:8000 for local development");
         // For now, we'll use a dummy provider that errors out
-        Arc::new(DaytonaProvider::new(
-            "".to_string(),
-            "".to_string(),
-            None,
-            "us".to_string(),
-        ))
+        Arc::new(ModalProvider::new("".to_string(), None))
     };
 
     let app_state = AppState {
@@ -728,10 +711,6 @@ mod tests {
             clerk_secret_key: "test-key".to_string(),
             github_token: None,
             port: 3001,
-            daytona_url: Some("http://localhost".to_string()),
-            daytona_api_key: Some("test-key".to_string()),
-            daytona_organization_id: Some("test-org".to_string()),
-            daytona_region: "us".to_string(),
             modal_url: None,
             modal_region: None,
             openai_api_key: None,
@@ -848,7 +827,7 @@ mod tests {
 
         // Create a test task in 'running' status
         let task_id = sqlx::query_scalar!(
-            "INSERT INTO tasks (user_id, repository_id, title, status, daytona_sandbox_id, daytona_session_id, daytona_command_id) 
+            "INSERT INTO tasks (user_id, repository_id, title, status, sandbox_id, session_id, command_id) 
              VALUES (1, 1, 'Test Task', 'running', 'test-sandbox', 'test-session', 'test-command')
              RETURNING id"
         )
@@ -1219,7 +1198,7 @@ async fn get_tasks(
                         "status": task.status.unwrap_or_else(|| "pending".to_string()),
                         "github_pr_url": task.github_pr_url,
                         "github_branch": task.github_branch,
-                        "daytona_sandbox_id": task.daytona_sandbox_id,
+                        "sandbox_id": task.sandbox_id,
                         "sandbox_hostname": task.sandbox_hostname,
                         "ssh_hostname": task.sandbox_hostname,
                         "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
@@ -1358,7 +1337,7 @@ async fn create_task(
             "user_id": task.user_id,
             "status": task.status.unwrap_or_else(|| "pending".to_string()),
             "github_pr_url": task.github_pr_url,
-            "daytona_sandbox_id": task.daytona_sandbox_id,
+            "sandbox_id": task.sandbox_id,
             "sandbox_hostname": task.sandbox_hostname,
             "ssh_hostname": task.sandbox_hostname,
             "created_at": task.created_at.map(|dt| dt.to_rfc3339()),

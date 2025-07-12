@@ -84,12 +84,12 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
               </div>
             )}
             
-            {task.daytona_workspace_id && (
+            {task.sandbox_id && (
               <div className="space-y-1">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Workspace ID
+                  Sandbox ID
                 </span>
-                <span className="text-sm font-mono">{task.daytona_workspace_id}</span>
+                <span className="text-sm font-mono">{task.sandbox_id}</span>
               </div>
             )}
           </div>

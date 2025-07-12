@@ -1,5 +1,5 @@
 /**
- *  E2B version of run_daytona_task.ts (using E2B v1 API)
+ *  E2B task runner (using E2B v1 API)
  *
  *  Usage:
  *    E2B_API_KEY=... OPENAI_API_KEY=... backend/scripts/run_e2b.sh \

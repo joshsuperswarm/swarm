@@ -25,20 +25,13 @@ use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, warn};
 
 // ——————————————————————————————————————————————————————————————
-//  Provider factory (Modal first, Daytona fallback)
+//  Provider factory (Modal only)
 // ——————————————————————————————————————————————————————————————
 fn provider_from_config(config: &Config) -> Option<DynSandbox> {
     if let Some(url) = &config.modal_url {
         Some(Arc::new(sandbox::modal::ModalProvider::new(
             url.clone(),
             config.modal_region.clone(),
-        )))
-    } else if let (Some(url), Some(key)) = (&config.daytona_url, &config.daytona_api_key) {
-        Some(Arc::new(sandbox::daytona::DaytonaProvider::new(
-            url.clone(),
-            key.clone(),
-            config.daytona_organization_id.clone(),
-            config.daytona_region.clone(),
         )))
     } else {
         None
@@ -85,12 +78,12 @@ async fn poll_once(database: &Database, config: &Config) -> anyhow::Result<()> {
     // 2. fetch candidate tasks (spinning or running)
     let rows = sqlx::query!(
         r#"SELECT id,
-                  daytona_sandbox_id  AS sandbox_id,
-                  daytona_session_id AS session_id,
-                  daytona_command_id AS command_id,
+                  sandbox_id,
+                  session_id,
+                  command_id,
                   status
            FROM   tasks
-           WHERE  daytona_sandbox_id IS NOT NULL
+           WHERE  sandbox_id IS NOT NULL
            AND    status IN ('spinning','running')"#
     )
     .fetch_all(&database.pool)

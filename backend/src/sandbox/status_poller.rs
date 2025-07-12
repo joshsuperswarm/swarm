@@ -13,8 +13,8 @@ pub async fn poll_running_sandboxes(
 
     // Get all active tasks with sandbox IDs
     let active_tasks_query = sqlx::query!(
-        "SELECT id, user_id, daytona_sandbox_id, daytona_session_id, daytona_command_id, status FROM tasks 
-         WHERE daytona_sandbox_id IS NOT NULL 
+        "SELECT id, user_id, sandbox_id, session_id, command_id, status FROM tasks 
+         WHERE sandbox_id IS NOT NULL 
          AND status IN ('spinning', 'running')"
     );
 
@@ -47,12 +47,12 @@ pub async fn poll_running_sandboxes(
     let mut handles = Vec::new();
 
     for task in active_tasks {
-        let sandbox_id = match &task.daytona_sandbox_id {
+        let sandbox_id = match &task.sandbox_id {
             Some(id) => id.clone(),
             None => continue,
         };
 
-        let command_id = match &task.daytona_command_id {
+        let command_id = match &task.command_id {
             Some(id) => id.clone(),
             None => continue,
         };
@@ -120,10 +120,6 @@ mod tests {
             clerk_secret_key: "test-key".to_string(),
             github_token: None,
             port: 3001,
-            daytona_url: None,
-            daytona_api_key: None,
-            daytona_organization_id: None,
-            daytona_region: "us".to_string(),
             modal_url: Some("http://localhost:8000".to_string()),
             modal_region: None,
             openai_api_key: None,

@@ -4,7 +4,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Load .env (same place as Daytona script)
+# Load .env from backend directory
 if [[ -f "$SCRIPT_DIR/../.env" ]]; then
   echo "→ Loading environment variables from backend/.env"
   set -a

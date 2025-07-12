@@ -204,7 +204,7 @@ impl Database {
     }
 
     pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
-        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, github_branch, daytona_sandbox_id, sandbox_hostname, daytona_session_id, daytona_command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
+        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -276,7 +276,7 @@ impl Database {
     pub async fn update_task_pr_url(&self, task_id: i32, pr_url: &str) -> AppResult<Task> {
         let task = sqlx::query_as!(
             Task,
-            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING *",
+            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at",
             pr_url,
             task_id
         )
@@ -299,7 +299,7 @@ impl Database {
             UPDATE tasks 
             SET commit_title = $2, commit_body = $3, pr_title = $4, pr_body = $5, updated_at = NOW()
             WHERE id = $1
-            RETURNING *
+            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at
             "#,
             task_id,
             commit_title,
