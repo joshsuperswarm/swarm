@@ -3,7 +3,6 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod modal;
-pub mod status_poller;
 
 #[derive(Debug, Error)]
 #[allow(clippy::enum_variant_names)]
