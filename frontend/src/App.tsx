@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { SignInButton, UserButton, useAuth, useUser } from '@clerk/clerk-react'
+import { UserButton, useAuth, useUser } from '@clerk/clerk-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
 import { Router } from './routes'
@@ -11,7 +11,7 @@ import './App.css'
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const { isSignedIn, getToken } = useAuth()
+  const { isSignedIn, getToken, isLoaded } = useAuth()
   const { user } = useUser()
   const { loadUserProfile, clearUserProfile } = useUserStore()
 
@@ -115,24 +115,28 @@ function App() {
     enabled: isCreateModalOpen
   });
 
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />;
+  }
+
   return (
     <Layout onCreateTask={() => setIsCreateModalOpen(true)}>
       <div className="flex flex-col h-full">
         <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0" style={{paddingTop: '18px', paddingBottom: '18px'}}>
           <div className="flex justify-end items-center">
-            {isSignedIn ? (
-              <UserButton />
-            ) : (
-              <SignInButton mode="modal">
-                <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
-                  Sign in with GitHub
-                </button>
-              </SignInButton>
-            )}
+            <UserButton />
           </div>
         </div>
 
-        <Router />
+        <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />
       </div>
 
       <CreateTaskModal

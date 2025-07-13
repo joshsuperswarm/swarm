@@ -5,7 +5,6 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { useAuth, SignInButton } from "@clerk/clerk-react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useNavigate } from "react-router-dom";
 import type { Task } from "@/types";
@@ -60,7 +59,6 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
-  const { isSignedIn, isLoaded } = useAuth();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,25 +135,22 @@ export function TasksPage() {
     return tasks.length > 0 ? tasks[selectedIndex] : null;
   }, [tasks, selectedIndex]);
 
-  // Load tasks when auth is ready and JWT is available
+  // Load tasks when component mounts
   useEffect(() => {
-    // console.log('🔄 TasksPage auth useEffect - isSignedIn:', isSignedIn)
-    if (isSignedIn && isLoaded) {
-      // Add a small delay to ensure JWT has been set in the auth store
-      const timeoutId = setTimeout(() => {
-        const jwt = getBackendJwt();
-        if (jwt) {
-          loadTasks();
-        } else {
-          console.log("Waiting for JWT to be available...");
-          // Try again in a moment
-          setTimeout(loadTasks, 1000);
-        }
-      }, 100);
+    // Add a small delay to ensure JWT has been set in the auth store
+    const timeoutId = setTimeout(() => {
+      const jwt = getBackendJwt();
+      if (jwt) {
+        loadTasks();
+      } else {
+        console.log("Waiting for JWT to be available...");
+        // Try again in a moment
+        setTimeout(loadTasks, 1000);
+      }
+    }, 100);
 
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isSignedIn, isLoaded, loadTasks]);
+    return () => clearTimeout(timeoutId);
+  }, [loadTasks]);
 
   // Cleanup auto-refresh on unmount
   useEffect(() => {
@@ -207,53 +202,10 @@ export function TasksPage() {
     return createColumns(handleTaskClick);
   }, [handleTaskClick]);
 
-  // Show overlays for different states without unmounting the component
-  const showAuthSpinner = !isLoaded;
-  const showSignInOverlay = !isSignedIn;
-  const showErrorOverlay = error && !showSignInOverlay;
-
   return (
     <div className="relative flex-1 min-w-0 overflow-hidden px-0 py-4 sm:px-6">
-      {/* Auth loading overlay */}
-      {showAuthSpinner && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-2 text-gray-700 text-sm">
-              Refreshing authentication…
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Sign in overlay */}
-      {showSignInOverlay && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-white">
-          <div className="text-center max-w-md mx-auto px-6">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              AI Agent Task Manager
-            </h2>
-            <p className="text-lg text-gray-600 mb-8">
-              Create tasks for AI agents to work on your GitHub repositories
-            </p>
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <p className="text-gray-600 mb-4">
-                Sign in with GitHub to start creating AI agent tasks for your
-                repositories.
-              </p>
-              <SignInButton mode="modal">
-                <button className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
-                  Continue with GitHub
-                </button>
-              </SignInButton>
-            </div>
-          </div>
-        </div>
-      )}
-
-
       {/* Error overlay */}
-      {showErrorOverlay && (
+      {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80">
           <div className="text-center max-w-md">
             <div className="text-red-500 mb-4">⚠️</div>
@@ -271,8 +223,7 @@ export function TasksPage() {
         </div>
       )}
 
-
-      {/* Main content - always rendered to prevent unmounting */}
+      {/* Main content */}
       <div className="flex-1 min-w-0">
         <div className="mb-4">
           <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
