@@ -1,6 +1,7 @@
 use super::{SandboxError, SandboxInfo, SandboxProvider, SandboxResult, SandboxStatus};
 use crate::agent_log_parser;
 use crate::error::AppResult;
+use anyhow::Context;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -103,8 +104,16 @@ pub struct ModalSandboxClient {
 
 impl ModalSandboxClient {
     pub fn new(base_url: String) -> Self {
+        // Ensure the base_url has a proper scheme for reqwest compatibility
+        let normalized_url = if base_url.starts_with("http://") || base_url.starts_with("https://")
+        {
+            base_url
+        } else {
+            format!("http://{}", base_url)
+        };
+
         Self {
-            base_url,
+            base_url: normalized_url,
             client: reqwest::Client::new(),
         }
     }
@@ -113,9 +122,13 @@ impl ModalSandboxClient {
         &self,
         req: CreateSandboxRequest,
     ) -> AppResult<CreateSandboxResponse> {
-        let url = format!("{}/sandboxes", self.base_url);
+        let base_url =
+            Url::parse(&self.base_url).map_err(|e| format!("Invalid base URL: {}", e))?;
+        let url = base_url
+            .join("sandboxes")
+            .map_err(|e| format!("Could not append /sandboxes: {}", e))?;
 
-        let response = self.client.post(&url).json(&req).send().await?;
+        let response = self.client.post(url).json(&req).send().await?;
 
         if response.status().is_success() {
             let sandbox_resp: CreateSandboxResponse = response.json().await?;
