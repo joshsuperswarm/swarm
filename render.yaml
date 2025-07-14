@@ -24,6 +24,8 @@ services:
         value: info
       - key: PORT
         value: 10000
+      - key: MODAL_URL
+        value: http://swarm-modal:8000
     healthCheckPath: /health
     domains:
       - api.superswarm.dev
@@ -43,3 +45,23 @@ services:
         value: https://api.superswarm.dev
     domains:
       - app.superswarm.dev
+
+  # Modal Python Shim Service (Internal only)
+  - type: pserv
+    name: swarm-modal
+    env: python
+    plan: starter
+    rootDir: modal
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_shim.py
+    internalPort: 8000
+    healthCheckPath: /health
+    envVars:
+      - key: MODAL_TOKEN_ID
+        sync: false
+      - key: MODAL_TOKEN_SECRET
+        sync: false
+      - key: MODAL_ENVIRONMENT
+        value: main
+      - key: PYTHONPATH
+        value: /opt/render/project/src
