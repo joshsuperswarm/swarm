@@ -1,4 +1,5 @@
 use super::{SandboxError, SandboxInfo, SandboxProvider, SandboxResult, SandboxStatus};
+use crate::agent_log_parser;
 use crate::error::AppResult;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -570,6 +571,38 @@ impl ModalProvider {
                         warn!("✗ Failed to store log line for task {}: {}", task_id, e);
                     } else {
                         lines_processed += 1;
+                    }
+
+                    // Parse todos from the log line
+                    match agent_log_parser::parse_todo_line(task_id, &json_str) {
+                        Ok(todos) => {
+                            for todo in todos {
+                                if let Err(e) = sqlx::query!(
+                                    r#"
+                                    INSERT INTO agent_todos (task_id, todo_id, content, priority, status)
+                                    VALUES ($1, $2, $3, $4, $5)
+                                    ON CONFLICT (task_id, todo_id)
+                                    DO UPDATE SET content = EXCLUDED.content,
+                                                  priority = EXCLUDED.priority,
+                                                  status   = EXCLUDED.status,
+                                                  updated_at = now()
+                                    "#,
+                                    task_id,
+                                    todo.id,
+                                    todo.content,
+                                    todo.priority,
+                                    todo.status
+                                )
+                                .execute(&db.pool)
+                                .await
+                                {
+                                    warn!("✗ Failed to store todo for task {}: {}", task_id, e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            debug!("Failed to parse todos from log line: {}", e);
+                        }
                     }
 
                     // Extract text content for artifact parsing

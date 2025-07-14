@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
-    CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken, Repository,
-    RepositoryWithTasks, Task, TaskLog, User,
+    AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
+    Repository, RepositoryWithTasks, Task, TaskLog, User,
 };
 use sqlx::PgPool;
 
@@ -433,6 +433,20 @@ impl Database {
             .collect();
 
         Ok(logs)
+    }
+
+    pub async fn get_agent_todos(&self, task_id: i32) -> AppResult<Vec<AgentTodo>> {
+        let rows = sqlx::query_as!(
+            AgentTodo,
+            r#"SELECT todo_id, content, priority, status, updated_at
+               FROM agent_todos
+               WHERE task_id = $1
+               ORDER BY updated_at"#,
+            task_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
     }
 }
 

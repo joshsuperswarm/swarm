@@ -182,3 +182,13 @@ pub struct CreateTaskLog {
     pub task_id: i32,
     pub log_line: serde_json::Value,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
+pub struct AgentTodo {
+    pub todo_id: String,
+    pub content: String,
+    pub priority: String,
+    pub status: String,
+    pub updated_at: Option<DateTime<Utc>>,
+}

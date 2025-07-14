@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
+mod agent_log_parser;
 mod auth;
 mod clerk_api;
 mod config;
