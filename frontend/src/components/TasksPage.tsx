@@ -119,7 +119,7 @@ export function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tasks]);
 
   // Keep selectedIndex within bounds when tasks change
   useEffect(() => {
