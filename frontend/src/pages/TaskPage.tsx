@@ -206,6 +206,22 @@ export function TaskPage() {
           </div>
         )}
         
+        {liveTask.github_pr_url && (
+          <div className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Pull Request
+            </span>
+            <a 
+              href={liveTask.github_pr_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              View on GitHub
+            </a>
+          </div>
+        )}
+        
         {liveTask.sandbox_id && (
           <div className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -230,23 +246,6 @@ export function TaskPage() {
       {showLogs && (
         <div className="space-y-3 mb-6">
           <TaskLogViewer taskId={liveTask.id} taskStatus={liveTask.status || undefined} />
-        </div>
-      )}
-
-      {/* Additional Information */}
-      {liveTask.github_pr_url && (
-        <div className="space-y-2 mb-6">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Pull Request
-          </h4>
-          <a 
-            href={liveTask.github_pr_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:underline"
-          >
-            View on GitHub
-          </a>
         </div>
       )}
 
