@@ -9,6 +9,7 @@ import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { statuses } from '@/data/data';
 import { ApiService } from '@/services/api';
 import { getBackendJwt } from '@/lib/authToken';
+import { useTaskPolling } from '@/hooks/useTaskPolling';
 import type { Task } from '@/types';
 
 // Key filter to ignore hotkeys when user is typing
@@ -23,16 +24,19 @@ export function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isSignedIn, isLoaded } = useAuth();
-  const [task, setTask] = useState<Task | null>(null);
+  const [initialTask, setInitialTask] = useState<Task | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Use polling hook to keep task data fresh
+  const liveTask = useTaskPolling(initialTask);
+
   // Find current task index for navigation
   const currentTaskIndex = useMemo(() => {
-    if (!task || tasks.length === 0) return -1;
-    return tasks.findIndex(t => t.id === task.id);
-  }, [task, tasks]);
+    if (!liveTask || tasks.length === 0) return -1;
+    return tasks.findIndex(t => t.id === liveTask.id);
+  }, [liveTask, tasks]);
 
   // Load tasks and find current task
   useEffect(() => {
@@ -48,7 +52,7 @@ export function TaskPage() {
         // Find the current task
         const currentTask = allTasks.find(t => t.id === Number(id));
         if (currentTask) {
-          setTask(currentTask);
+          setInitialTask(currentTask);
         } else {
           setError('Task not found');
         }
@@ -142,7 +146,7 @@ export function TaskPage() {
     );
   }
 
-  if (!task) {
+  if (!liveTask) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
@@ -160,8 +164,8 @@ export function TaskPage() {
     );
   }
 
-  const status = statuses.find((s) => s.value === task.status);
-  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(task.status ?? '');
+  const status = statuses.find((s) => s.value === liveTask.status);
+  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(liveTask.status ?? '');
 
   return (
     <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
@@ -180,9 +184,9 @@ export function TaskPage() {
         
         <div className="flex items-start gap-3">
           <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-            #{task.id}
+            #{liveTask.id}
           </span>
-          <h1 className="text-2xl font-bold text-gray-900 flex-1">{task.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex-1">{liveTask.title}</h1>
         </div>
       </div>
 
@@ -202,12 +206,12 @@ export function TaskPage() {
           </div>
         )}
         
-        {task.sandbox_id && (
+        {liveTask.sandbox_id && (
           <div className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Sandbox ID
             </span>
-            <span className="text-sm font-mono">{task.sandbox_id}</span>
+            <span className="text-sm font-mono">{liveTask.sandbox_id}</span>
           </div>
         )}
       </div>
@@ -217,7 +221,7 @@ export function TaskPage() {
         <h3 className="text-sm font-semibold">Description</h3>
         <div className="prose prose-sm max-w-none prose-gray">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {task.description || '_No description provided_'}
+            {liveTask.description || '_No description provided_'}
           </ReactMarkdown>
         </div>
       </div>
@@ -225,18 +229,18 @@ export function TaskPage() {
       {/* Live Logs */}
       {showLogs && (
         <div className="space-y-3 mb-6">
-          <TaskLogViewer taskId={task.id} taskStatus={task.status || undefined} />
+          <TaskLogViewer taskId={liveTask.id} taskStatus={liveTask.status || undefined} />
         </div>
       )}
 
       {/* Additional Information */}
-      {task.github_pr_url && (
+      {liveTask.github_pr_url && (
         <div className="space-y-2 mb-6">
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Pull Request
           </h4>
           <a 
-            href={task.github_pr_url} 
+            href={liveTask.github_pr_url} 
             target="_blank" 
             rel="noopener noreferrer"
             className="text-sm text-blue-600 hover:underline"

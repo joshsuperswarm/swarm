@@ -10,6 +10,7 @@ import {
 import { statuses } from "@/data/data"
 import { TaskLogViewer } from "@/components/TaskLogViewer"
 import { useHotkeys } from "react-hotkeys-hook"
+import { useTaskPolling } from "@/hooks/useTaskPolling"
 
 interface TaskDetailModalProps {
   task: Task | null
@@ -30,6 +31,8 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskDetailModalProps) {
   // console.log('🔄 TaskDetailModal render - task:', task?.id, 'isOpen:', isOpen)
   
+  const liveTask = useTaskPolling(task);
+  
   // Modal navigation hotkeys
   useHotkeys('j', () => {
     if (onNext) onNext();
@@ -45,10 +48,10 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
     enabled: isOpen
   });
   
-  if (!task) return null
+  if (!liveTask) return null
 
-  const status = statuses.find((s) => s.value === task.status)
-  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(task.status ?? '')
+  const status = statuses.find((s) => s.value === liveTask.status)
+  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(liveTask.status ?? '')
   
   // console.log('🔄 TaskDetailModal showLogs:', showLogs, 'status:', task.status)
 
@@ -58,9 +61,9 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
         <DialogHeader className="pb-4">
           <DialogTitle className="flex items-start gap-3 text-lg">
             <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-              #{task.id}
+              #{liveTask.id}
             </span>
-            <span className="flex-1">{task.title}</span>
+            <span className="flex-1">{liveTask.title}</span>
           </DialogTitle>
           <DialogDescription>
             View task details and live logs from Claude Code execution
@@ -84,12 +87,12 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
               </div>
             )}
             
-            {task.sandbox_id && (
+            {liveTask.sandbox_id && (
               <div className="space-y-1">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Sandbox ID
                 </span>
-                <span className="text-sm font-mono">{task.sandbox_id}</span>
+                <span className="text-sm font-mono">{liveTask.sandbox_id}</span>
               </div>
             )}
           </div>
@@ -98,9 +101,9 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Description</h3>
             <div className="prose prose-sm max-w-none">
-              {task.description ? (
+              {liveTask.description ? (
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  {task.description}
+                  {liveTask.description}
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
@@ -113,18 +116,18 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
           {/* Live Logs */}
           {showLogs && (
             <div className="space-y-3 min-w-0">
-              <TaskLogViewer taskId={task.id} />
+              <TaskLogViewer taskId={liveTask.id} />
             </div>
           )}
 
           {/* Additional Information */}
-          {task.github_pr_url && (
+          {liveTask.github_pr_url && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Pull Request
               </h4>
               <a 
-                href={task.github_pr_url} 
+                href={liveTask.github_pr_url} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-sm text-blue-600 hover:underline"

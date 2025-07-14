@@ -83,6 +83,10 @@ export class ApiService {
     return this.authenticatedRequest('/api/tasks');
   }
 
+  static async getTask(taskId: number): Promise<{ task: Task }> {
+    return this.authenticatedRequest(`/api/tasks/${taskId}`);
+  }
+
   static async createTask(task: CreateTaskRequest): Promise<{ success: boolean; task: Task }> {
     // Client-side validation
     if (!task.title.trim()) {

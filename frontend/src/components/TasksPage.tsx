@@ -152,6 +152,13 @@ export function TasksPage() {
     return () => clearTimeout(timeoutId);
   }, [loadTasks]);
 
+  // Listen for task creation events to refresh task list
+  useEffect(() => {
+    const handler = () => loadTasks();            // reuse existing fn
+    window.addEventListener("task:created", handler);
+    return () => window.removeEventListener("task:created", handler);
+  }, [loadTasks]);
+
   // Cleanup auto-refresh on unmount
   useEffect(() => {
     return () => {

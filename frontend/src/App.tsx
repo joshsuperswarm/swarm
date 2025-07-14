@@ -26,11 +26,14 @@ function App() {
         return;
       }
 
-      await ApiService.createTask({
+      const { task: created } = await ApiService.createTask({
         title: taskData.title,
         description: taskData.description,
         repository_id: taskData.repositoryId,
       });
+      window.dispatchEvent(
+        new CustomEvent("task:created", { detail: { id: created.id } })
+      );
 
       setIsCreateModalOpen(false);
       // Note: TasksPage will auto-refresh via its polling mechanism
