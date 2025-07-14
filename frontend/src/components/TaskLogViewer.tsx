@@ -237,7 +237,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
         ) : isLoading && logs.length === 0 ? (
           <span className="text-gray-500 text-xs">Loading logs...</span>
         ) : (
-          <VirtualisedLogViewer lines={logs} />
+          <VirtualisedLogViewer lines={logs} height={352} />
         )}
       </div>
     </div>
