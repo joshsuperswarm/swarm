@@ -23,7 +23,6 @@ pub(crate) struct ArtifactParsingState {
     pr_body: Option<String>,
     current_artifact: Option<String>,
     artifact_lines: Vec<String>,
-    task_completed: bool,
     _last_processed_offset: usize,
 }
 
@@ -375,6 +374,11 @@ impl ModalProvider {
                 {
                     return text.to_string();
                 }
+
+                // Extract text from result field (Claude Code final summary)
+                if let Some(t) = json_value.get("result").and_then(|r| r.as_str()) {
+                    return t.to_string();
+                }
             }
         }
         line.to_string()
@@ -468,21 +472,6 @@ impl ModalProvider {
                     state.artifact_lines.push(trimmed.to_string());
                 }
             }
-        } else if line == "DONE" {
-            // Complete any remaining artifact
-            if let Some(ref artifact_type) = state.current_artifact {
-                let content = state.artifact_lines.join("\n");
-                match artifact_type.as_str() {
-                    "commit_body" => state.commit_body = Some(content),
-                    "pr_title" => state.pr_title = Some(content),
-                    "pr_body" => state.pr_body = Some(content),
-                    _ => {}
-                }
-            }
-
-            state.current_artifact = None;
-            state.artifact_lines.clear();
-            state.task_completed = true;
         } else if state.current_artifact.is_some() {
             // Accumulate lines for current artifact
             state.artifact_lines.push(line.to_string());
@@ -510,12 +499,39 @@ impl ModalProvider {
 
         if !combined_output.is_empty() {
             let mut buffer = String::new();
-            let mut state = ArtifactParsingState::default();
+
+            // Load existing task state to initialize artifact parsing state
+            let mut state = match db.get_task_by_id(task_id).await {
+                Ok(Some(task)) => ArtifactParsingState {
+                    commit_title: task.commit_title,
+                    commit_body: task.commit_body,
+                    pr_title: task.pr_title,
+                    pr_body: task.pr_body,
+                    current_artifact: None,
+                    artifact_lines: Vec::new(),
+                    _last_processed_offset: 0,
+                },
+                _ => ArtifactParsingState::default(),
+            };
 
             // Process the logs
             let _processed = self
                 .process_modal_log_stream(db, task_id, &combined_output, &mut buffer, &mut state)
                 .await?;
+
+            // Save any new artifacts back to database
+            if let Err(e) = db
+                .set_task_artifacts(
+                    task_id,
+                    state.commit_title,
+                    state.commit_body,
+                    state.pr_title,
+                    state.pr_body,
+                )
+                .await
+            {
+                warn!("Failed to save artifacts for task {}: {}", task_id, e);
+            }
         }
 
         Ok(())
@@ -982,5 +998,25 @@ mod tests {
         let result3: Result<ModalLogLine, _> = serde_json::from_str(incomplete);
         assert!(result3.is_err());
         assert!(result3.unwrap_err().is_eof());
+    }
+
+    #[test]
+    fn test_extract_text_from_result_json() {
+        // Test extraction from result field (Claude Code final summary)
+        let result_json = r#"{"type":"result","subtype":"success","result":"Task completed successfully!\n\nCOMMIT_MESSAGE_TITLE: Add result-branch to log extractor\nCOMMIT_MESSAGE_BODY: Fix backend parsing\nPR_TITLE: Fix parsing\nPR_BODY: The backend stalled\nDONE"}"#;
+
+        let extracted = ModalProvider::extract_text_from_json_line(result_json);
+        assert!(extracted.contains("COMMIT_MESSAGE_TITLE:"));
+        assert!(extracted.starts_with("Task completed successfully!"));
+
+        // Test that regular message content still works
+        let message_json = r#"{"type":"assistant","message":{"content":[{"text":"Hello world"}]}}"#;
+        let extracted_msg = ModalProvider::extract_text_from_json_line(message_json);
+        assert_eq!(extracted_msg, "Hello world");
+
+        // Test fallback to original line
+        let plain_text = "plain text line";
+        let extracted_plain = ModalProvider::extract_text_from_json_line(plain_text);
+        assert_eq!(extracted_plain, "plain text line");
     }
 }

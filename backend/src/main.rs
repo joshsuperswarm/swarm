@@ -17,6 +17,7 @@ mod config;
 mod database;
 mod error;
 mod github;
+mod github_pr;
 mod models;
 mod sandbox;
 mod sandbox_poller;
@@ -27,6 +28,7 @@ use config::Config;
 use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
+use github_pr::GitHubPRClient;
 use models::{
     CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS, UserWithDefaultRepo,
     _force_ts_generation,
@@ -117,6 +119,295 @@ async fn store_github_token(
     }
 }
 
+/// Handle successful task completion: push changes and create PR
+async fn handle_task_success(
+    app_state: AppState,
+    task_id: i32,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    tracing::info!("Handling successful completion for task {}", task_id);
+
+    // Get task, user, and repository information
+    let task = match app_state.database.get_task_by_id(task_id).await? {
+        Some(task) => task,
+        None => {
+            tracing::error!("Task {} not found", task_id);
+            return Ok(());
+        }
+    };
+
+    // Early exit if task is already in terminal state
+    if matches!(task.status.as_deref(), Some("pr_opened") | Some("failed")) {
+        tracing::info!(
+            "Task {} already in terminal state: {:?}",
+            task_id,
+            task.status
+        );
+        return Ok(());
+    }
+
+    let user = match app_state.database.get_user_by_id(task.user_id).await? {
+        Some(user) => user,
+        None => {
+            tracing::error!("User {} not found for task {}", task.user_id, task_id);
+            return Ok(());
+        }
+    };
+
+    let repository = match app_state
+        .database
+        .get_repository_by_id(task.repository_id, task.user_id)
+        .await?
+    {
+        Some(repo) => repo,
+        None => {
+            tracing::error!(
+                "Repository {} not found for task {}",
+                task.repository_id,
+                task_id
+            );
+            return Ok(());
+        }
+    };
+
+    let github_token = match app_state.database.get_github_token(user.id).await? {
+        Some(token) => token.access_token,
+        None => {
+            tracing::error!("No GitHub token for user {} in task {}", user.id, task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    // Extract necessary information
+    let sandbox_id = match task.sandbox_id.as_ref() {
+        Some(id) => id,
+        None => {
+            tracing::error!("No sandbox ID for task {}", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let branch = match task.github_branch.as_ref() {
+        Some(branch) => branch,
+        None => {
+            tracing::error!("No branch for task {}", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    // Get author information - fail if not available
+    let author_name = match user.github_username.clone() {
+        Some(username) => username,
+        None => {
+            tracing::error!(
+                "No GitHub username available for user {} in task {}",
+                user.id,
+                task_id
+            );
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let author_email = match user.email.clone() {
+        Some(email) => email,
+        None => {
+            tracing::error!(
+                "No email available for user {} in task {}",
+                user.id,
+                task_id
+            );
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    // Create repo path for Modal
+    let repo_name = repository.name.clone();
+    let repo_path = format!("/home/swarm/{}", repo_name);
+
+    // Validate that AI-generated artifacts are present
+    let commit_title = match task.commit_title.as_ref() {
+        Some(title) if !title.trim().is_empty() => title,
+        _ => {
+            tracing::error!("Task {} missing AI-generated commit title", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let commit_body = task
+        .commit_body
+        .as_deref()
+        .unwrap_or("AI-generated changes");
+
+    let pr_title = match task.pr_title.as_ref() {
+        Some(title) if !title.trim().is_empty() => title,
+        _ => {
+            tracing::error!("Task {} missing AI-generated PR title", task_id);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let pr_body = task.pr_body.as_deref().unwrap_or("AI-generated changes");
+
+    // Push changes to GitHub
+    tracing::info!(
+        "Pushing changes for task {} with AI-generated commit message",
+        task_id
+    );
+    if let Err(e) = app_state
+        .sandbox
+        .push_changes(
+            sandbox_id,
+            &repo_path,
+            branch,
+            task_id,
+            &author_name,
+            &author_email,
+            commit_title,
+            commit_body,
+        )
+        .await
+    {
+        tracing::error!("Failed to push changes for task {}: {}", task_id, e);
+        let _ = app_state
+            .database
+            .update_task_status(task_id, "failed", None)
+            .await;
+        return Ok(());
+    }
+
+    // Create GitHub PR client
+    tracing::info!(
+        "Creating PR for task {} in repository {}/{}",
+        task_id,
+        repository.owner,
+        repository.name
+    );
+    tracing::debug!(
+        "Using GitHub token: {}***",
+        &github_token[..4.min(github_token.len())]
+    );
+
+    let pr_client = match GitHubPRClient::new(&github_token) {
+        Ok(client) => {
+            tracing::debug!("Successfully created GitHub PR client for task {}", task_id);
+            client
+        }
+        Err(e) => {
+            tracing::error!("Failed to create PR client for task {}: {}", task_id, e);
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    let pr_url = match pr_client
+        .create_or_update_pr(
+            &repository.owner,
+            &repository.name,
+            branch,
+            &task,
+            pr_title,
+            pr_body,
+        )
+        .await
+    {
+        Ok(url) => {
+            tracing::info!(
+                "Successfully created/updated PR for task {}: {}",
+                task_id,
+                url
+            );
+            url
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to create PR for task {} in {}/{} on branch {}: {}",
+                task_id,
+                repository.owner,
+                repository.name,
+                branch,
+                e
+            );
+
+            // Log error chain for more context
+            let mut source = e.source();
+            let mut depth = 1;
+            while let Some(err) = source {
+                tracing::error!("  Error chain [{}]: {}", depth, err);
+                source = err.source();
+                depth += 1;
+                if depth > 5 {
+                    break;
+                } // Prevent infinite loops
+            }
+
+            let _ = app_state
+                .database
+                .update_task_status(task_id, "failed", None)
+                .await;
+            return Ok(());
+        }
+    };
+
+    // Update task with PR URL and status
+    if let Err(e) = app_state
+        .database
+        .update_task_status(task_id, "pr_opened", Some(&pr_url))
+        .await
+    {
+        tracing::error!("Error updating task {} status to pr_opened: {}", task_id, e);
+    } else {
+        tracing::info!(
+            "✓ Task {} completed successfully with PR: {}",
+            task_id,
+            pr_url
+        );
+    }
+
+    // Delete the sandbox after PR is created
+    tracing::info!("Deleting sandbox {} after PR creation", sandbox_id);
+    if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
+        tracing::warn!(
+            "⚠ Failed to delete sandbox {} after PR creation: {}",
+            sandbox_id,
+            e
+        );
+    } else {
+        tracing::info!("✓ Sandbox {} deleted after PR creation", sandbox_id);
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> AppResult<()> {
     // Force TypeScript generation for exported types
@@ -184,10 +475,9 @@ async fn main() -> AppResult<()> {
         .allow_headers(Any);
 
     // Start background task poller (non-blocking)
-    let poller_database = app_state.database.clone();
-    let poller_config = app_state.config.clone();
+    let poller_app_state = app_state.clone();
     tokio::spawn(async move {
-        sandbox_poller::run(poller_database, poller_config).await;
+        sandbox_poller::run(poller_app_state).await;
     });
 
     let app = Router::new()

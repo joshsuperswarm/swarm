@@ -93,19 +93,31 @@ def get_sb(sandbox_id: str) -> modal.Sandbox:
 
 def _tail_process_output(proc, key):
     """Consume process output in background threads using Modal's streaming."""
+    # Create events to signal when each stream is fully consumed
+    stdout_complete = threading.Event()
+    stderr_complete = threading.Event()
+
     def consume_stdout():
         try:
             for line in proc.stdout:
                 LOG_BUFFERS[key]["stdout"].append(line)
+            # Signal completion when iterator is exhausted
+            stdout_complete.set()
+            logger.debug(f"Stdout consumption complete for {key}")
         except Exception as e:
             logger.warning(f"Error reading stdout for {key}: {str(e)}")
+            stdout_complete.set()  # Signal even on error
 
     def consume_stderr():
         try:
             for line in proc.stderr:
                 LOG_BUFFERS[key]["stderr"].append(line)
+            # Signal completion when iterator is exhausted
+            stderr_complete.set()
+            logger.debug(f"Stderr consumption complete for {key}")
         except Exception as e:
             logger.warning(f"Error reading stderr for {key}: {str(e)}")
+            stderr_complete.set()  # Signal even on error
 
     # Start background threads to consume streams
     stdout_thread = threading.Thread(target=consume_stdout, daemon=True)
@@ -115,6 +127,9 @@ def _tail_process_output(proc, key):
     stderr_thread.start()
 
     logger.debug(f"Started background streaming for process {key}")
+
+    # Return completion events so caller can wait for them
+    return stdout_complete, stderr_complete
 
 def _cleanup_process_logs(sandbox_id, proc_id):
     """Clean up log buffers for a completed process."""
@@ -357,12 +372,15 @@ async def exec_command(sandbox_id: str, req: ExecReq):
 
         # Create buffer key and start background thread to consume output
         buffer_key = (sandbox_id, proc_id)
-        _tail_process_output(proc, buffer_key)
+        stdout_complete, stderr_complete = _tail_process_output(proc, buffer_key)
 
-        # Store the actual ContainerProcess object and thread info
+        # Store the actual ContainerProcess object and completion events
         PROCS[sandbox_id][proc_id] = {
             "proc": proc,
-            "buffer_key": buffer_key
+            "buffer_key": buffer_key,
+            "stdout_complete": stdout_complete,
+            "stderr_complete": stderr_complete,
+            "output_fully_consumed": False
         }
 
         logger.info(f"Executed command in sandbox {sandbox_id}: {' '.join(req.cmd)}")
@@ -374,7 +392,7 @@ async def exec_command(sandbox_id: str, req: ExecReq):
 
 @app.get("/sandboxes/{sandbox_id}/procs/{proc_id}/exit_code", response_model=ExitCodeResp)
 async def get_exit_code(sandbox_id: str, proc_id: str):
-    """Get the exit code of a process."""
+    """Get the exit code of a process, ensuring all output is consumed first."""
     try:
         if sandbox_id not in PROCS or proc_id not in PROCS[sandbox_id]:
             raise HTTPException(status_code=404, detail="Process not found")
@@ -385,9 +403,44 @@ async def get_exit_code(sandbox_id: str, proc_id: str):
         # Use Modal's poll method - returns exit code if finished, None if running
         exit_code = proc.poll()
 
-        # Clean up log buffer if process is completed
-        if exit_code is not None:
-            _cleanup_process_logs(sandbox_id, proc_id)
+        if exit_code is None:
+            # Process still running - return None immediately (no blocking)
+            return ExitCodeResp(code=None)
+
+        # Process has finished - ensure all output is consumed before returning exit code
+        if not proc_info.get("output_fully_consumed", False):
+            logger.info(f"Process {proc_id} finished with exit code {exit_code}, waiting for output consumption...")
+
+            # Get completion events
+            stdout_complete = proc_info.get("stdout_complete")
+            stderr_complete = proc_info.get("stderr_complete")
+
+            if stdout_complete and stderr_complete:
+                # Wait for both streams to be fully consumed (with timeout)
+                stdout_ready = stdout_complete.wait(timeout=10.0)  # 10 second timeout
+                stderr_ready = stderr_complete.wait(timeout=10.0)
+
+                if stdout_ready and stderr_ready:
+                    logger.info(f"All output consumed for process {proc_id}")
+                else:
+                    logger.warning(f"Timeout waiting for output consumption for process {proc_id}")
+                    # Try to get any remaining output with communicate as fallback
+                    try:
+                        remaining_stdout, remaining_stderr = proc.communicate(timeout=5.0)
+                        if remaining_stdout:
+                            LOG_BUFFERS[proc_info["buffer_key"]]["stdout"].extend(remaining_stdout.splitlines(True))
+                        if remaining_stderr:
+                            LOG_BUFFERS[proc_info["buffer_key"]]["stderr"].extend(remaining_stderr.splitlines(True))
+                        logger.info(f"Fallback communicate() captured remaining output for process {proc_id}")
+                    except Exception as comm_error:
+                        logger.warning(f"Fallback communicate() failed for process {proc_id}: {str(comm_error)}")
+                        # Best effort - continue anyway
+            else:
+                # No completion events (older process or different execution path)
+                logger.info(f"No completion events for process {proc_id}, assuming output consumed")
+
+            # Mark as fully consumed
+            proc_info["output_fully_consumed"] = True
 
         return ExitCodeResp(code=exit_code)
 
@@ -665,76 +718,76 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
     """Push changes to GitHub branch with proper commit information."""
     try:
         logger.info(f"Pushing changes to branch {req.branch} in sandbox {sandbox_id}")
-        
+
         sb = get_sb(sandbox_id)
-        
+
         # Step 1: Change to repository directory
         logger.info(f"Step 1: Changing to repository directory {req.repo_path}")
         cd_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && pwd")
         cd_exit_code = cd_proc.wait()
         logger.info(f"Directory change exit code: {cd_exit_code}")
-        
+
         if cd_exit_code != 0:
             raise HTTPException(status_code=500, detail=f"Failed to change to directory {req.repo_path}")
-        
+
         # Step 2: Stage all changes
         logger.info("Step 2: Staging all changes")
         add_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git add -A")
         add_exit_code = add_proc.wait()
         logger.info(f"Git add exit code: {add_exit_code}")
-        
+
         if add_exit_code != 0:
             raise HTTPException(status_code=500, detail="Failed to stage changes")
-        
+
         # Step 3: Write commit message to temporary file
         logger.info("Step 3: Writing commit message to temporary file")
         commit_msg_content = f"{req.commit_title}\n\n{req.commit_body}"
         write_msg_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && cat > /tmp/commit_message_{req.task_id} << 'EOF'\n{commit_msg_content}\nEOF")
         write_msg_exit_code = write_msg_proc.wait()
         logger.info(f"Commit message write exit code: {write_msg_exit_code}")
-        
+
         if write_msg_exit_code != 0:
             raise HTTPException(status_code=500, detail="Failed to write commit message")
-        
+
         # Step 4: Commit changes to current branch
         logger.info("Step 4: Committing changes to current branch")
         commit_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git commit -F /tmp/commit_message_{req.task_id}")
         commit_exit_code = commit_proc.wait()
         logger.info(f"Git commit exit code: {commit_exit_code}")
-        
+
         if commit_exit_code != 0:
             raise HTTPException(status_code=500, detail="Failed to commit changes")
-        
+
         # Step 5: Create new branch from the commit
         logger.info(f"Step 5: Creating new branch {req.branch}")
         branch_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git checkout -B {req.branch}")
         branch_exit_code = branch_proc.wait()
         logger.info(f"Git branch creation exit code: {branch_exit_code}")
-        
+
         if branch_exit_code != 0:
             raise HTTPException(status_code=500, detail=f"Failed to create branch {req.branch}")
-        
+
         # Step 6: Push the branch to origin
         logger.info(f"Step 6: Pushing branch {req.branch} to origin")
         push_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git push -u origin {req.branch}")
         push_exit_code = push_proc.wait()
         logger.info(f"Git push exit code: {push_exit_code}")
-        
+
         if push_exit_code != 0:
             raise HTTPException(status_code=500, detail=f"Failed to push branch {req.branch}")
-        
+
         # Step 7: Clean up temporary commit message file
         logger.info("Step 7: Cleaning up temporary files")
         cleanup_proc = sb.exec("su", "-", "swarm", "-c", f"rm -f /tmp/commit_message_{req.task_id}")
         cleanup_exit_code = cleanup_proc.wait()
         logger.info(f"Cleanup exit code: {cleanup_exit_code}")
-        
+
         # Don't fail if cleanup fails, just log a warning
         if cleanup_exit_code != 0:
             logger.warning(f"Failed to cleanup temporary file, but continuing")
-        
+
         logger.info(f"Successfully pushed changes to branch {req.branch}")
-        
+
         # Return a dummy process ID since we executed multiple commands
         return ExecResp(proc_id="push_changes_completed")
 

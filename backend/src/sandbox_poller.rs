@@ -17,12 +17,19 @@
 
 use crate::{
     config::Config,
-    database::Database,
     sandbox::{self, DynSandbox, SandboxProvider, SandboxStatus},
+    AppState,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, warn};
+
+// ——————————————————————————————————————————————————————————————
+//  Helper functions
+// ——————————————————————————————————————————————————————————————
+fn has_required_artifacts(task: &crate::models::Task) -> bool {
+    task.commit_title.is_some() && task.pr_title.is_some() && task.pr_body.is_some()
+}
 
 // ——————————————————————————————————————————————————————————————
 //  Provider factory (Modal only)
@@ -41,12 +48,12 @@ fn provider_from_config(config: &Config) -> Option<DynSandbox> {
 // ——————————————————————————————————————————————————————————————
 //  Public entry‑point – spawn this once at boot
 // ——————————————————————————————————————————————————————————————
-pub async fn run(database: Database, config: Config) {
+pub async fn run(app_state: AppState) {
     info!("→ unified status poller online");
 
     loop {
         let cycle_start = Instant::now();
-        if let Err(e) = poll_once(&database, &config).await {
+        if let Err(e) = poll_once(&app_state).await {
             error!("poller cycle error: {e}");
         }
         let elapsed = cycle_start.elapsed();
@@ -65,9 +72,9 @@ pub async fn run(database: Database, config: Config) {
 // ——————————————————————————————————————————————————————————————
 //  One polling cycle
 // ——————————————————————————————————————————————————————————————
-async fn poll_once(database: &Database, config: &Config) -> anyhow::Result<()> {
+async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
     // 1. resolve provider – if none configured just bail early (don't spam DB).
-    let provider = match provider_from_config(config) {
+    let provider = match provider_from_config(&app_state.config) {
         Some(p) => p,
         None => {
             debug!("no sandbox provider configured – skipping poll");
@@ -86,7 +93,7 @@ async fn poll_once(database: &Database, config: &Config) -> anyhow::Result<()> {
            WHERE  sandbox_id IS NOT NULL
            AND    status IN ('spinning','running')"#
     )
-    .fetch_all(&database.pool)
+    .fetch_all(&app_state.database.pool)
     .await?;
 
     if rows.is_empty() {
@@ -104,19 +111,17 @@ async fn poll_once(database: &Database, config: &Config) -> anyhow::Result<()> {
         let session_id = row.session_id.clone();
         let command_id = row.command_id.clone();
         let status = row.status.clone();
-        let db = database.clone();
+        let app_state_clone = app_state.clone();
         let p = provider.clone();
-        let config_clone = config.clone();
         let handle = tokio::spawn(async move {
             if let Err(e) = handle_task(
-                &db,
+                &app_state_clone,
                 p.as_ref(),
                 task_id,
                 sandbox_id,
                 session_id,
                 command_id,
                 status,
-                &config_clone,
             )
             .await
             {
@@ -138,14 +143,13 @@ async fn poll_once(database: &Database, config: &Config) -> anyhow::Result<()> {
 // ——————————————————————————————————————————————————————————————
 #[allow(clippy::too_many_lines)]
 async fn handle_task(
-    db: &Database,
+    app_state: &AppState,
     provider: &dyn SandboxProvider,
     task_id: i32,
     sandbox_id: Option<String>,
     session_id: Option<String>,
     command_id: Option<String>,
     status: Option<String>,
-    config: &Config,
 ) -> anyhow::Result<()> {
     let sandbox_id = sandbox_id.ok_or_else(|| anyhow::anyhow!("missing sandbox_id"))?;
     let session_id = session_id.unwrap_or_default();
@@ -158,9 +162,10 @@ async fn handle_task(
         .await
     {
         if code == 0 {
-            finalize_success(db, provider, task_id, &sandbox_id, &command_id, config).await?;
+            // Task completed successfully, now poll for artifacts
+            wait_for_artifacts(app_state, provider, task_id, &sandbox_id, &command_id).await?;
         } else {
-            mark_failed(db, provider, task_id, &sandbox_id).await?;
+            mark_failed(app_state, provider, task_id, &sandbox_id).await?;
         }
         return Ok(());
     }
@@ -169,22 +174,25 @@ async fn handle_task(
     match provider.get_sandbox_status(&sandbox_id).await? {
         SandboxStatus::Running => {
             if current_status == "spinning" {
-                db.update_task_status(task_id, "running", None).await?;
+                app_state
+                    .database
+                    .update_task_status(task_id, "running", None)
+                    .await?;
                 info!("task {task_id} → running");
             }
             // lightweight log pulse (non‑blocking) - use provider-specific log collection
-            if let Some(modal_url) = &config.modal_url {
+            if let Some(modal_url) = &app_state.config.modal_url {
                 let modal = sandbox::modal::ModalProvider::new(
                     modal_url.clone(),
-                    config.modal_region.clone(),
+                    app_state.config.modal_region.clone(),
                 );
                 let _ = modal
-                    .pull_logs_once(db, task_id, &sandbox_id, &command_id)
+                    .pull_logs_once(&app_state.database, task_id, &sandbox_id, &command_id)
                     .await;
             }
         }
-        SandboxStatus::Stopped => mark_failed(db, provider, task_id, &sandbox_id).await?,
-        SandboxStatus::Failed => mark_failed(db, provider, task_id, &sandbox_id).await?,
+        SandboxStatus::Stopped => mark_failed(app_state, provider, task_id, &sandbox_id).await?,
+        SandboxStatus::Failed => mark_failed(app_state, provider, task_id, &sandbox_id).await?,
         SandboxStatus::Starting => {
             debug!("task {task_id} sandbox still starting");
         }
@@ -196,40 +204,100 @@ async fn handle_task(
 // ——————————————————————————————————————————————————————————————
 //  Helpers
 // ——————————————————————————————————————————————————————————————
+async fn wait_for_artifacts(
+    app_state: &AppState,
+    provider: &dyn SandboxProvider,
+    task_id: i32,
+    sandbox_id: &str,
+    command_id: &str,
+) -> anyhow::Result<()> {
+    info!("task {task_id} finished with exit‑code 0 – waiting for artifacts");
+
+    // Poll for artifacts with timeout
+    let timeout_duration = Duration::from_secs(30); // 30 seconds
+    let poll_interval = Duration::from_secs(2);
+    let start_time = Instant::now();
+
+    loop {
+        // Pull logs to collect any new artifacts
+        if let Some(modal_url) = &app_state.config.modal_url {
+            let modal = sandbox::modal::ModalProvider::new(
+                modal_url.clone(),
+                app_state.config.modal_region.clone(),
+            );
+            let _ = modal
+                .pull_logs_once(&app_state.database, task_id, sandbox_id, command_id)
+                .await;
+        }
+
+        // Check if we have all required artifacts
+        if let Ok(Some(task)) = app_state.database.get_task_by_id(task_id).await {
+            if has_required_artifacts(&task) {
+                info!("task {task_id} has all required artifacts – proceeding to finalize");
+                return finalize_success(app_state, provider, task_id, sandbox_id, command_id)
+                    .await;
+            }
+        }
+
+        // Check timeout
+        if start_time.elapsed() > timeout_duration {
+            warn!("task {task_id} timed out waiting for artifacts after 30 seconds");
+            return finalize_success(app_state, provider, task_id, sandbox_id, command_id).await;
+        }
+
+        // Wait before next poll
+        sleep(poll_interval).await;
+    }
+}
+
 async fn finalize_success(
-    db: &Database,
+    app_state: &AppState,
     _provider: &dyn SandboxProvider,
     task_id: i32,
     sandbox_id: &str,
     command_id: &str,
-    config: &Config,
 ) -> anyhow::Result<()> {
     info!("task {task_id} finished with exit‑code 0 – collecting logs & pushing");
 
     // Use provider-specific log collection on success
-    if let Some(modal_url) = &config.modal_url {
-        let modal =
-            sandbox::modal::ModalProvider::new(modal_url.clone(), config.modal_region.clone());
+    if let Some(modal_url) = &app_state.config.modal_url {
+        let modal = sandbox::modal::ModalProvider::new(
+            modal_url.clone(),
+            app_state.config.modal_region.clone(),
+        );
         modal
-            .pull_logs_once(db, task_id, sandbox_id, command_id)
+            .pull_logs_once(&app_state.database, task_id, sandbox_id, command_id)
             .await
             .ok();
     }
-    db.update_task_status(task_id, "done", None).await?;
+    app_state
+        .database
+        .update_task_status(task_id, "done", None)
+        .await?;
 
-    // Let old `handle_task_success` (in main.rs) deal with PR creation – it
-    // already runs atomically when status flips to `done`.
+    // Spawn handle_task_success for PR creation
+    info!("task {task_id} → done, spawning PR creation");
+    let app_state_clone = app_state.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::handle_task_success(app_state_clone, task_id).await {
+            error!("Error handling task {} success: {}", task_id, e);
+        }
+    });
+
     Ok(())
 }
 
 async fn mark_failed(
-    db: &Database,
+    app_state: &AppState,
     provider: &dyn SandboxProvider,
     task_id: i32,
     sandbox_id: &str,
 ) -> anyhow::Result<()> {
     warn!("task {task_id} marked failed – cleaning up");
-    db.update_task_status(task_id, "failed", None).await?;
+    app_state
+        .database
+        .update_task_status(task_id, "failed", None)
+        .await?;
     provider.delete_sandbox(sandbox_id).await.ok();
     Ok(())
 }
