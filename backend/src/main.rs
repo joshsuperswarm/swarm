@@ -23,6 +23,7 @@ mod models;
 mod sandbox;
 mod sandbox_poller;
 mod task_pipeline;
+mod claude;
 
 use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
 use config::Config;
@@ -730,8 +731,7 @@ mod tests {
         });
 
         let payload = CreateTaskRequest {
-            title: "Test Task".to_string(),
-            description: Some("Test Description".to_string()),
+            description: "Test Description".to_string(),
             repository_id: 1,
         };
 
@@ -1219,8 +1219,7 @@ async fn get_tasks(
 
 #[derive(Deserialize)]
 struct CreateTaskRequest {
-    title: String,
-    description: Option<String>,
+    description: String,
     repository_id: i32,
 }
 
@@ -1284,24 +1283,35 @@ async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Validate title is not empty
-    if payload.title.trim().is_empty() {
-        tracing::warn!("Rejected task creation: empty title");
+    // Validate description
+    if payload.description.trim().is_empty() {
+        tracing::warn!("Rejected task creation: empty description");
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Convert empty description to None
-    let sanitized_description = payload
-        .description
-        .as_ref()
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.trim().to_string());
+    // 🔸 Always ask Claude Sonnet 4 for a title
+    let api_key = app_state
+        .config
+        .anthropic_api_key
+        .as_deref()
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let title = match claude::generate_title(&payload.description, api_key).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Claude title generation failed: {e}");
+            // fallback: first 60 chars of description
+            payload.description.chars().take(60).collect()
+        }
+    };
+
+    let sanitized_description = Some(payload.description.trim().to_string());
 
     // Create task in database first with "pending" status
     let create_task = CreateTask {
         user_id: user.id,
         repository_id: payload.repository_id,
-        title: payload.title.trim().to_string(),
+        title,
         description: sanitized_description,
     };
 
