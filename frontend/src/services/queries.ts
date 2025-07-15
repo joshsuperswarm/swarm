@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { ApiService } from '@/services/api'
-import { useBackendJwtQuery, isAuthError } from '@/services/auth'
+import { useBackendJwtQuery } from '@/services/auth'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,11 +16,6 @@ export const queryClient = new QueryClient({
         }
         // Default retry logic for other errors (max 3 times)
         return failureCount < 3;
-      },
-      onError: (error) => {
-        if (isAuthError(error)) {
-          queryClient.invalidateQueries({ queryKey: ['backend-jwt'] });
-        }
       },
     },
   },
