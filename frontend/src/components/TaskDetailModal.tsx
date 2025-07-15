@@ -10,7 +10,7 @@ import {
 import { statuses } from "@/data/data"
 import { TaskLogViewer } from "@/components/TaskLogViewer"
 import { useHotkeys } from "react-hotkeys-hook"
-import { useTaskPolling } from "@/hooks/useTaskPolling"
+import { useTaskQuery } from "@/services/queries"
 
 interface TaskDetailModalProps {
   task: Task | null
@@ -31,7 +31,11 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskDetailModalProps) {
   // console.log('🔄 TaskDetailModal render - task:', task?.id, 'isOpen:', isOpen)
   
-  const liveTask = useTaskPolling(task);
+  // Use React Query to get live task data (only if modal is open and we have a valid task ID)
+  const { data: liveTaskData } = useTaskQuery(task?.id || 0, isOpen && !!task?.id);
+  
+  // Fall back to the passed task if query data isn't available yet
+  const displayTask = liveTaskData || task;
   
   // Modal navigation hotkeys
   useHotkeys('j', () => {
@@ -48,10 +52,10 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
     enabled: isOpen
   });
   
-  if (!liveTask) return null
+  if (!displayTask) return null
 
-  const status = statuses.find((s) => s.value === liveTask.status)
-  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(liveTask.status ?? '')
+  const status = statuses.find((s) => s.value === displayTask.status)
+  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(displayTask.status ?? '')
   
   // console.log('🔄 TaskDetailModal showLogs:', showLogs, 'status:', task.status)
 
@@ -61,9 +65,9 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
         <DialogHeader className="pb-4">
           <DialogTitle className="flex items-start gap-3 text-lg">
             <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-              #{liveTask.id}
+              #{displayTask.id}
             </span>
-            <span className="flex-1">{liveTask.title}</span>
+            <span className="flex-1">{displayTask.title}</span>
           </DialogTitle>
           <DialogDescription>
             View task details and live logs from Claude Code execution
@@ -87,14 +91,14 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
               </div>
             )}
             
-            {liveTask.github_pr_url && (
+            {displayTask.github_pr_url && (
               <div className="space-y-1">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Pull Request
                 </div>
                 <div>
                   <a 
-                    href={liveTask.github_pr_url} 
+                    href={displayTask.github_pr_url} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:underline block"
@@ -105,12 +109,12 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
               </div>
             )}
             
-            {liveTask.sandbox_id && (
+            {displayTask.sandbox_id && (
               <div className="space-y-1">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Sandbox ID
                 </span>
-                <span className="text-sm font-mono">{liveTask.sandbox_id}</span>
+                <span className="text-sm font-mono">{displayTask.sandbox_id}</span>
               </div>
             )}
           </div>
@@ -119,9 +123,9 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Description</h3>
             <div className="prose prose-sm max-w-none">
-              {liveTask.description ? (
+              {displayTask.description ? (
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  {liveTask.description}
+                  {displayTask.description}
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
@@ -134,7 +138,7 @@ export function TaskDetailModal({ task, isOpen, onClose, onNext, onPrev }: TaskD
           {/* Live Logs */}
           {showLogs && (
             <div className="space-y-3 min-w-0">
-              <TaskLogViewer taskId={liveTask.id} />
+              <TaskLogViewer taskId={displayTask.id} />
             </div>
           )}
 

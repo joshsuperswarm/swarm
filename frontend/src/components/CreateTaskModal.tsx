@@ -96,7 +96,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
 
   const handleSubmit = (e: React.FormEvent) => {

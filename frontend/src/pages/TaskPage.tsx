@@ -1,16 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useAuth } from '@clerk/clerk-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { statuses } from '@/data/data';
-import { ApiService } from '@/services/api';
-import { getBackendJwt } from '@/lib/authToken';
-import { useTaskPolling } from '@/hooks/useTaskPolling';
-import type { Task } from '@/types';
+import { useTasksQuery, useTaskQuery } from '@/services/queries';
 
 // Key filter to ignore hotkeys when user is typing
 const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -23,84 +19,41 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isSignedIn, isLoaded } = useAuth();
-  const [initialTask, setInitialTask] = useState<Task | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Use polling hook to keep task data fresh
-  const liveTask = useTaskPolling(initialTask);
+  
+  // Parse and validate the task ID
+  const taskId = id ? Number(id) : 0;
+  const isValidTaskId = taskId > 0 && !isNaN(taskId);
+  
+  // list for j/k navigation
+  const { data: allTasks = [] } = useTasksQuery();
+  const { data: liveTask, isLoading: loading, error } = useTaskQuery(taskId, isValidTaskId);
 
   // Find current task index for navigation
   const currentTaskIndex = useMemo(() => {
-    if (!liveTask || tasks.length === 0) return -1;
-    return tasks.findIndex(t => t.id === liveTask.id);
-  }, [liveTask, tasks]);
+    if (!liveTask || allTasks.length === 0) return -1;
+    return allTasks.findIndex(t => t.id === liveTask.id);
+  }, [liveTask, allTasks]);
 
-  // Load tasks and find current task
-  useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await ApiService.getTasks();
-        const allTasks = response.tasks;
-        setTasks(allTasks);
-
-        // Find the current task
-        const currentTask = allTasks.find(t => t.id === Number(id));
-        if (currentTask) {
-          setInitialTask(currentTask);
-        } else {
-          setError('Task not found');
-        }
-      } catch (err) {
-        console.error('Failed to load tasks:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load tasks');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Wait for authentication to be ready and JWT to be available
-    if (isSignedIn && isLoaded && id) {
-      // Add a small delay to ensure JWT has been set in the auth store
-      const timeoutId = setTimeout(() => {
-        const jwt = getBackendJwt();
-        if (jwt) {
-          loadTasks();
-        } else {
-          console.log("TaskPage: Waiting for JWT to be available...");
-          // Try again in a moment
-          setTimeout(loadTasks, 1000);
-        }
-      }, 100);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [id, isSignedIn, isLoaded]);
 
   // Navigation hotkeys
   useHotkeys('j', () => {
-    if (currentTaskIndex >= 0 && currentTaskIndex < tasks.length - 1) {
-      const nextTask = tasks[currentTaskIndex + 1];
+    if (currentTaskIndex >= 0 && currentTaskIndex < allTasks.length - 1) {
+      const nextTask = allTasks[currentTaskIndex + 1];
       navigate(`/tasks/${nextTask.id}`);
     }
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: tasks.length > 0
+    enabled: allTasks.length > 0
   });
 
   useHotkeys('k', () => {
     if (currentTaskIndex > 0) {
-      const prevTask = tasks[currentTaskIndex - 1];
+      const prevTask = allTasks[currentTaskIndex - 1];
       navigate(`/tasks/${prevTask.id}`);
     }
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: tasks.length > 0
+    enabled: allTasks.length > 0
   });
 
   useHotkeys('esc', () => {
@@ -108,6 +61,27 @@ export function TaskPage() {
   }, {
     ignoreEventWhen: (e) => !keyFilter(e)
   });
+
+  // Handle invalid task ID
+  if (!isValidTaskId) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-red-500 mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Invalid Task ID
+          </h3>
+          <p className="text-gray-600 mb-4">The task ID "{id}" is not valid.</p>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/')}
+          >
+            Back to Tasks
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -126,8 +100,13 @@ export function TaskPage() {
         <div className="text-center max-w-md">
           <div className="text-red-500 mb-4">⚠️</div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {error}
+            {error.message?.includes('404') ? 'Task Not Found' : 'Error loading task'}
           </h3>
+          <p className="text-gray-600 mb-4">
+            {error.message?.includes('404') 
+              ? `Task with ID ${taskId} does not exist.`
+              : error.message || 'An error occurred while loading the task.'}
+          </p>
           <div className="space-x-2">
             <Button
               variant="outline"

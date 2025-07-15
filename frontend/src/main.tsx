@@ -1,6 +1,8 @@
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { BrowserRouter } from 'react-router-dom'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { queryClient, persister } from '@/services/queries'
 import './index.css'
 import App from './App.tsx'
 
@@ -11,11 +13,14 @@ if (!PUBLISHABLE_KEY) {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <ClerkProvider 
-    publishableKey={PUBLISHABLE_KEY}
-  >
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+  <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister }}
+    >
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </PersistQueryClientProvider>
   </ClerkProvider>,
 )

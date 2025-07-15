@@ -7,6 +7,7 @@ import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService } from './services/api'
 import { setBackendJwt } from '@/lib/authToken'
 import { useUserStore } from './store/userStore'
+import { useCreateTaskMutation } from '@/services/queries'
 import './App.css'
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
   const { isSignedIn, getToken, isLoaded } = useAuth()
   const { user } = useUser()
   const { loadUserProfile, clearUserProfile } = useUserStore()
+  const createTask = useCreateTaskMutation()
 
   const handleTaskCreated = async (taskData: {
     title: string;
@@ -26,17 +28,14 @@ function App() {
         return;
       }
 
-      const { task: created } = await ApiService.createTask({
+      await createTask.mutateAsync({
         title: taskData.title,
         description: taskData.description,
         repository_id: taskData.repositoryId,
       });
-      window.dispatchEvent(
-        new CustomEvent("task:created", { detail: { id: created.id } })
-      );
 
       setIsCreateModalOpen(false);
-      // Note: TasksPage will auto-refresh via its polling mechanism
+      // Note: React Query will automatically invalidate and refetch tasks
     } catch (err) {
       console.error("Failed to create task:", err);
       // TODO: Show error notification to user

@@ -120,7 +120,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
       setIsLoading(false);
       setIsPolling(false);
     }
-  }, [taskId, taskStatus, formatLogs]); // Add taskStatus dependency
+  }, [taskId, taskStatus, formatLogs, taskCompleted]);
 
   useEffect(() => {
     // Check if task is in finished state
@@ -145,7 +145,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
         clearInterval(intervalRef.current);
       }
     };
-  }, [taskId, taskStatus, fetchLogs]); // Add taskStatus dependency
+  }, [taskId, taskStatus, fetchLogs, taskCompleted]);
 
 
   // Update logs when showPretty changes
