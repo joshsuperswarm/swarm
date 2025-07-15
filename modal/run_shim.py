@@ -14,19 +14,20 @@ def main():
     # Set default port if not specified
     port = int(os.getenv('PORT', '8000'))
     host = os.getenv('HOST', '0.0.0.0')
-    
+
     print(f"Starting Modal Sandbox Shim on {host}:{port}")
-    
+
     # Import and run with uvicorn
     import uvicorn
     from shim import app
-    
+
     uvicorn.run(
         app,
         host=host,
         port=port,
         log_level="info",
-        reload=True if os.getenv('DEBUG') == 'true' else False
+        reload=False,
+        workers=1,
     )
 
 if __name__ == "__main__":
