@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { ApiService } from '@/services/api'
+import { useBackendJwtQuery, isAuthError } from '@/services/auth'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,6 +17,11 @@ export const queryClient = new QueryClient({
         // Default retry logic for other errors (max 3 times)
         return failureCount < 3;
       },
+      onError: (error) => {
+        if (isAuthError(error)) {
+          queryClient.invalidateQueries({ queryKey: ['backend-jwt'] });
+        }
+      },
     },
   },
 })
@@ -25,15 +31,19 @@ export const persister = createSyncStoragePersister({
 })
 
 /* LIST */
-export const useTasksQuery = () =>
-  useQuery({
+export const useTasksQuery = () => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  
+  return useQuery({
     queryKey: ['tasks'],
-    queryFn: () => ApiService.getTasks().then(r => r.tasks),
+    enabled: isSuccess,
+    queryFn: () => ApiService.getTasks(jwt!).then(r => r.tasks),
     placeholderData: () => [],      // render instantly from cache
     staleTime: 5 * 1000,           // 5 seconds - allow frequent updates
     refetchInterval: 5 * 1000,      // Poll every 5 seconds
     refetchIntervalInBackground: true, // Continue polling when tab not focused
   })
+}
 
 /* SINGLE TASK */
 export const useTaskQuery = (id: number, enabled: boolean = true) => {
@@ -57,11 +67,13 @@ export const useTaskQuery = (id: number, enabled: boolean = true) => {
 }
 
 /* TASK TODOS */
-export const useTaskTodosQuery = (taskId: number, taskStatus?: string, enabled: boolean = true) =>
-  useQuery({
+export const useTaskTodosQuery = (taskId: number, taskStatus?: string, enabled: boolean = true) => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  
+  return useQuery({
     queryKey: ['task-todos', taskId],
-    queryFn: () => ApiService.getTaskTodos(taskId),
-    enabled: enabled && taskId > 0,
+    enabled: enabled && taskId > 0 && isSuccess,
+    queryFn: () => ApiService.getTaskTodos(jwt!, taskId),
     staleTime: 5 * 60 * 1000,           // 5 min
     refetchInterval: () => {
       // Stop polling if task is in terminal state
@@ -70,12 +82,16 @@ export const useTaskTodosQuery = (taskId: number, taskStatus?: string, enabled: 
     },
     refetchIntervalInBackground: true,
   })
+}
 
 /* CREATE */
 export const useCreateTaskMutation = () => {
   const qc = useQueryClient()
+  const { data: jwt } = useBackendJwtQuery()
+  
   return useMutation({
-    mutationFn: ApiService.createTask,
+    mutationFn: (task: Parameters<typeof ApiService.createTask>[1]) => 
+      ApiService.createTask(jwt!, task),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }

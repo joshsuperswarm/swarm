@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ApiService } from "@/services/api";
+import { useBackendApi } from "@/services/auth";
 import { VirtualisedLogViewer } from "@/components/VirtualisedLogViewer";
 
 interface TaskLog {
@@ -25,6 +26,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogIdRef = useRef<number | null>(null);
   const rawLogsRef = useRef<TaskLog[]>([]);
+  const api = useBackendApi();
 
   const copyLogsToClipboard = useCallback(async () => {
     try {
@@ -60,7 +62,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
     }
     
     try {
-      const data = await ApiService.getTaskLogs(taskId, since);
+      const data = await api(token => ApiService.getTaskLogs(token, taskId, since));
       const newLogs = data.logs || [];
 
       if (since) {
@@ -120,7 +122,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
       setIsLoading(false);
       setIsPolling(false);
     }
-  }, [taskId, taskStatus, formatLogs, taskCompleted]);
+  }, [taskId, taskStatus, formatLogs, taskCompleted, api]);
 
   useEffect(() => {
     // Check if task is in finished state

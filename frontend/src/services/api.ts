@@ -1,5 +1,4 @@
 // API service for backend communication
-import { getBackendJwt } from "@/lib/authToken";
 import type { AgentTodo } from "@/types/generated/AgentTodo";
 import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks";
 import type { Task } from "@/types/generated/Task";
@@ -26,65 +25,51 @@ interface TaskLog {
   created_at: string | null;
 }
 
-export class ApiService {
-  private static async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${API_URL}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
-        ...options,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
-      throw error;
-    }
-  }
-
-  private static async authenticatedRequest<T>(
-    endpoint: string,
-    options?: RequestInit
-  ): Promise<T> {
-    const token = getBackendJwt();
-    if (!token) throw new Error("Missing backend JWT");
-    return ApiService.request<T>(endpoint, {
-      ...options,
+async function request<T>(endpoint: string, { token, ...init }: RequestInit & { token?: string }): Promise<T> {
+  const url = `${API_URL}${endpoint}`;
+  
+  try {
+    const response = await fetch(url, {
+      ...init,
       headers: {
-        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        ...options?.headers,
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...init.headers,
       },
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error(`API request failed for ${endpoint}:`, error);
+    throw error;
   }
+}
+
+export class ApiService {
 
   // Public endpoints
   static async healthCheck(): Promise<HealthResponse> {
-    return ApiService.request<HealthResponse>('/health');
+    return request<HealthResponse>('/health', {});
   }
 
   // Authenticated endpoints
-  static async getUserProfile(): Promise<UserWithDefaultRepo> {
-    return ApiService.authenticatedRequest<UserWithDefaultRepo>('/api/user/profile');
+  static async getUserProfile(token: string): Promise<UserWithDefaultRepo> {
+    return request<UserWithDefaultRepo>('/api/user/profile', { token });
   }
 
-  static async getUserRepositories(): Promise<{ repositories: RepositoryWithTasks[]; count: number; message?: string }> {
-    return ApiService.authenticatedRequest('/api/user/repos');
+  static async getUserRepositories(token: string): Promise<{ repositories: RepositoryWithTasks[]; count: number; message?: string }> {
+    return request('/api/user/repos', { token });
   }
 
-  static async getTasks(): Promise<{ tasks: Task[]; count: number; user_id: number }> {
-    return ApiService.authenticatedRequest('/api/tasks');
+  static async getTasks(token: string): Promise<{ tasks: Task[]; count: number; user_id: number }> {
+    return request('/api/tasks', { token });
   }
 
-  static async createTask(task: CreateTaskRequest): Promise<{ success: boolean; task: Task }> {
+  static async createTask(token: string, task: CreateTaskRequest): Promise<{ success: boolean; task: Task }> {
     // Client-side validation
     if (!task.title.trim()) {
       throw new Error('Title cannot be empty');
@@ -97,43 +82,46 @@ export class ApiService {
       description: task.description?.trim() || undefined,
     };
     
-    return ApiService.authenticatedRequest('/api/tasks', {
+    return request('/api/tasks', {
+      token,
       method: 'POST',
       body: JSON.stringify(sanitized),
     });
   }
 
-  static async setDefaultRepository(repositoryId: number | null): Promise<{ success: boolean }> {
-    return ApiService.authenticatedRequest('/api/user/default-repo', {
+  static async setDefaultRepository(token: string, repositoryId: number | null): Promise<{ success: boolean }> {
+    return request('/api/user/default-repo', {
+      token,
       method: 'POST',
       body: JSON.stringify({ repository_id: repositoryId }),
     });
   }
 
-  static async setGithubToken(access_token: string): Promise<{ success: boolean }> {
-    return ApiService.authenticatedRequest("/api/auth/github-token", {
+  static async setGithubToken(token: string, access_token: string): Promise<{ success: boolean }> {
+    return request("/api/auth/github-token", {
+      token,
       method: "POST",
       body: JSON.stringify({ access_token }),
-      headers: { "Content-Type": "application/json" },
     });
   }
 
-  static async connectGitHub(): Promise<{ success: boolean; error?: string; message?: string }> {
-    return ApiService.authenticatedRequest("/api/auth/github/connect", {
+  static async connectGitHub(token: string): Promise<{ success: boolean; error?: string; message?: string }> {
+    return request("/api/auth/github/connect", {
+      token,
       method: "POST",
     });
   }
 
-  static async getTaskLogs(taskId: number, sinceId?: number): Promise<{ logs: TaskLog[]; task_id: number; count: number }> {
+  static async getTaskLogs(token: string, taskId: number, sinceId?: number): Promise<{ logs: TaskLog[]; task_id: number; count: number }> {
     const url = sinceId 
       ? `/api/tasks/${taskId}/logs?since=${sinceId}`
       : `/api/tasks/${taskId}/logs`;
     
-    return ApiService.authenticatedRequest(url);
+    return request(url, { token });
   }
 
-  static async getTaskTodos(taskId: number): Promise<AgentTodo[]> {
-    const response = await ApiService.authenticatedRequest<{ task_id: number; todos: AgentTodo[]; count: number }>(`/api/tasks/${taskId}/todos`);
+  static async getTaskTodos(token: string, taskId: number): Promise<AgentTodo[]> {
+    const response = await request<{ task_id: number; todos: AgentTodo[]; count: number }>(`/api/tasks/${taskId}/todos`, { token });
     return response.todos;
   }
 }

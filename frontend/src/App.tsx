@@ -5,17 +5,18 @@ import { Layout } from './components/Layout'
 import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService } from './services/api'
-import { setBackendJwt } from '@/lib/authToken'
+import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useCreateTaskMutation } from '@/services/queries'
 import './App.css'
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const { isSignedIn, getToken, isLoaded } = useAuth()
+  const { isSignedIn, isLoaded } = useAuth()
   const { user } = useUser()
   const { loadUserProfile, clearUserProfile } = useUserStore()
   const createTask = useCreateTaskMutation()
+  const api = useBackendApi()
 
   const handleTaskCreated = async (taskData: {
     title: string;
@@ -61,31 +62,26 @@ function App() {
   useEffect(() => {
     (async () => {
       if (!isSignedIn || !user) {
-        // Clear JWT and user data when signed out
-        setBackendJwt(null)
+        // Clear user data when signed out
         clearUserProfile()
         return
       }
 
       try {
-        // 1. Save Clerk session JWT for later API calls
-        const jwt = await getToken()
-        setBackendJwt(jwt ?? null)
-
-        // 2. Try to connect GitHub via backend (uses Clerk Management API)
+        // Try to connect GitHub via backend (uses Clerk Management API)
         try {
           const githubAccount = user.externalAccounts?.find(account => account.provider === 'github')
           console.log('GitHub account found:', !!githubAccount)
           
           if (githubAccount) {
             console.log('→ Connecting GitHub via backend...')
-            await ApiService.connectGitHub()
+            await api(token => ApiService.connectGitHub(token))
             console.log('✓ GitHub token retrieved and cached successfully')
 
-            // 2.5. Fetch user repositories from GitHub and cache them
+            // Fetch user repositories from GitHub and cache them
             console.log('→ Fetching user repositories...')
             try {
-              const repoResponse = await ApiService.getUserRepositories()
+              const repoResponse = await api(token => ApiService.getUserRepositories(token))
               console.log(`✓ Fetched ${repoResponse.count} repositories from GitHub`)
             } catch (repoError) {
               console.log('⚠ Could not fetch repositories:', repoError)
@@ -98,15 +94,15 @@ function App() {
           console.log('Will fall back to demo repositories')
         }
 
-        // 3. Load user profile data for global access
+        // Load user profile data for global access
         console.log('→ Loading user profile...')
-        await loadUserProfile()
+        await api(token => loadUserProfile(token))
         console.log('✓ User profile loaded and cached')
       } catch (error) {
         console.error('✗ Failed to handle authentication:', error)
       }
     })()
-  }, [isSignedIn, getToken, user, loadUserProfile, clearUserProfile])
+  }, [isSignedIn, user, loadUserProfile, clearUserProfile, api])
 
   // Global hotkey to close create task modal
   useHotkeys('esc', () => {
