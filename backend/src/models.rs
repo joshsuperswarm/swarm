@@ -55,6 +55,22 @@ pub fn _force_ts_generation() {
         created_at: None,
         last_fetched_at: None,
     };
+    let _: Run = Run {
+        id: 0,
+        task_id: 0,
+        sandbox_id: None,
+        sandbox_hostname: None,
+        session_id: None,
+        command_id: None,
+        branch: None,
+        status: None,
+        commit_title: None,
+        commit_body: None,
+        pr_title: None,
+        pr_body: None,
+        created_at: None,
+        updated_at: None,
+    };
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,6 +167,40 @@ pub struct CreateTask {
     pub repository_id: i32,
     pub title: String,
     pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
+pub struct Run {
+    pub id: i32,
+    pub task_id: i32,
+    pub sandbox_id: Option<String>,
+    pub sandbox_hostname: Option<String>,
+    pub session_id: Option<String>,
+    pub command_id: Option<String>,
+    pub branch: Option<String>,
+    pub status: Option<String>,
+    pub commit_title: Option<String>,
+    pub commit_body: Option<String>,
+    pub pr_title: Option<String>,
+    pub pr_body: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRun {
+    pub task_id: i32,
+    pub sandbox_id: Option<String>,
+    pub sandbox_hostname: Option<String>,
+    pub session_id: Option<String>,
+    pub command_id: Option<String>,
+    pub branch: Option<String>,
+    pub status: Option<String>,
+    pub commit_title: Option<String>,
+    pub commit_body: Option<String>,
+    pub pr_title: Option<String>,
+    pub pr_body: Option<String>,
 }
 
 // Response models for API
