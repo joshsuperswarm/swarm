@@ -55,7 +55,7 @@ export class ApiService {
   ): Promise<T> {
     const token = getBackendJwt();
     if (!token) throw new Error("Missing backend JWT");
-    return this.request<T>(endpoint, {
+    return ApiService.request<T>(endpoint, {
       ...options,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -67,20 +67,20 @@ export class ApiService {
 
   // Public endpoints
   static async healthCheck(): Promise<HealthResponse> {
-    return this.request<HealthResponse>('/health');
+    return ApiService.request<HealthResponse>('/health');
   }
 
   // Authenticated endpoints
   static async getUserProfile(): Promise<UserWithDefaultRepo> {
-    return this.authenticatedRequest<UserWithDefaultRepo>('/api/user/profile');
+    return ApiService.authenticatedRequest<UserWithDefaultRepo>('/api/user/profile');
   }
 
   static async getUserRepositories(): Promise<{ repositories: RepositoryWithTasks[]; count: number; message?: string }> {
-    return this.authenticatedRequest('/api/user/repos');
+    return ApiService.authenticatedRequest('/api/user/repos');
   }
 
   static async getTasks(): Promise<{ tasks: Task[]; count: number; user_id: number }> {
-    return this.authenticatedRequest('/api/tasks');
+    return ApiService.authenticatedRequest('/api/tasks');
   }
 
   static async createTask(task: CreateTaskRequest): Promise<{ success: boolean; task: Task }> {
@@ -96,21 +96,21 @@ export class ApiService {
       description: task.description?.trim() || undefined,
     };
     
-    return this.authenticatedRequest('/api/tasks', {
+    return ApiService.authenticatedRequest('/api/tasks', {
       method: 'POST',
       body: JSON.stringify(sanitized),
     });
   }
 
   static async setDefaultRepository(repositoryId: number | null): Promise<{ success: boolean }> {
-    return this.authenticatedRequest('/api/user/default-repo', {
+    return ApiService.authenticatedRequest('/api/user/default-repo', {
       method: 'POST',
       body: JSON.stringify({ repository_id: repositoryId }),
     });
   }
 
   static async setGithubToken(access_token: string): Promise<{ success: boolean }> {
-    return this.authenticatedRequest("/api/auth/github-token", {
+    return ApiService.authenticatedRequest("/api/auth/github-token", {
       method: "POST",
       body: JSON.stringify({ access_token }),
       headers: { "Content-Type": "application/json" },
@@ -118,7 +118,7 @@ export class ApiService {
   }
 
   static async connectGitHub(): Promise<{ success: boolean; error?: string; message?: string }> {
-    return this.authenticatedRequest("/api/auth/github/connect", {
+    return ApiService.authenticatedRequest("/api/auth/github/connect", {
       method: "POST",
     });
   }
@@ -128,6 +128,6 @@ export class ApiService {
       ? `/api/tasks/${taskId}/logs?since=${sinceId}`
       : `/api/tasks/${taskId}/logs`;
     
-    return this.authenticatedRequest(url);
+    return ApiService.authenticatedRequest(url);
   }
 }
