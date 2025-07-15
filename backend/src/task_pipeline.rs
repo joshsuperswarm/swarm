@@ -180,8 +180,16 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
         .to_string();
 
     // Update task status to spinning immediately before sending request to modal
-    if let Err(e) = app_state.database.update_task_status(task.id, "spinning", None).await {
-        tracing::error!("Failed to update task {} status to spinning: {}", task.id, e);
+    if let Err(e) = app_state
+        .database
+        .update_task_status(task.id, "spinning", None)
+        .await
+    {
+        tracing::error!(
+            "Failed to update task {} status to spinning: {}",
+            task.id,
+            e
+        );
     } else {
         tracing::info!("task {} → spinning", task.id);
     }
