@@ -683,12 +683,26 @@ async def install_claude_code(sandbox_id: str):
 async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     """
     ▸ New flow:
-      1.  printf-write the prompt to /home/swarm/tmp/<uuid>.txt
-      2.  launch claude reading < prompt.txt
+      1.  Create Claude prompt with artifact markers
+      2.  Write prompt to /home/swarm/tmp/<uuid>.txt
+      3.  Launch claude reading < prompt.txt
     """
     sb = get_sb(sandbox_id)
 
-    # -------- 1.  write prompt file -----------------------------------------
+    # -------- 1.  Create the Claude prompt with artifact markers ------------
+    claude_prompt = f"""Please work on this task {req.task_id}: {req.prompt}.
+
+After completing the task, you MUST output the following markers in this exact format:
+
+COMMIT_MESSAGE_TITLE: Your commit title here
+COMMIT_MESSAGE_BODY: Your detailed commit message body here
+PR_TITLE: Your pull request title here
+PR_BODY: Your detailed pull request description here
+DONE
+
+The system requires these markers to automatically generate commit messages and pull requests. Without them, the task will fail."""
+
+    # -------- 2.  write prompt file -----------------------------------------
     prompt_id   = str(uuid.uuid4())
     prompt_dir  = "/home/swarm/tmp"
     prompt_path = f"{prompt_dir}/{prompt_id}.txt"
@@ -696,7 +710,7 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     # make sure tmp dir exists (idempotent, fast)
     sb.exec("mkdir", "-p", prompt_dir).wait()
 
-    b64_prompt = base64.b64encode(req.prompt.encode()).decode()
+    b64_prompt = base64.b64encode(claude_prompt.encode()).decode()
     write_cmd = f"echo {shlex.quote(b64_prompt)} | base64 -d > {shlex.quote(prompt_path)}"
     write_result = sb.exec("bash", "-c", write_cmd).wait()
     if write_result == 0:
@@ -704,7 +718,7 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     else:
         logger.error("Failed to write prompt to %s (exit code: %d)", prompt_path, write_result)
 
-    # -------- 2.  build environment -----------------------------------------
+    # -------- 3.  build environment -----------------------------------------
     env_pairs = {
         "GITHUB_TOKEN":       req.github_token,
         "ANTHROPIC_API_KEY":  req.anthropic_api_key,
@@ -720,7 +734,7 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
         f"export {k}={shlex.quote(v)}" for k, v in env_pairs.items()
     )
 
-    # -------- 3.  craft final command ---------------------------------------
+    # -------- 4.  craft final command ---------------------------------------
     shell_script = textwrap.dedent(f"""
         {env_setup}
         export PATH="/home/swarm/.local/bin:/home/swarm/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
