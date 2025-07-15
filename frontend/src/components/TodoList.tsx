@@ -8,9 +8,9 @@ interface TodoListProps {
 
 // Status icons mapping
 const statusIcons = {
-  pending: "⏳",
-  in_progress: "🔄", 
-  completed: "✅",
+  pending: "○",
+  in_progress: "→", 
+  completed: "✓",
 } as const;
 
 export function TodoList({ todos, loading }: TodoListProps) {
