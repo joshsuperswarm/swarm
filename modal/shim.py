@@ -739,7 +739,7 @@ The system requires these markers to automatically generate commit messages and 
         {env_setup}
         export PATH="/home/swarm/.local/bin:/home/swarm/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
         cd {shlex.quote(req.repo_path)}
-        claude --dangerously-skip-permissions --verbose --output-format stream-json < {shlex.quote(prompt_path)}
+        cat {shlex.quote(prompt_path)} | claude -p --dangerously-skip-permissions --verbose --output-format stream-json
     """)
 
     logger.info(f"Executing Claude Code for task {req.task_id} in repo {req.repo_path}")
