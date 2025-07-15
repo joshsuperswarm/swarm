@@ -1,13 +1,17 @@
 import React, {
   useState,
   useMemo,
+  useEffect,
 } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useQueryClient } from "@tanstack/react-query";
+import { useBackendJwtQuery } from "@/services/auth";
 import { useNavigate } from "react-router-dom";
 import type { Task } from "@/types";
 import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
 import { useTasksQuery } from "@/services/queries";
+import { ApiService } from "@/services/api";
 
 
 // Memoize DataTable outside component to ensure stable reference
@@ -26,6 +30,32 @@ export function TasksPage() {
   const navigate = useNavigate();
   const { data: tasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  /* ✨ warm the cache for the first N tasks so detail pages feel instant */
+  const qc = useQueryClient();
+  const { data: jwt } = useBackendJwtQuery();
+
+  useEffect(() => {
+    if (!jwt || tasks.length === 0) return;
+
+    const prefetchCount = 20;                // <= tweak if desired
+    tasks.slice(0, prefetchCount).forEach((t) => {
+      // prime simple task lookup
+      qc.setQueryData(['task', t.id], t);
+
+      // prefetch todos + logs in background (non‑blocking)
+      qc.prefetchQuery({
+        queryKey: ['task-todos', t.id],
+        queryFn: () => ApiService.getTaskTodos(jwt, t.id),
+        staleTime: 5 * 60 * 1000,
+      });
+      qc.prefetchQuery({
+        queryKey: ['task-logs', t.id],
+        queryFn: () => ApiService.getTaskLogs(jwt, t.id).then(r => r.logs),
+        staleTime: Infinity,
+      });
+    });
+  }, [tasks, jwt, qc]);
 
   // Keep selectedIndex within bounds when tasks change
   React.useEffect(() => {

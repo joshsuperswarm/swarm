@@ -2,6 +2,8 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ApiService } from "@/services/api";
 import { useBackendApi } from "@/services/auth";
 import { VirtualisedLogViewer } from "@/components/VirtualisedLogViewer";
+import { useTaskLogsQuery } from "@/services/queries";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface TaskLog {
   id: number;
@@ -17,16 +19,21 @@ interface TaskLogViewerProps {
 
 const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus }) => {
   console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
-  const [logs, setLogs] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  /* pull any prefetched logs from React Query – instant render */
+  const { data: prefetchedLogs = [], isLoading: prefetchLoading } = useTaskLogsQuery(taskId);
+
+  const [logs, setLogs] = useState<string[]>(prefetchedLogs.map(l => l.log_line)); // will be prettified below
+  const [isLoading, setIsLoading] = useState(prefetchLoading && prefetchedLogs.length === 0);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [taskCompleted, setTaskCompleted] = useState(false);
   const [showPretty, setShowPretty] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogIdRef = useRef<number | null>(null);
-  const rawLogsRef = useRef<TaskLog[]>([]);
+  const rawLogsRef = useRef<TaskLog[]>(prefetchedLogs as unknown as TaskLog[]);
   const api = useBackendApi();
+  const queryClient = useQueryClient();
 
   const copyLogsToClipboard = useCallback(async () => {
     try {
@@ -86,6 +93,9 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
         lastLogIdRef.current = 0;
       }
 
+      /* keep React Query cache up‑to‑date so other views reuse */
+      queryClient.setQueryData(['task-logs', taskId], rawLogsRef.current);
+
       // Check if task is in finished state based on status prop
       const isFinished = taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus);
       
@@ -122,7 +132,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
       setIsLoading(false);
       setIsPolling(false);
     }
-  }, [taskId, taskStatus, formatLogs, taskCompleted, api]);
+  }, [taskId, taskStatus, formatLogs, taskCompleted, api, queryClient]);
 
   useEffect(() => {
     // Check if task is in finished state
@@ -150,12 +160,10 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   }, [taskId, taskStatus, fetchLogs, taskCompleted]);
 
 
-  // Update logs when showPretty changes
+  // Update logs when showPretty *or* prefetched update
   useEffect(() => {
-    if (rawLogsRef.current.length > 0) {
-      setLogs(formatLogs(rawLogsRef.current));
-    }
-  }, [showPretty, formatLogs]);
+    setLogs(formatLogs(rawLogsRef.current));
+  }, [showPretty, formatLogs, prefetchedLogs]);
 
   // Stop polling when task is completed or in finished state
   useEffect(() => {

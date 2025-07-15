@@ -9,9 +9,10 @@ export const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000,   // 5 min – instant render until then
       gcTime: 30 * 60 * 1000,     // 30 min in memory (renamed from cacheTime)
       refetchOnWindowFocus: false,
-      retry: (failureCount, error: any) => {
+      retry: (failureCount, error: unknown) => {
         // Don't retry 404 errors
-        if (error?.message?.includes('404') || error?.status === 404) {
+        const errorAny = error as { message?: string; status?: number };
+        if (errorAny?.message?.includes('404') || errorAny?.status === 404) {
           return false;
         }
         // Default retry logic for other errors (max 3 times)
@@ -76,6 +77,19 @@ export const useTaskTodosQuery = (taskId: number, taskStatus?: string, enabled: 
       return isTerminal ? false : 5 * 1000; // 5 seconds if not terminal
     },
     refetchIntervalInBackground: true,
+  })
+}
+
+/* TASK LOGS (single fetch – reused everywhere) */
+export const useTaskLogsQuery = (taskId: number, enabled: boolean = true) => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+
+  return useQuery({
+    queryKey: ['task-logs', taskId],
+    enabled: enabled && taskId > 0 && isSuccess,
+    queryFn: () => ApiService.getTaskLogs(jwt!, taskId).then(r => r.logs),
+    staleTime: Infinity,       // never considered stale – they don't change retroactively
+    gcTime: 30 * 60 * 1000, // keep 30 min in memory
   })
 }
 
