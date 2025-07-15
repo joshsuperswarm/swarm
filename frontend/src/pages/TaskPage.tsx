@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
 import ReactMarkdown from 'react-markdown';
@@ -20,6 +20,9 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  
+  // Hide log viewer until the user opts in
+  const [logsVisible, setLogsVisible] = useState(false);
   
   // Parse and validate the task ID
   const taskId = id ? Number(id) : 0;
@@ -152,7 +155,9 @@ export function TaskPage() {
   }
 
   const status = statuses.find((s) => s.value === liveTask.status);
-  const showLogs = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(liveTask.status ?? '');
+  const showLogsEligible = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(
+    liveTask.status ?? ''
+  );
 
   return (
     <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
@@ -235,9 +240,25 @@ export function TaskPage() {
       <TodoList todos={todos} loading={isLoadingTodos} />
 
       {/* Live Logs */}
-      {showLogs && (
+      {showLogsEligible && (
         <div className="space-y-3 mb-6">
-          <TaskLogViewer taskId={liveTask.id} taskStatus={liveTask.status || undefined} />
+          {!logsVisible ? (
+            <Button size="sm" onClick={() => setLogsVisible(true)}>
+              Show logs
+            </Button>
+          ) : (
+            <>
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setLogsVisible(false)}>
+                  Hide logs
+                </Button>
+              </div>
+              <TaskLogViewer
+                taskId={liveTask.id}
+                taskStatus={liveTask.status || undefined}
+              />
+            </>
+          )}
         </div>
       )}
 
