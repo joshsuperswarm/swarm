@@ -50,7 +50,7 @@ export function TodoList({ todos, loading }: TodoListProps) {
                 )}
               >
                 <div className="flex-shrink-0 text-sm">
-                  {statusIcons[todo.status]}
+                  {statusIcons[todo.status as keyof typeof statusIcons] || "○"}
                 </div>
                 
                 <div className="flex-1 min-w-0">
