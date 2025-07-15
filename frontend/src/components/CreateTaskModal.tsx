@@ -3,13 +3,11 @@ import { X } from 'lucide-react';
 import { useUserStore } from '@/store/userStore';
 
 interface CreateTaskData {
-  title: string;
-  description: string | undefined;
+  description: string;
   repositoryId: number | null;
 }
 
 interface CreateTaskFormData {
-  title: string;
   description: string;
   repositoryId: number | null;
 }
@@ -27,13 +25,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   onCreateTask 
 }) => {
   const [formData, setFormData] = useState<CreateTaskFormData>({
-    title: '',
     description: '',
     repositoryId: null
   });
   
   const [loading, setLoading] = useState(false);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   
   // Get user data from store instead of fetching on every modal open
@@ -49,12 +46,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     }
   }, [isOpen, user]);
 
-  // Auto-focus title input when modal opens
+  // Auto-focus description input when modal opens
   useEffect(() => {
-    if (isOpen && titleInputRef.current) {
+    if (isOpen && descriptionInputRef.current) {
       // Small delay to ensure modal is fully rendered
       setTimeout(() => {
-        titleInputRef.current?.focus();
+        descriptionInputRef.current?.focus();
       }, 100);
     }
   }, [isOpen]);
@@ -102,13 +99,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title.trim() || !formData.repositoryId) return;
+    if (!formData.description.trim() || !formData.repositoryId) return;
 
-    // Sanitize data: trim title and convert empty description to undefined
+    // Sanitize data: trim description
     const sanitizedData: CreateTaskData = {
       ...formData,
-      title: formData.title.trim(),
-      description: formData.description.trim() || undefined,
+      description: formData.description.trim(),
     };
 
     setLoading(true);
@@ -116,7 +112,6 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
     // Reset form
     setFormData({
-      title: '',
       description: '',
       repositoryId: null
     });
@@ -168,23 +163,15 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           )}
 
           <div className="space-y-1">
-            <input
-              ref={titleInputRef}
-              id="title"
-              type="text"
-              required
-              value={formData.title}
-              onChange={handleChange('title')}
-              className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none border-b border-gray-200 focus:border-gray-400"
-              placeholder="Issue title"
-            />
             <textarea
+              ref={descriptionInputRef}
               id="description"
+              required
               value={formData.description}
               onChange={handleChange('description')}
-              rows={2}
+              rows={3}
               className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none border-b border-gray-200 focus:border-gray-400 resize-none"
-              placeholder="Add description..."
+              placeholder="Describe the task..."
             />
           </div>
 
@@ -192,7 +179,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           <div className="flex justify-end pt-1">
             <button
               type="submit"
-              disabled={loading || !user?.default_repo || !formData.title.trim()}
+              disabled={loading || !user?.default_repo || !formData.description.trim()}
               className="px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
             >
               {loading ? 'Creating...' : 'Create Task'}

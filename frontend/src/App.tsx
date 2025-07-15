@@ -19,8 +19,7 @@ function App() {
   const api = useBackendApi()
 
   const handleTaskCreated = async (taskData: {
-    title: string;
-    description: string | undefined;
+    description: string;
     repositoryId: number | null;
   }) => {
     try {
@@ -30,7 +29,6 @@ function App() {
       }
 
       await createTask.mutateAsync({
-        title: taskData.title,
         description: taskData.description,
         repository_id: taskData.repositoryId,
       });
