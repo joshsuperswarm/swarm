@@ -208,17 +208,19 @@ export function TaskPage() {
         
         {liveTask.github_pr_url && (
           <div className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Pull Request
-            </span>
-            <a 
-              href={liveTask.github_pr_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline"
-            >
-              View on GitHub
-            </a>
+            </div>
+            <div>
+              <a 
+                href={liveTask.github_pr_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline block"
+              >
+                View on GitHub
+              </a>
+            </div>
           </div>
         )}
         
