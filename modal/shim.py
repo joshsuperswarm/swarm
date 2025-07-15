@@ -5,6 +5,8 @@ import uuid
 import time
 import logging
 import threading
+import shlex
+import textwrap
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -538,6 +540,9 @@ async def terminate_sandbox(sandbox_id: str):
         if sandbox_id in PROCS:
             del PROCS[sandbox_id]
 
+        # wipe temp prompt files (best-effort)
+        sb.exec("rm", "-f", "/home/swarm/tmp/*.txt").wait()
+
         logger.info(f"Terminated sandbox {sandbox_id}")
         return {"message": "Sandbox terminated"}
 
@@ -654,64 +659,55 @@ async def install_claude_code(sandbox_id: str):
 
 @app.post("/sandboxes/{sandbox_id}/exec_claude_code", response_model=ExecResp)
 async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
-    """Execute Claude Code with the given task prompt and environment setup."""
-    try:
-        logger.info(f"Executing Claude Code in sandbox {sandbox_id} for task {req.task_id}")
+    """
+    ▸ New flow:
+      1.  printf-write the prompt to /home/swarm/tmp/<uuid>.txt
+      2.  launch claude reading < prompt.txt
+    """
+    sb = get_sb(sandbox_id)
 
-        # Create the Claude prompt with artifact markers
-        claude_prompt = f"""Please work on this task {req.task_id}: {req.prompt}.
+    # -------- 1.  write prompt file -----------------------------------------
+    prompt_id   = str(uuid.uuid4())
+    prompt_dir  = "/home/swarm/tmp"
+    prompt_path = f"{prompt_dir}/{prompt_id}.txt"
 
-After completing the task, you MUST output the following markers in this exact format:
+    # make sure tmp dir exists (idempotent, fast)
+    sb.exec("mkdir", "-p", prompt_dir).wait()
 
-COMMIT_MESSAGE_TITLE: Your commit title here
-COMMIT_MESSAGE_BODY: Your detailed commit message body here
-PR_TITLE: Your pull request title here
-PR_BODY: Your detailed pull request description here
-DONE
+    escaped = req.prompt.replace("'", r"\'")          # POSIX-safe
+    write_cmd = f"printf %s {escaped} > {prompt_path}"
+    sb.exec("bash", "-c", write_cmd).wait()
+    logger.info("Prompt written to %s", prompt_path)
 
-The system requires these markers to automatically generate commit messages and pull requests. Without them, the task will fail."""
+    # -------- 2.  build environment -----------------------------------------
+    env_pairs = {
+        "GITHUB_TOKEN":       req.github_token,
+        "ANTHROPIC_API_KEY":  req.anthropic_api_key,
+        "SWARM_TASK_ID":      str(req.task_id),
+        "SWARM_BRANCH":       req.branch,
+        "GIT_AUTHOR_NAME":    req.author_name,
+        "GIT_AUTHOR_EMAIL":   req.author_email,
+    }
+    if req.openai_api_key:
+        env_pairs["OPENAI_API_KEY"] = req.openai_api_key
 
-        # Build environment variables
-        env_vars = {
-            'GITHUB_TOKEN': req.github_token,
-            'ANTHROPIC_API_KEY': req.anthropic_api_key,
-            'SWARM_BRANCH': req.branch,
-            'SWARM_TASK_ID': str(req.task_id),
-            'GIT_AUTHOR_NAME': req.author_name,
-            'GIT_AUTHOR_EMAIL': req.author_email
-        }
+    env_setup = " && ".join(
+        f"export {k}={shlex.quote(v)}" for k, v in env_pairs.items()
+    )
 
-        if req.openai_api_key:
-            env_vars['OPENAI_API_KEY'] = req.openai_api_key
+    # -------- 3.  craft final command ---------------------------------------
+    shell_script = textwrap.dedent(f"""
+        {env_setup}
+        export PATH="/home/swarm/.local/bin:/home/swarm/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
+        cd {shlex.quote(req.repo_path)}
+        claude -p "" --dangerously-skip-permissions --verbose --output-format stream-json < {shlex.quote(prompt_path)}
+    """)
 
-        # Create environment setup command
-        env_setup = " && ".join([f"export {key}='{value}'" for key, value in env_vars.items()])
-
-        # Write prompt to a temporary file and pipe it to claude
-        prompt_setup = f'''
-            {env_setup} && \
-            export PATH="$HOME/.local/bin:$PATH" && \
-            cd "{req.repo_path}" && \
-            cat > /tmp/claude_prompt_{req.task_id}.txt << 'PROMPT_EOF'
-{claude_prompt}
-PROMPT_EOF
-            cat /tmp/claude_prompt_{req.task_id}.txt | claude -p "" \
-                --dangerously-skip-permissions \
-                --verbose \
-                --output-format stream-json && \
-            rm -f /tmp/claude_prompt_{req.task_id}.txt
-        '''
-
-        exec_req = ExecReq(
-            cmd=["bash", "-c", prompt_setup],
-            cwd=req.repo_path
-        )
-
-        return await exec_command(sandbox_id, exec_req)
-
-    except Exception as e:
-        logger.error(f"Failed to execute Claude Code: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to execute Claude Code: {str(e)}")
+    exec_req = ExecReq(
+        cmd=["bash", "-c", shell_script],
+        cwd=req.repo_path          # still needed for container
+    )
+    return await exec_command(sandbox_id, exec_req)
 
 @app.post("/sandboxes/{sandbox_id}/push_changes_advanced", response_model=ExecResp)
 async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
