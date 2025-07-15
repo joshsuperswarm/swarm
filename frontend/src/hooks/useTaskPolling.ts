@@ -30,7 +30,11 @@ export function useTaskPolling(task: Task | null, interval = 2000) {
     };
     poll();                                     // immediate hit
     timer.current = setInterval(poll, interval);
-    return () => timer.current && clearInterval(timer.current);
+    return () => {
+      if (timer.current) {
+        clearInterval(timer.current);
+      }
+    };
   }, [task, interval]);
 
   return latest;
