@@ -7,6 +7,7 @@ import logging
 import threading
 import shlex
 import textwrap
+import base64
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -103,6 +104,8 @@ def _tail_process_output(proc, key):
         try:
             for line in proc.stdout:
                 LOG_BUFFERS[key]["stdout"].append(line)
+                # Print all stdout lines in real-time
+                logger.info(f"[{key[0][:8]}:{key[1][:8]}] STDOUT: {line.rstrip()}")
             # Signal completion when iterator is exhausted
             stdout_complete.set()
             logger.debug(f"Stdout consumption complete for {key}")
@@ -114,6 +117,8 @@ def _tail_process_output(proc, key):
         try:
             for line in proc.stderr:
                 LOG_BUFFERS[key]["stderr"].append(line)
+                # Print all stderr lines in real-time
+                logger.error(f"[{key[0][:8]}:{key[1][:8]}] STDERR: {line.rstrip()}")
             # Signal completion when iterator is exhausted
             stderr_complete.set()
             logger.debug(f"Stderr consumption complete for {key}")
@@ -366,6 +371,8 @@ async def exec_command(sandbox_id: str, req: ExecReq):
         # Build the command to run as swarm user
         cmd_str = ' '.join(f"'{part}'" for part in cmd_parts)
 
+        logger.info(f"Executing command in sandbox {sandbox_id}: {' '.join(req.cmd)} (cwd: {workdir})")
+
         proc = sb.exec(
             "su", "-", "swarm", "-c", f"cd {workdir} && {cmd_str}",
             stdout=StreamType.PIPE,
@@ -385,7 +392,19 @@ async def exec_command(sandbox_id: str, req: ExecReq):
             "output_fully_consumed": False
         }
 
-        logger.info(f"Executed command in sandbox {sandbox_id}: {' '.join(req.cmd)}")
+        # Check for immediate command failure
+        time.sleep(0.1)  # Brief pause to allow immediate failures to be detected
+        exit_code = proc.poll()
+        if exit_code is not None:
+            logger.error(f"Command failed immediately with exit code {exit_code}: {' '.join(req.cmd)}")
+            # Give a moment for any error output to be captured
+            time.sleep(0.5)
+            # Log any captured stderr immediately
+            current_stderr = "".join(LOG_BUFFERS[buffer_key]["stderr"])
+            if current_stderr.strip():
+                logger.error(f"Immediate command failure stderr: {current_stderr.strip()}")
+
+        logger.info(f"Command started in sandbox {sandbox_id} with proc_id {proc_id}")
         return ExecResp(proc_id=proc_id)
 
     except Exception as e:
@@ -408,6 +427,9 @@ async def get_exit_code(sandbox_id: str, proc_id: str):
         if exit_code is None:
             # Process still running - return None immediately (no blocking)
             return ExitCodeResp(code=None)
+
+        # Log process completion
+        logger.info(f"Process {proc_id} completed with exit code {exit_code}")
 
         # Process has finished - ensure all output is consumed before returning exit code
         if not proc_info.get("output_fully_consumed", False):
@@ -674,10 +696,13 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     # make sure tmp dir exists (idempotent, fast)
     sb.exec("mkdir", "-p", prompt_dir).wait()
 
-    escaped = req.prompt.replace("'", r"\'")          # POSIX-safe
-    write_cmd = f"printf %s {escaped} > {prompt_path}"
-    sb.exec("bash", "-c", write_cmd).wait()
-    logger.info("Prompt written to %s", prompt_path)
+    b64_prompt = base64.b64encode(req.prompt.encode()).decode()
+    write_cmd = f"echo {shlex.quote(b64_prompt)} | base64 -d > {shlex.quote(prompt_path)}"
+    write_result = sb.exec("bash", "-c", write_cmd).wait()
+    if write_result == 0:
+        logger.info("Prompt written successfully to %s", prompt_path)
+    else:
+        logger.error("Failed to write prompt to %s (exit code: %d)", prompt_path, write_result)
 
     # -------- 2.  build environment -----------------------------------------
     env_pairs = {
@@ -700,8 +725,11 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
         {env_setup}
         export PATH="/home/swarm/.local/bin:/home/swarm/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
         cd {shlex.quote(req.repo_path)}
-        claude -p "" --dangerously-skip-permissions --verbose --output-format stream-json < {shlex.quote(prompt_path)}
+        claude --dangerously-skip-permissions --verbose --output-format stream-json < {shlex.quote(prompt_path)}
     """)
+
+    logger.info(f"Executing Claude Code for task {req.task_id} in repo {req.repo_path}")
+    logger.debug(f"Claude Code shell script:\n{shell_script}")
 
     exec_req = ExecReq(
         cmd=["bash", "-c", shell_script],
