@@ -453,45 +453,50 @@ async def get_logs_once(sandbox_id: str, proc_id: str):
 
 @app.delete("/sandboxes/{sandbox_id}")
 async def terminate_sandbox(sandbox_id: str):
-    """Terminate a sandbox."""
+    """Terminate a sandbox (temporarily no-op)."""
     try:
-        sb = get_sb(sandbox_id)
+        # TEMPORARY NO-OP: Skip actual sandbox termination
+        logger.info(f"Sandbox termination temporarily disabled for {sandbox_id}")
+        return {"message": "Sandbox termination temporarily disabled"}
 
-        # Kill all processes first and clean up logs
-        if sandbox_id in PROCS:
-            for proc_id, proc_info in PROCS[sandbox_id].items():
-                try:
-                    proc = proc_info["proc"] if isinstance(proc_info, dict) else proc_info
-                    if hasattr(proc, 'terminate'):
-                        proc.terminate()
-                    elif hasattr(proc, 'kill'):
-                        proc.kill()
-                except Exception as e:
-                    logger.warning(f"Could not terminate process {proc_id}: {str(e)}")
-
-                # Clean up log buffer for this process
-                _cleanup_process_logs(sandbox_id, proc_id)
-
-        # Terminate the sandbox
-        try:
-            if hasattr(sb, 'terminate'):
-                sb.terminate()
-            elif hasattr(sb, 'close'):
-                sb.close()
-        except Exception as e:
-            logger.warning(f"Could not terminate sandbox: {str(e)}")
-
-        # Clean up from memory
-        if sandbox_id in SANDBOXES:
-            del SANDBOXES[sandbox_id]
-        if sandbox_id in PROCS:
-            del PROCS[sandbox_id]
-
-        # wipe temp prompt files (best-effort)
-        sb.exec("rm", "-f", "/home/swarm/tmp/*.txt").wait()
-
-        logger.info(f"Terminated sandbox {sandbox_id}")
-        return {"message": "Sandbox terminated"}
+        # Original termination code (commented out):
+        # sb = get_sb(sandbox_id)
+        #
+        # # Kill all processes first and clean up logs
+        # if sandbox_id in PROCS:
+        #     for proc_id, proc_info in PROCS[sandbox_id].items():
+        #         try:
+        #             proc = proc_info["proc"] if isinstance(proc_info, dict) else proc_info
+        #             if hasattr(proc, 'terminate'):
+        #                 proc.terminate()
+        #             elif hasattr(proc, 'kill'):
+        #                 proc.kill()
+        #         except Exception as e:
+        #             logger.warning(f"Could not terminate process {proc_id}: {str(e)}")
+        #
+        #         # Clean up log buffer for this process
+        #         _cleanup_process_logs(sandbox_id, proc_id)
+        #
+        # # Terminate the sandbox
+        # try:
+        #     if hasattr(sb, 'terminate'):
+        #         sb.terminate()
+        #     elif hasattr(sb, 'close'):
+        #         sb.close()
+        # except Exception as e:
+        #     logger.warning(f"Could not terminate sandbox: {str(e)}")
+        #
+        # # Clean up from memory
+        # if sandbox_id in SANDBOXES:
+        #     del SANDBOXES[sandbox_id]
+        # if sandbox_id in PROCS:
+        #     del PROCS[sandbox_id]
+        #
+        # # wipe temp prompt files (best-effort)
+        # sb.exec("rm", "-f", "/home/swarm/tmp/*.txt").wait()
+        #
+        # logger.info(f"Terminated sandbox {sandbox_id}")
+        # return {"message": "Sandbox terminated"}
 
     except Exception as e:
         logger.error(f"Failed to terminate sandbox: {str(e)}")
