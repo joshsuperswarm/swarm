@@ -31,8 +31,8 @@ use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use models::{
-    CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS, UserWithDefaultRepo,
-    _force_ts_generation,
+    AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS,
+    UserWithDefaultRepo, _force_ts_generation,
 };
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
@@ -417,6 +417,7 @@ async fn main() -> AppResult<()> {
     // Export the types explicitly
     UserWithDefaultRepo::export().unwrap();
     RepositoryTS::export().unwrap();
+    AgentTodo::export().unwrap();
 
     // Initialize tracing
     tracing_subscriber::fmt()
@@ -492,6 +493,7 @@ async fn main() -> AppResult<()> {
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
         .route("/api/tasks/:id/logs", get(get_task_logs))
+        .route("/api/tasks/:id/todos", get(get_task_todos))
         .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
@@ -1461,5 +1463,39 @@ async fn get_task_logs(
         "logs": string_logs,
         "task_id": task_id,
         "count": string_logs.len()
+    })))
+}
+
+async fn get_task_todos(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+) -> Result<Json<Value>, StatusCode> {
+    // 1. make sure the task belongs to the caller
+    let db_user = get_or_create_user(&app_state.database, &user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let task = app_state
+        .database
+        .get_task_by_id(task_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if task.as_ref().map(|t| t.user_id) != Some(db_user.id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // 2. fetch todos
+    let todos = app_state
+        .database
+        .get_agent_todos(task_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(json!({
+        "task_id": task_id,
+        "todos": todos,
+        "count": todos.len()
     })))
 }
