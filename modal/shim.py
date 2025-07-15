@@ -14,6 +14,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from collections import defaultdict, deque
 from modal.stream_type import StreamType
+from modal_image import image as swarm_dev_img
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -152,11 +153,9 @@ async def create_sandbox(req: CreateSandboxReq):
         # Create unique sandbox ID
         sandbox_id = str(uuid.uuid4())
 
-        # Create Modal sandbox with proper image specification
-        image = modal.Image.debian_slim().pip_install("requests").apt_install("git", "curl", "build-essential", "sudo")
-
+        # Create Modal sandbox using pre-built image with all tools installed
         sb = modal.Sandbox.create(
-            image=image,
+            image=swarm_dev_img,
             workdir="/home/swarm",
             timeout=3600,  # 1 hour timeout
             app=app_modal,
@@ -167,40 +166,8 @@ async def create_sandbox(req: CreateSandboxReq):
         SANDBOXES[sandbox_id] = sb
         PROCS[sandbox_id] = {}
 
-        # Create non-root user 'swarm' for running Claude Code
-        try:
-            logger.info("Creating swarm user for non-root operations")
-
-            # Create the swarm user with home directory
-            user_create_proc = sb.exec("useradd", "-m", "-s", "/bin/bash", "swarm")
-            user_create_exit = user_create_proc.wait()
-            logger.info(f"User creation exit code: {user_create_exit}")
-
-            # Add swarm user to sudo group
-            sudo_proc = sb.exec("usermod", "-aG", "sudo", "swarm")
-            sudo_exit = sudo_proc.wait()
-            logger.info(f"Sudo group addition exit code: {sudo_exit}")
-
-            # Set passwordless sudo for swarm user
-            sudoers_proc = sb.exec("bash", "-c", "echo 'swarm ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers")
-            sudoers_exit = sudoers_proc.wait()
-            logger.info(f"Sudoers configuration exit code: {sudoers_exit}")
-
-            # Create and set ownership of home directory
-            mkdir_proc = sb.exec("mkdir", "-p", "/home/swarm")
-            mkdir_exit = mkdir_proc.wait()
-            logger.info(f"Directory creation exit code: {mkdir_exit}")
-
-            # Change ownership of home directory to swarm user
-            chown_proc = sb.exec("chown", "-R", "swarm:swarm", "/home/swarm")
-            chown_exit = chown_proc.wait()
-            logger.info(f"Directory ownership change exit code: {chown_exit}")
-
-            logger.info("Successfully created swarm user and configured permissions")
-
-        except Exception as user_error:
-            logger.error(f"Failed to create swarm user: {user_error}")
-            # Don't fail sandbox creation - continue with root user as fallback
+        # swarm user is already created in the pre-built image
+        logger.info("Using pre-built image with swarm user already configured")
 
         # Clone repository (git is already installed via image)
         try:
@@ -250,48 +217,6 @@ async def create_sandbox(req: CreateSandboxReq):
         except Exception as setup_error:
             logger.error(f"Git clone exception: {setup_error}")
             # Don't fail sandbox creation - let the exec commands handle it later
-
-        # Install Claude Code during sandbox creation as swarm user
-        try:
-            logger.info("Installing dependencies for Claude Code")
-            # Install jq which is required by the Claude Code installer
-            deps_proc = sb.exec("bash", "-c", "apt-get update && apt-get install -y jq")
-            deps_exit_code = deps_proc.wait()
-            logger.info(f"Dependencies install exit code: {deps_exit_code}")
-
-            logger.info("Installing Claude Code as swarm user")
-            # Install Claude Code as swarm user to avoid root permission issues
-            install_proc = sb.exec("su", "-", "swarm", "-c", "curl -fsSL http://claude.ai/install.sh | bash")
-            install_exit_code = install_proc.wait()
-            logger.info(f"Claude Code install exit code: {install_exit_code}")
-
-            if install_exit_code == 0:
-                logger.info("Claude Code installation succeeded")
-                # Verify installation as swarm user
-                verify_proc = sb.exec("su", "-", "swarm", "-c", "export PATH=\"$HOME/.local/bin:$PATH\" && which claude && claude --version")
-                verify_exit_code = verify_proc.wait()
-                logger.info(f"Claude Code verification exit code: {verify_exit_code}")
-
-                # Try to get verification output
-                try:
-                    if hasattr(verify_proc, 'stdout') and verify_proc.stdout:
-                        stdout = verify_proc.stdout.read() if hasattr(verify_proc.stdout, 'read') else str(verify_proc.stdout)
-                        logger.info(f"Claude Code verification output: {stdout}")
-                except Exception as output_error:
-                    logger.warning(f"Could not read Claude Code verification output: {output_error}")
-            else:
-                logger.error(f"Claude Code installation failed with exit code {install_exit_code}")
-                # Try to get error output
-                try:
-                    if hasattr(install_proc, 'stderr') and install_proc.stderr:
-                        stderr = install_proc.stderr.read() if hasattr(install_proc.stderr, 'read') else str(install_proc.stderr)
-                        logger.error(f"Claude Code install error: {stderr}")
-                except Exception as error_output:
-                    logger.warning(f"Could not read Claude Code install error: {error_output}")
-
-        except Exception as install_error:
-            logger.error(f"Claude Code installation exception: {install_error}")
-            # Don't fail sandbox creation - let the backend handle it
 
         # Configure git user settings during startup if provided
         if req.author_name and req.author_email:
@@ -620,10 +545,10 @@ async def clone_repo(sandbox_id: str, req: WorkflowReq):
 
 @app.post("/sandboxes/{sandbox_id}/install_tools", response_model=ExecResp)
 async def install_tools(sandbox_id: str):
-    """Install Claude Code and other development tools."""
-    # Commands are now automatically run as swarm user via exec_command
+    """Verify that development tools are available (already installed in pre-built image)."""
+    # Tools are already installed in the pre-built image, just verify availability
     exec_req = ExecReq(
-        cmd=["bash", "-c", "curl -fsSL http://claude.ai/install.sh | bash"],
+        cmd=["bash", "-c", "which claude && which cargo && which bun && which node && echo 'All tools available'"],
         cwd="/home/swarm"
     )
     return await exec_command(sandbox_id, exec_req)
@@ -656,28 +581,27 @@ async def push_changes(sandbox_id: str, req: WorkflowReq):
 # New Claude Code specific endpoints
 @app.post("/sandboxes/{sandbox_id}/install_claude_code", response_model=ExecResp)
 async def install_claude_code(sandbox_id: str):
-    """Install Claude Code with proper PATH setup."""
+    """Verify Claude Code is available (already installed in pre-built image)."""
     try:
-        logger.info(f"Installing Claude Code in sandbox {sandbox_id}")
+        logger.info(f"Verifying Claude Code in sandbox {sandbox_id}")
 
-        # Install Claude Code with proper PATH setup
-        install_cmd = '''
-            curl -fsSL http://claude.ai/install.sh | bash && \
+        # Claude Code is already installed in the pre-built image, just verify
+        verify_cmd = '''
             export PATH="$HOME/.local/bin:$PATH" && \
             which claude && \
             claude --version
         '''
 
         exec_req = ExecReq(
-            cmd=["bash", "-c", install_cmd],
+            cmd=["bash", "-c", verify_cmd],
             cwd="/home/swarm"
         )
 
         return await exec_command(sandbox_id, exec_req)
 
     except Exception as e:
-        logger.error(f"Failed to install Claude Code: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to install Claude Code: {str(e)}")
+        logger.error(f"Failed to verify Claude Code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to verify Claude Code: {str(e)}")
 
 @app.post("/sandboxes/{sandbox_id}/exec_claude_code", response_model=ExecResp)
 async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
