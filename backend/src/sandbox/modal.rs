@@ -1,7 +1,6 @@
 use super::{SandboxError, SandboxInfo, SandboxProvider, SandboxResult, SandboxStatus};
 use crate::agent_log_parser;
 use crate::error::AppResult;
-use anyhow::Context;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
