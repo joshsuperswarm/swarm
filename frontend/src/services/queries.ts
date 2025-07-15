@@ -30,6 +30,9 @@ export const useTasksQuery = () =>
     queryKey: ['tasks'],
     queryFn: () => ApiService.getTasks().then(r => r.tasks),
     placeholderData: () => [],      // render instantly from cache
+    staleTime: 5 * 1000,           // 5 seconds - allow frequent updates
+    refetchInterval: 5 * 1000,      // Poll every 5 seconds
+    refetchIntervalInBackground: true, // Continue polling when tab not focused
   })
 
 /* SINGLE TASK */
