@@ -1,5 +1,6 @@
 // API service for backend communication
 import { getBackendJwt } from "@/lib/authToken";
+import type { AgentTodo } from "@/types/generated/AgentTodo";
 import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks";
 import type { Task } from "@/types/generated/Task";
 import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo";
@@ -129,5 +130,10 @@ export class ApiService {
       : `/api/tasks/${taskId}/logs`;
     
     return ApiService.authenticatedRequest(url);
+  }
+
+  static async getTaskTodos(taskId: number): Promise<AgentTodo[]> {
+    const response = await ApiService.authenticatedRequest<{ task_id: number; todos: AgentTodo[]; count: number }>(`/api/tasks/${taskId}/todos`);
+    return response.todos;
   }
 }

@@ -5,8 +5,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { TaskLogViewer } from '@/components/TaskLogViewer';
+import { TodoList } from '@/components/TodoList';
 import { statuses } from '@/data/data';
-import { useTasksQuery, useTaskQuery } from '@/services/queries';
+import { useTasksQuery, useTaskQuery, useTaskTodosQuery } from '@/services/queries';
 
 // Key filter to ignore hotkeys when user is typing
 const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -27,6 +28,13 @@ export function TaskPage() {
   // list for j/k navigation
   const { data: allTasks = [] } = useTasksQuery();
   const { data: liveTask, isLoading: loading, error } = useTaskQuery(taskId, isValidTaskId);
+  
+  // Get todos for this task
+  const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
+    taskId, 
+    liveTask?.status || undefined, 
+    isValidTaskId && !!liveTask
+  );
 
   // Find current task index for navigation
   const currentTaskIndex = useMemo(() => {
@@ -222,6 +230,9 @@ export function TaskPage() {
           </ReactMarkdown>
         </div>
       </div>
+
+      {/* Todos */}
+      <TodoList todos={todos} loading={isLoadingTodos} />
 
       {/* Live Logs */}
       {showLogs && (

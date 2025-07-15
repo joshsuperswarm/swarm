@@ -1,7 +1,6 @@
 import React, {
   useState,
   useMemo,
-  useCallback,
 } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useNavigate } from "react-router-dom";
@@ -28,7 +27,6 @@ export function TasksPage() {
   const { data: tasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-
   // Keep selectedIndex within bounds when tasks change
   React.useEffect(() => {
     if (tasks.length > 0) {
@@ -42,7 +40,6 @@ export function TasksPage() {
   const currentSelectedTask = useMemo(() => {
     return tasks.length > 0 ? tasks[selectedIndex] : null;
   }, [tasks, selectedIndex]);
-
 
   // Keyboard navigation hotkeys for table
   useHotkeys('j', () => {
@@ -68,20 +65,11 @@ export function TasksPage() {
     enabled: tasks.length > 0
   });
 
-
-  const handleTaskClick = useCallback((task: Task) => {
-    // console.log('🔄 TasksPage handleTaskClick - navigating to task:', task.id)
-    navigate(`/tasks/${task.id}`);
-  }, [navigate]);
-
-
-
-
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {
     // console.log('🔄 TasksPage columns recreated')
-    return createColumns(handleTaskClick);
-  }, [handleTaskClick]);
+    return createColumns();
+  }, []);
 
   return (
     <div className="relative flex-1 min-w-0 overflow-hidden px-0 py-4 sm:px-6">
@@ -113,7 +101,6 @@ export function TasksPage() {
           data={tasks}
           columns={columns}
           loading={isFetching && tasks.length === 0}
-          onTaskClick={handleTaskClick}
           highlightedRow={String(currentSelectedTask?.id ?? '')}
         />
       </div>

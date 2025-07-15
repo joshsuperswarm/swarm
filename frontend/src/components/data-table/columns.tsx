@@ -16,7 +16,7 @@ import {
 import { statuses } from "@/data/data"
 import type { Task } from "@/types"
 
-export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Task>[] => [
+export const createColumns = (): ColumnDef<Task>[] => [
   {
     accessorKey: "id",
     header: "Task",
@@ -96,7 +96,7 @@ export const createColumns = (onTaskClick?: (task: Task) => void): ColumnDef<Tas
               Copy task ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onTaskClick?.(task)}>
+            <DropdownMenuItem onClick={() => window.location.href = `/tasks/${task.id}`}>
               View task
             </DropdownMenuItem>
             <DropdownMenuItem>Edit task</DropdownMenuItem>

@@ -25,7 +25,6 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   loading?: boolean
-  onTaskClick?: (task: TData) => void
   highlightedRow?: string
 }
 
@@ -33,7 +32,6 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   loading = false,
-  onTaskClick,
   highlightedRow,
 }: DataTableProps<TData, TValue>) {
   // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
@@ -114,7 +112,12 @@ export function DataTable<TData, TValue>({
                       "cursor-pointer",
                       highlightedRow === row.id && "bg-blue-50"
                     )}
-                    onClick={() => onTaskClick?.(row.original)}
+                    onClick={() => {
+                      const task = row.original as { id: number };
+                      if (task?.id) {
+                        window.location.href = `/tasks/${task.id}`;
+                      }
+                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

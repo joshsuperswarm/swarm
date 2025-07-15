@@ -56,6 +56,21 @@ export const useTaskQuery = (id: number, enabled: boolean = true) => {
   }
 }
 
+/* TASK TODOS */
+export const useTaskTodosQuery = (taskId: number, taskStatus?: string, enabled: boolean = true) =>
+  useQuery({
+    queryKey: ['task-todos', taskId],
+    queryFn: () => ApiService.getTaskTodos(taskId),
+    enabled: enabled && taskId > 0,
+    staleTime: 5 * 60 * 1000,           // 5 min
+    refetchInterval: () => {
+      // Stop polling if task is in terminal state
+      const isTerminal = ['done', 'failed', 'pr_opened'].includes(taskStatus ?? '');
+      return isTerminal ? false : 5 * 1000; // 5 seconds if not terminal
+    },
+    refetchIntervalInBackground: true,
+  })
+
 /* CREATE */
 export const useCreateTaskMutation = () => {
   const qc = useQueryClient()
