@@ -13,6 +13,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 mod agent_log_parser;
 mod auth;
+mod claude;
 mod clerk_api;
 mod config;
 mod database;
@@ -23,7 +24,6 @@ mod models;
 mod sandbox;
 mod sandbox_poller;
 mod task_pipeline;
-mod claude;
 
 use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
 use config::Config;
@@ -1289,21 +1289,8 @@ async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // 🔸 Always ask Claude Sonnet 4 for a title
-    let api_key = app_state
-        .config
-        .anthropic_api_key
-        .as_deref()
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let title = match claude::generate_title(&payload.description, api_key).await {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::error!("Claude title generation failed: {e}");
-            // fallback: first 60 chars of description
-            payload.description.chars().take(60).collect()
-        }
-    };
+    // Title will be generated in background pipeline
+    let title = String::new();
 
     let sanitized_description = Some(payload.description.trim().to_string());
 

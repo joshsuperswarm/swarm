@@ -273,6 +273,14 @@ impl Database {
         Ok(task)
     }
 
+    pub async fn update_task_title(&self, task_id: i32, title: &str) -> AppResult<Task> {
+        let task = sqlx::query_file_as!(Task, "sql/update_task_title.sql", task_id, title)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(task)
+    }
+
     pub async fn update_task_pr_url(&self, task_id: i32, pr_url: &str) -> AppResult<Task> {
         let task = sqlx::query_as!(
             Task,

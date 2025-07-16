@@ -1,3 +1,4 @@
+use crate::claude;
 use crate::models::Task;
 use crate::AppState;
 use anyhow::Result;
@@ -112,6 +113,19 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
             return Err(anyhow::anyhow!("No Anthropic API key configured"));
         }
     };
+
+    // Generate concise title
+    let title = claude::generate_title(
+        task.description.as_deref().unwrap_or(""),
+        &anthropic_api_key,
+    )
+    .await
+    .unwrap_or_else(|_| "Untitled task".into());
+
+    app_state
+        .database
+        .update_task_title(task.id, &title)
+        .await?;
 
     // Generate branch name and author info - fail if GitHub username or email not available
     let branch = format!("swarm/task-{}-{}", task.id, Utc::now().format("%Y%m%d%H%M"));

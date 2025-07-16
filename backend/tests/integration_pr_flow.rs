@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use swarm_backend::database::Database;
 
 #[tokio::test]
 async fn test_pr_flow_database_integration() {
@@ -16,12 +17,21 @@ async fn test_pr_flow_database_integration() {
     // Test that we can create a task and update it with branch and PR info
     let test_task_id = sqlx::query_scalar!(
         "INSERT INTO tasks (user_id, repository_id, title, description) 
-         VALUES (1, 1, 'Test PR Flow Task', 'Integration test') 
+         VALUES (1, 1, '', 'Integration test') 
          RETURNING id"
     )
     .fetch_one(&pool)
     .await
     .expect("Failed to create test task");
+
+    // Test updating task title using the database method
+    let database = Database::new(pool.clone());
+    let updated_task = database
+        .update_task_title(test_task_id, "Test PR Flow Task")
+        .await
+        .expect("Failed to update task title");
+
+    assert_eq!(updated_task.title, "Test PR Flow Task");
 
     // Test updating task with branch
     let test_branch = format!("swarm/task-{}-202501071600", test_task_id);
