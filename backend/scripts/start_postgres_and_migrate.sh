@@ -35,6 +35,18 @@ createdb -h /tmp -p "$PGPORT" -U "$PGUSER" "$DBNAME"
 echo "✓ Database '$DBNAME' created"
 
 echo "Running migrations..."
+echo "REPO_ROOT: $REPO_ROOT"
+echo "MIGRATIONS_DIR: $MIGRATIONS_DIR"
+echo "Checking if migrations directory exists..."
+if [[ -d "$MIGRATIONS_DIR" ]]; then
+  echo "✓ Migrations directory found"
+  ls -la "$MIGRATIONS_DIR"
+else
+  echo "✗ Migrations directory not found at: $MIGRATIONS_DIR"
+  echo "Available directories in backend:"
+  ls -la "$REPO_ROOT/backend/" 2>/dev/null || echo "backend directory not found"
+fi
+
 export DATABASE_URL="postgres://$PGUSER@localhost:$PGPORT/$DBNAME"
 sqlx migrate run --source "$MIGRATIONS_DIR"
 echo "✓ Migrations completed"
