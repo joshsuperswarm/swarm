@@ -3,6 +3,9 @@
 # and apply the Rust SQLx migrations.
 set -euo pipefail
 
+# Add PostgreSQL binaries to PATH
+export PATH="/usr/lib/postgresql/15/bin:$PATH"
+
 PGDATA="${PGDATA:-$HOME/.postgres}"
 PGUSER="${PGUSER:-swarm}"
 PGPORT="${PGPORT:-5432}"
