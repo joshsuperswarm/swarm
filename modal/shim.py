@@ -271,6 +271,35 @@ async def create_sandbox(req: CreateSandboxReq):
         else:
             logger.info("No git author info provided, skipping git configuration")
 
+        # ── Run backend/scripts/start_postgres_and_migrate.sh ────────────────
+        script_path = f"/home/swarm/{repo_name}/backend/scripts/start_postgres_and_migrate.sh"
+
+        pg_proc = sb.exec("su", "-", "swarm", "-c", f"chmod +x {script_path} && {script_path}")
+
+        # Wait for postgres setup to complete and get result
+        pg_exit_code = pg_proc.wait()
+        logger.info(f"Postgres setup exit code: {pg_exit_code}")
+
+        if pg_exit_code == 0:
+            logger.info("Postgres setup succeeded")
+        else:
+            logger.error(f"Postgres setup failed with exit code {pg_exit_code}")
+            # Try to get both stdout and stderr output
+            try:
+                if hasattr(pg_proc, 'stdout') and pg_proc.stdout:
+                    stdout = pg_proc.stdout.read() if hasattr(pg_proc.stdout, 'read') else str(pg_proc.stdout)
+                    logger.info(f"Postgres setup stdout: {stdout}")
+                if hasattr(pg_proc, 'stderr') and pg_proc.stderr:
+                    stderr = pg_proc.stderr.read() if hasattr(pg_proc.stderr, 'read') else str(pg_proc.stderr)
+                    logger.error(f"Postgres setup stderr: {stderr}")
+            except Exception as error_output:
+                logger.warning(f"Could not read postgres setup output: {error_output}")
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Postgres bootstrap failed (exit {pg_exit_code})"
+            )
+
         logger.info(f"Created sandbox {sandbox_id} with repo {req.repo_url}")
 
         return CreateSandboxResp(

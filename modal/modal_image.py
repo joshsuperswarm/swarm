@@ -31,6 +31,9 @@ image = (
     .run_commands(
         "su - swarm -c \"curl -fsSL https://claude.ai/install.sh | bash\""
     )
+    .run_commands(
+        "su - swarm -c \"cargo install sqlx-cli --no-default-features --features rustls,postgres\""
+    )
     .env({
         "PATH": (
             "/home/swarm/.local/bin:"

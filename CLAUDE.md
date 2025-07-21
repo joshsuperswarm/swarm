@@ -117,6 +117,29 @@ landing/                # Next.js marketing site
 - ✓ Professional task management interface
 - ✓ Production-ready database setup
 
+## Modal Sandbox Database Access
+
+When working in a Modal sandbox environment, PostgreSQL is automatically configured and running. To connect to the database:
+
+### PostgreSQL Connection in Modal Sandboxes
+
+```bash
+# Connect via Unix socket (recommended)
+psql -h /tmp swarm
+
+# Or connect via TCP
+psql -h localhost -p 5432 swarm
+
+# Database connection details:
+# - Host: /tmp (socket) or localhost (TCP)
+# - Port: 5432
+# - Database: swarm
+# - User: swarm
+# - No password required (trust authentication)
+```
+
+**Note**: The PostgreSQL socket is located in `/tmp` instead of the default `/var/run/postgresql/` for proper permissions in the containerized environment.
+
 ## Workflow
 
 1. User logs in with GitHub (Clerk OAuth)
