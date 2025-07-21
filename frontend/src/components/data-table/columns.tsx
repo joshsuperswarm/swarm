@@ -18,9 +18,9 @@ import type { Task } from "@/types"
 
 export const createColumns = (): ColumnDef<Task>[] => [
   {
-    accessorKey: "id",
+    accessorKey: "task_id",
     header: "Task",
-    cell: ({ row }) => <div className="w-[80px] text-xs font-mono">{row.getValue("id")}</div>,
+    cell: ({ row }) => <div className="w-[80px] text-xs font-mono">{row.getValue("task_id")}</div>,
     enableSorting: false,
     enableHiding: false,
   },
@@ -91,12 +91,12 @@ export const createColumns = (): ColumnDef<Task>[] => [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(task.id.toString())}
+              onClick={() => navigator.clipboard.writeText(task.task_id.toString())}
             >
               Copy task ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => window.location.href = `/tasks/${task.id}`}>
+            <DropdownMenuItem onClick={() => window.location.href = `/tasks/${task.task_id}`}>
               View task
             </DropdownMenuItem>
             <DropdownMenuItem>Edit task</DropdownMenuItem>

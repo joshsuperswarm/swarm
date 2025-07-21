@@ -41,17 +41,17 @@ export function TasksPage() {
     const prefetchCount = 20;                // <= tweak if desired
     tasks.slice(0, prefetchCount).forEach((t) => {
       // prime simple task lookup
-      qc.setQueryData(['task', t.id], t);
+      qc.setQueryData(['task', t.task_id], t);
 
       // prefetch todos + logs in background (non‑blocking)
       qc.prefetchQuery({
-        queryKey: ['task-todos', t.id],
-        queryFn: () => ApiService.getTaskTodos(jwt, t.id),
+        queryKey: ['task-todos', t.task_id],
+        queryFn: () => ApiService.getTaskTodos(jwt, t.task_id),
         staleTime: 5 * 60 * 1000,
       });
       qc.prefetchQuery({
-        queryKey: ['task-logs', t.id],
-        queryFn: () => ApiService.getTaskLogs(jwt, t.id).then(r => r.logs),
+        queryKey: ['task-logs', t.task_id],
+        queryFn: () => ApiService.getTaskLogs(jwt, t.task_id).then(r => r.logs),
         staleTime: Infinity,
       });
     });
@@ -88,7 +88,7 @@ export function TasksPage() {
 
   useHotkeys(['o', 'enter'], () => {
     if (currentSelectedTask) {
-      navigate(`/tasks/${currentSelectedTask.id}`);
+      navigate(`/tasks/${currentSelectedTask.task_id}`);
     }
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
@@ -131,7 +131,7 @@ export function TasksPage() {
           data={tasks}
           columns={columns}
           loading={isFetching && tasks.length === 0}
-          highlightedRow={String(currentSelectedTask?.id ?? '')}
+          highlightedRow={String(currentSelectedTask?.task_id ?? '')}
         />
       </div>
     </div>

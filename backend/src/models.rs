@@ -30,47 +30,6 @@ pub struct UserWithDefaultRepo {
     pub updated_at: Option<String>,
 }
 
-// Force ts-rs to generate types by ensuring they're used
-#[allow(dead_code)]
-pub fn _force_ts_generation() {
-    let _: UserWithDefaultRepo = UserWithDefaultRepo {
-        id: 0,
-        clerk_user_id: String::new(),
-        github_username: None,
-        github_user_id: None,
-        email: None,
-        default_repo_id: None,
-        default_repo: None,
-        created_at: None,
-        updated_at: None,
-    };
-    let _: RepositoryTS = RepositoryTS {
-        id: 0,
-        github_repo_id: 0,
-        owner: String::new(),
-        name: String::new(),
-        full_name: String::new(),
-        user_id: 0,
-        is_private: None,
-        created_at: None,
-        last_fetched_at: None,
-    };
-    let _: Run = Run {
-        id: 0,
-        task_id: 0,
-        sandbox_id: None,
-        sandbox_hostname: None,
-        session_id: None,
-        command_id: None,
-        branch: None,
-        status: None,
-        commit_title: None,
-        commit_body: None,
-        created_at: None,
-        updated_at: None,
-    };
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateUser {
     pub clerk_user_id: String,

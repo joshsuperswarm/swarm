@@ -1,7 +1,7 @@
 // API service for backend communication
 import type { AgentTodo } from "@/types/generated/AgentTodo";
 import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks";
-import type { Task } from "@/types/generated/Task";
+import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -64,11 +64,11 @@ export class ApiService {
     return request('/api/user/repos', { token });
   }
 
-  static async getTasks(token: string): Promise<{ tasks: Task[]; count: number; user_id: number }> {
+  static async getTasks(token: string): Promise<{ tasks: TaskWithRun[]; count: number; user_id: number }> {
     return request('/api/tasks', { token });
   }
 
-  static async createTask(token: string, task: CreateTaskRequest): Promise<{ success: boolean; task: Task }> {
+  static async createTask(token: string, task: CreateTaskRequest): Promise<{ success: boolean; task: TaskWithRun }> {
     // Client-side validation
     if (!task.description.trim()) {
       throw new Error('Description cannot be empty');

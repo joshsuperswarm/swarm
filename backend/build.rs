@@ -4,12 +4,8 @@ use std::path::Path;
 fn main() {
     println!("cargo:rerun-if-changed=src/models.rs");
 
-    // Force ts-rs to generate the types by calling the export functionality
-    // This ensures that the UserWithDefaultRepo and RepositoryTS types are generated
-    // even if they're not directly used in the main code
-    if let Err(e) = generate_ts_bindings() {
-        println!("cargo:warning=Failed to generate TypeScript bindings: {}", e);
-    }
+    // TypeScript types are generated at compile time by ts-rs via #[ts(export)]
+    // The build script only handles copying from bindings/ to frontend/
 
     let bindings_dir = Path::new("bindings");
     let frontend_types_dir = Path::new("../frontend/src/types/generated");
@@ -56,11 +52,4 @@ fn main() {
             println!("cargo:warning=Failed to read bindings directory: {}", e);
         }
     }
-}
-
-fn generate_ts_bindings() -> Result<(), Box<dyn std::error::Error>> {
-    // This function forces the generation of TypeScript bindings
-    // The actual export happens when the types are used during the build process
-    // The #[ts(export)] attribute on the structs handles the actual file generation
-    Ok(())
 }

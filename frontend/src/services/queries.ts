@@ -46,7 +46,7 @@ export const useTaskQuery = (id: number, enabled: boolean = true) => {
   const { data: allTasks = [], isLoading, error, ...tasksQuery } = useTasksQuery()
   
   // Find the specific task from the cached tasks list
-  const task = enabled && id ? allTasks.find(task => task.id === id) : undefined
+  const task = enabled && id ? allTasks.find(task => task.task_id === id) : undefined
   
   // Return the same shape as a regular useQuery
   return {

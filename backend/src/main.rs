@@ -32,8 +32,8 @@ use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use models::{
-    AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, RepositoryTS,
-    UserWithDefaultRepo, _force_ts_generation,
+    AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
+    RepositoryTS, RepositoryWithTasks, Run, Task, TaskWithRun, User, UserWithDefaultRepo,
 };
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
@@ -425,12 +425,15 @@ async fn handle_task_success(
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
-    // Force TypeScript generation for exported types
-    _force_ts_generation();
-
     // Export the types explicitly
+    User::export().unwrap();
     UserWithDefaultRepo::export().unwrap();
+    Task::export().unwrap();
+    Run::export().unwrap();
+    TaskWithRun::export().unwrap();
     RepositoryTS::export().unwrap();
+    RepositoryWithTasks::export().unwrap();
+    GitHubToken::export().unwrap();
     AgentTodo::export().unwrap();
 
     // Initialize tracing
@@ -1195,34 +1198,11 @@ async fn get_tasks(
 
     // Get user's tasks with latest run data from database
     match app_state.database.get_user_runs_latest(user.id).await {
-        Ok(task_runs) => {
-            let task_responses: Vec<_> = task_runs
-                .into_iter()
-                .map(|task_run| {
-                    json!({
-                        "id": task_run.task_id,
-                        "title": task_run.title,
-                        "description": task_run.description,
-                        "repository_id": task_run.repository_id,
-                        "user_id": task_run.user_id,
-                        "status": task_run.status.unwrap_or_else(|| "pending".to_string()),
-                        "github_pr_url": task_run.github_pr_url,
-                        "github_branch": task_run.github_branch,
-                        "sandbox_id": task_run.sandbox_id,
-                        "sandbox_hostname": task_run.sandbox_hostname,
-                        "ssh_hostname": task_run.sandbox_hostname,
-                        "created_at": task_run.created_at.map(|dt| dt.to_rfc3339()),
-                        "updated_at": task_run.updated_at.map(|dt| dt.to_rfc3339())
-                    })
-                })
-                .collect();
-
-            Ok(Json(json!({
-                "tasks": task_responses,
-                "count": task_responses.len(),
-                "user_id": user.id
-            })))
-        }
+        Ok(task_runs) => Ok(Json(json!({
+            "tasks": task_runs,
+            "count": task_runs.len(),
+            "user_id": user.id
+        }))),
         Err(e) => {
             tracing::error!("Error fetching tasks for user {}: {}", user.id, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

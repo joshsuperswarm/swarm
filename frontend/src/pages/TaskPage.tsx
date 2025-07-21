@@ -42,7 +42,7 @@ export function TaskPage() {
   // Find current task index for navigation
   const currentTaskIndex = useMemo(() => {
     if (!liveTask || allTasks.length === 0) return -1;
-    return allTasks.findIndex(t => t.id === liveTask.id);
+    return allTasks.findIndex(t => t.task_id === liveTask.task_id);
   }, [liveTask, allTasks]);
 
 
@@ -50,7 +50,7 @@ export function TaskPage() {
   useHotkeys('j', () => {
     if (currentTaskIndex >= 0 && currentTaskIndex < allTasks.length - 1) {
       const nextTask = allTasks[currentTaskIndex + 1];
-      navigate(`/tasks/${nextTask.id}`);
+      navigate(`/tasks/${nextTask.task_id}`);
     }
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
@@ -60,7 +60,7 @@ export function TaskPage() {
   useHotkeys('k', () => {
     if (currentTaskIndex > 0) {
       const prevTask = allTasks[currentTaskIndex - 1];
-      navigate(`/tasks/${prevTask.id}`);
+      navigate(`/tasks/${prevTask.task_id}`);
     }
   }, {
     ignoreEventWhen: (e) => !keyFilter(e),
@@ -176,7 +176,7 @@ export function TaskPage() {
         
         <div className="flex items-start gap-3">
           <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-            #{liveTask.id}
+            #{liveTask.task_id}
           </span>
           <h1 className="text-2xl font-bold text-gray-900 flex-1">{liveTask.title}</h1>
         </div>
@@ -254,7 +254,7 @@ export function TaskPage() {
                 </Button>
               </div>
               <TaskLogViewer
-                taskId={liveTask.id}
+                taskId={liveTask.task_id}
                 taskStatus={liveTask.status || undefined}
               />
             </>
