@@ -197,6 +197,30 @@ pub struct CreateRun {
     pub commit_body: Option<String>,
 }
 
+#[derive(Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
+pub struct TaskWithRun {
+    pub run_id: i32,
+    pub task_id: i32,
+    pub title: String,
+    pub description: Option<String>,
+    pub repository_id: i32,
+    pub user_id: i32,
+    pub status: Option<String>,
+    pub github_branch: Option<String>,
+    pub sandbox_id: Option<String>,
+    pub sandbox_hostname: Option<String>,
+    pub session_id: Option<String>,
+    pub command_id: Option<String>,
+    pub commit_title: Option<String>,
+    pub commit_body: Option<String>,
+    pub pr_title: Option<String>,
+    pub pr_body: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub github_pr_url: Option<String>,
+}
+
 // Response models for API
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

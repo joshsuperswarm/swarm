@@ -27,8 +27,8 @@ use tracing::{debug, error, info, warn};
 // ——————————————————————————————————————————————————————————————
 //  Helper functions
 // ——————————————————————————————————————————————————————————————
-fn has_required_artifacts(task: &crate::models::Task) -> bool {
-    task.commit_title.is_some() && task.pr_title.is_some() && task.pr_body.is_some()
+fn has_required_artifacts(run: &crate::models::Run) -> bool {
+    run.commit_title.is_some() && run.commit_body.is_some()
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -50,21 +50,36 @@ fn provider_from_config(config: &Config) -> Option<DynSandbox> {
 // ——————————————————————————————————————————————————————————————
 pub async fn run(app_state: AppState) {
     info!("→ unified status poller online");
+    let mut cycle_count = 0;
 
     loop {
         let cycle_start = Instant::now();
+        cycle_count += 1;
+
         if let Err(e) = poll_once(&app_state).await {
             error!("poller cycle error: {e}");
         }
+
         let elapsed = cycle_start.elapsed();
         if elapsed.as_millis() > 100 {
             warn!(
-                "poller cycle took {} ms (target <100 ms)",
+                "poller cycle {} took {} ms (target <100 ms)",
+                cycle_count,
                 elapsed.as_millis()
             );
         } else {
-            debug!("poller cycle {} ms", elapsed.as_millis());
+            debug!(
+                "poller cycle {} completed in {} ms",
+                cycle_count,
+                elapsed.as_millis()
+            );
         }
+
+        // Heartbeat every 60 seconds (6 cycles)
+        if cycle_count % 6 == 0 {
+            info!("poller heartbeat: {} cycles completed", cycle_count);
+        }
+
         sleep(Duration::from_secs(10)).await; // configurable
     }
 }
@@ -82,14 +97,15 @@ async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
         }
     };
 
-    // 2. fetch candidate tasks (spinning or running)
+    // 2. fetch candidate runs (spinning or running)
     let rows = sqlx::query!(
         r#"SELECT id,
+                  task_id,
                   sandbox_id,
                   session_id,
                   command_id,
                   status
-           FROM   tasks
+           FROM   runs
            WHERE  sandbox_id IS NOT NULL
            AND    status IN ('spinning','running')"#
     )
@@ -97,16 +113,17 @@ async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
     .await?;
 
     if rows.is_empty() {
-        debug!("no active tasks");
+        info!("no active runs to poll");
         return Ok(());
     }
 
-    info!("polling {} active tasks concurrently", rows.len());
+    info!("polling {} active runs concurrently", rows.len());
 
-    // 3. process each task concurrently – **no DB writes on critical path**
+    // 3. process each run concurrently – **no DB writes on critical path**
     let mut handles = Vec::new();
     for row in rows {
-        let task_id = row.id;
+        let run_id = row.id;
+        let task_id = row.task_id;
         let sandbox_id = row.sandbox_id.clone();
         let session_id = row.session_id.clone();
         let command_id = row.command_id.clone();
@@ -117,6 +134,7 @@ async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
             if let Err(e) = handle_task(
                 &app_state_clone,
                 p.as_ref(),
+                run_id,
                 task_id,
                 sandbox_id,
                 session_id,
@@ -125,7 +143,7 @@ async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
             )
             .await
             {
-                warn!("task {} poll error: {e}", task_id);
+                warn!("run {} / task {} poll error: {e}", run_id, task_id);
             }
         });
         handles.push(handle);
@@ -139,12 +157,13 @@ async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
 }
 
 // ——————————————————————————————————————————————————————————————
-//  Per‑task processing – distilled from the legacy poller
+//  Per‑run processing – distilled from the legacy poller
 // ——————————————————————————————————————————————————————————————
 #[allow(clippy::too_many_lines)]
 async fn handle_task(
     app_state: &AppState,
     provider: &dyn SandboxProvider,
+    run_id: i32,
     task_id: i32,
     sandbox_id: Option<String>,
     session_id: Option<String>,
@@ -163,9 +182,17 @@ async fn handle_task(
     {
         if code == 0 {
             // Task completed successfully, now poll for artifacts
-            wait_for_artifacts(app_state, provider, task_id, &sandbox_id, &command_id).await?;
+            wait_for_artifacts(
+                app_state,
+                provider,
+                run_id,
+                task_id,
+                &sandbox_id,
+                &command_id,
+            )
+            .await?;
         } else {
-            mark_failed(app_state, provider, task_id, &sandbox_id).await?;
+            mark_failed(app_state, provider, run_id, task_id, &sandbox_id).await?;
         }
         return Ok(());
     }
@@ -176,9 +203,9 @@ async fn handle_task(
             if current_status == "spinning" {
                 app_state
                     .database
-                    .update_task_status(task_id, "running", None)
+                    .update_run_status(run_id, "running")
                     .await?;
-                info!("task {task_id} → running");
+                info!("run {} / task {} → running", run_id, task_id);
             }
             // lightweight log pulse (non‑blocking) - use provider-specific log collection
             if let Some(modal_url) = &app_state.config.modal_url {
@@ -191,8 +218,12 @@ async fn handle_task(
                     .await;
             }
         }
-        SandboxStatus::Stopped => mark_failed(app_state, provider, task_id, &sandbox_id).await?,
-        SandboxStatus::Failed => mark_failed(app_state, provider, task_id, &sandbox_id).await?,
+        SandboxStatus::Stopped => {
+            mark_failed(app_state, provider, run_id, task_id, &sandbox_id).await?
+        }
+        SandboxStatus::Failed => {
+            mark_failed(app_state, provider, run_id, task_id, &sandbox_id).await?
+        }
         SandboxStatus::Starting => {
             debug!("task {task_id} sandbox still starting");
         }
@@ -207,6 +238,7 @@ async fn handle_task(
 async fn wait_for_artifacts(
     app_state: &AppState,
     provider: &dyn SandboxProvider,
+    run_id: i32,
     task_id: i32,
     sandbox_id: &str,
     command_id: &str,
@@ -231,18 +263,27 @@ async fn wait_for_artifacts(
         }
 
         // Check if we have all required artifacts
-        if let Ok(Some(task)) = app_state.database.get_task_by_id(task_id).await {
-            if has_required_artifacts(&task) {
-                info!("task {task_id} has all required artifacts – proceeding to finalize");
-                return finalize_success(app_state, provider, task_id, sandbox_id, command_id)
-                    .await;
+        if let Ok(Some(run)) = app_state.database.get_run_by_id(run_id).await {
+            if has_required_artifacts(&run) {
+                info!(
+                    "run {} / task {} has all required artifacts – proceeding to finalize",
+                    run_id, task_id
+                );
+                return finalize_success(
+                    app_state, provider, run_id, task_id, sandbox_id, command_id,
+                )
+                .await;
             }
         }
 
         // Check timeout
         if start_time.elapsed() > timeout_duration {
-            warn!("task {task_id} timed out waiting for artifacts after 30 seconds");
-            return finalize_success(app_state, provider, task_id, sandbox_id, command_id).await;
+            warn!(
+                "run {} / task {} timed out waiting for artifacts after 30 seconds",
+                run_id, task_id
+            );
+            return finalize_success(app_state, provider, run_id, task_id, sandbox_id, command_id)
+                .await;
         }
 
         // Wait before next poll
@@ -253,6 +294,7 @@ async fn wait_for_artifacts(
 async fn finalize_success(
     app_state: &AppState,
     _provider: &dyn SandboxProvider,
+    run_id: i32,
     task_id: i32,
     sandbox_id: &str,
     command_id: &str,
@@ -270,10 +312,7 @@ async fn finalize_success(
             .await
             .ok();
     }
-    app_state
-        .database
-        .update_task_status(task_id, "done", None)
-        .await?;
+    app_state.database.update_run_status(run_id, "done").await?;
 
     // Spawn handle_task_success for PR creation
     info!("task {task_id} → done, spawning PR creation");
@@ -290,13 +329,17 @@ async fn finalize_success(
 async fn mark_failed(
     app_state: &AppState,
     provider: &dyn SandboxProvider,
+    run_id: i32,
     task_id: i32,
     sandbox_id: &str,
 ) -> anyhow::Result<()> {
-    warn!("task {task_id} marked failed – cleaning up");
+    warn!(
+        "run {} / task {} marked failed – cleaning up",
+        run_id, task_id
+    );
     app_state
         .database
-        .update_task_status(task_id, "failed", None)
+        .update_run_status(run_id, "failed")
         .await?;
     provider.delete_sandbox(sandbox_id).await.ok();
     Ok(())

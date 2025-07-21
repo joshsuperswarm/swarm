@@ -513,37 +513,44 @@ impl ModalProvider {
         if !combined_output.is_empty() {
             let mut buffer = String::new();
 
-            // Load existing task state to initialize artifact parsing state
-            let mut state = match db.get_task_by_id(task_id).await {
-                Ok(Some(task)) => ArtifactParsingState {
-                    commit_title: task.commit_title,
-                    commit_body: task.commit_body,
-                    pr_title: task.pr_title,
-                    pr_body: task.pr_body,
-                    current_artifact: None,
-                    artifact_lines: Vec::new(),
-                    _last_processed_offset: 0,
-                },
-                _ => ArtifactParsingState::default(),
-            };
+            // Load existing artifact state from both task (PR artifacts) and run (commit artifacts)
+            let mut state = ArtifactParsingState::default();
+
+            // Load PR artifacts from task
+            if let Ok(Some(task)) = db.get_task_by_id(task_id).await {
+                state.pr_title = task.pr_title;
+                state.pr_body = task.pr_body;
+            }
+
+            // Load commit artifacts from latest run
+            if let Ok(Some(run_id)) = db.get_latest_run_id_for_task(task_id).await {
+                if let Ok(Some(run)) = db.get_run_by_id(run_id).await {
+                    state.commit_title = run.commit_title;
+                    state.commit_body = run.commit_body;
+                }
+            }
 
             // Process the logs
             let _processed = self
                 .process_modal_log_stream(db, task_id, &combined_output, &mut buffer, &mut state)
                 .await?;
 
-            // Save any new artifacts back to database
+            // Save PR artifacts to task
             if let Err(e) = db
-                .set_task_artifacts(
-                    task_id,
-                    state.commit_title,
-                    state.commit_body,
-                    state.pr_title,
-                    state.pr_body,
-                )
+                .set_task_pr_artifacts(task_id, state.pr_title, state.pr_body)
                 .await
             {
-                warn!("Failed to save artifacts for task {}: {}", task_id, e);
+                warn!("Failed to save PR artifacts for task {}: {}", task_id, e);
+            }
+
+            // Save commit artifacts to run
+            if let Ok(Some(run_id)) = db.get_latest_run_id_for_task(task_id).await {
+                if let Err(e) = db
+                    .set_run_artifacts(run_id, state.commit_title, state.commit_body)
+                    .await
+                {
+                    warn!("Failed to save commit artifacts for run {}: {}", run_id, e);
+                }
             }
         }
 

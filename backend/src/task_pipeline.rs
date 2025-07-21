@@ -19,23 +19,31 @@ use tracing::instrument;
 pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<()> {
     tracing::info!("Starting task pipeline for task {}", task.id);
 
+    // Get or create the initial run for this task
+    let run = match app_state.database.sync_run_from_task(&task).await {
+        Ok(run) => run,
+        Err(e) => {
+            tracing::error!("Failed to sync run for task {}: {}", task.id, e);
+            let _ = app_state
+                .database
+                .update_task_status(task.id, "failed", None)
+                .await;
+            return Err(anyhow::anyhow!("Failed to sync run: {}", e));
+        }
+    };
+    tracing::info!("Using run {} for task {}", run.id, task.id);
+
     // Get the user from the task
     let user = match app_state.database.get_user_by_id(task.user_id).await {
         Ok(Some(user)) => user,
         Ok(None) => {
             tracing::error!("User {} not found for task {}", task.user_id, task.id);
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("User not found"));
         }
         Err(e) => {
             tracing::error!("Database error getting user {}: {}", task.user_id, e);
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("Database error: {}", e));
         }
     };
@@ -53,10 +61,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
                 task.repository_id,
                 task.id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("Repository not found"));
         }
         Err(e) => {
@@ -65,10 +70,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
                 task.repository_id,
                 e
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("Database error: {}", e));
         }
     };
@@ -82,18 +84,12 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
                 user.id,
                 task.id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("No GitHub token available"));
         }
         Err(e) => {
             tracing::error!("Error fetching GitHub token for user {}: {}", user.id, e);
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("Error fetching GitHub token: {}", e));
         }
     };
@@ -106,10 +102,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
                 "No Anthropic API key configured in environment for task {}",
                 task.id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("No Anthropic API key configured"));
         }
     };
@@ -137,10 +130,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
                 user.id,
                 task.id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("No GitHub username available"));
         }
     };
@@ -152,35 +142,25 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
                 user.id,
                 task.id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("No email available"));
         }
     };
 
-    // Update task with branch name
-    match app_state
-        .database
-        .update_task_branch(task.id, &branch)
-        .await
-    {
+    // Update run with branch name
+    match app_state.database.update_run_branch(run.id, &branch).await {
         Ok(_) => {
-            tracing::info!("Updated task {} with branch {}", task.id, branch);
+            tracing::info!("Updated run {} with branch {}", run.id, branch);
         }
         Err(e) => {
             tracing::error!(
-                "Error updating task {} with branch {}: {}",
-                task.id,
+                "Error updating run {} with branch {}: {}",
+                run.id,
                 branch,
                 e
             );
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
-            return Err(anyhow::anyhow!("Error updating task branch: {}", e));
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
+            return Err(anyhow::anyhow!("Error updating run branch: {}", e));
         }
     }
 
@@ -193,19 +173,15 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
         .unwrap_or(&task.title)
         .to_string();
 
-    // Update task status to spinning immediately before sending request to modal
+    // Update run status to spinning immediately before sending request to modal
     if let Err(e) = app_state
         .database
-        .update_task_status(task.id, "spinning", None)
+        .update_run_status(run.id, "spinning")
         .await
     {
-        tracing::error!(
-            "Failed to update task {} status to spinning: {}",
-            task.id,
-            e
-        );
+        tracing::error!("Failed to update run {} status to spinning: {}", run.id, e);
     } else {
-        tracing::info!("task {} → spinning", task.id);
+        tracing::info!("task {} / run {} → spinning", task.id, run.id);
     }
 
     let sandbox_info = match app_state
@@ -229,53 +205,39 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
         }
         Err(e) => {
             tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Err(anyhow::anyhow!("Failed to start sandbox: {}", e));
         }
     };
 
-    // Update task with sandbox information (keeping status as spinning)
+    // Update run with sandbox information (keeping status as spinning)
     match app_state
         .database
-        .update_task_sandbox(
-            task.id,
-            &sandbox_info.id,
-            &sandbox_info.hostname,
-            "spinning",
-        )
+        .update_run_sandbox(run.id, &sandbox_info.id, &sandbox_info.hostname)
         .await
     {
         Ok(_) => {
             tracing::info!(
-                "Updated task {} with sandbox {} info",
-                task.id,
+                "Updated run {} with sandbox {} info",
+                run.id,
                 sandbox_info.id
             );
         }
         Err(e) => {
-            tracing::error!("Error updating task {} with sandbox info: {}", task.id, e);
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
-            return Err(anyhow::anyhow!("Error updating task sandbox: {}", e));
+            tracing::error!("Error updating run {} with sandbox info: {}", run.id, e);
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
+            return Err(anyhow::anyhow!("Error updating run sandbox: {}", e));
         }
     }
 
     // Store command IDs for log streaming
     if let Err(e) = app_state
         .database
-        .update_task_command_ids(task.id, &sandbox_info.session_id, &sandbox_info.command_id)
+        .update_run_command_ids(run.id, &sandbox_info.session_id, &sandbox_info.command_id)
         .await
     {
-        tracing::error!("Error storing command IDs for task {}: {}", task.id, e);
-        let _ = app_state
-            .database
-            .update_task_status(task.id, "failed", None)
-            .await;
+        tracing::error!("Error storing command IDs for run {}: {}", run.id, e);
+        let _ = app_state.database.update_run_status(run.id, "failed").await;
         return Err(anyhow::anyhow!("Error storing command IDs: {}", e));
     }
 

@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
-    Repository, RepositoryWithTasks, Run, Task, TaskLog, User,
+    Repository, RepositoryWithTasks, Run, Task, TaskLog, TaskWithRun, User,
 };
 use sqlx::PgPool;
 
@@ -192,8 +192,7 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
         Ok(task)
     }
@@ -204,6 +203,13 @@ impl Database {
             .await?;
 
         Ok(tasks)
+    }
+
+    pub async fn get_user_runs_latest(&self, user_id: i32) -> AppResult<Vec<TaskWithRun>> {
+        let rows = sqlx::query_file_as!(TaskWithRun, "sql/get_user_runs_latest.sql", user_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows)
     }
 
     pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
@@ -225,8 +231,7 @@ impl Database {
                 .fetch_one(&self.pool)
                 .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
         Ok(task)
     }
@@ -249,8 +254,7 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
         Ok(task)
     }
@@ -271,8 +275,7 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
         Ok(task)
     }
@@ -282,8 +285,7 @@ impl Database {
             .fetch_one(&self.pool)
             .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
         Ok(task)
     }
@@ -293,8 +295,7 @@ impl Database {
             .fetch_one(&self.pool)
             .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
         Ok(task)
     }
@@ -336,9 +337,31 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        // keep runs table in sync
-        let _ = self.sync_run_from_task(&task).await;
+        // Note: Runs are now updated directly via run update methods
 
+        Ok(task)
+    }
+
+    pub async fn set_task_pr_artifacts(
+        &self,
+        task_id: i32,
+        pr_title: Option<String>,
+        pr_body: Option<String>,
+    ) -> AppResult<Task> {
+        let task = sqlx::query_as!(
+            Task,
+            r#"
+            UPDATE tasks 
+            SET pr_title = $2, pr_body = $3, updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at
+            "#,
+            task_id,
+            pr_title,
+            pr_body
+        )
+        .fetch_one(&self.pool)
+        .await?;
         Ok(task)
     }
 
@@ -542,6 +565,131 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
+        Ok(run)
+    }
+
+    pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
+        let run = sqlx::query_as!(
+            Run,
+            "SELECT id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at FROM runs WHERE id = $1",
+            run_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn get_latest_run_id_for_task(&self, task_id: i32) -> AppResult<Option<i32>> {
+        let row = sqlx::query!(
+            "SELECT id FROM runs WHERE task_id = $1 ORDER BY created_at DESC LIMIT 1",
+            task_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| r.id))
+    }
+
+    // Direct Run update methods (bypassing sync_run_from_task)
+    pub async fn update_run_status(&self, run_id: i32, status: &str) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            UPDATE runs
+               SET status = $2, updated_at = NOW()
+             WHERE id = $1
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            run_id,
+            status
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn update_run_command_ids(
+        &self,
+        run_id: i32,
+        session: &str,
+        cmd: &str,
+    ) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            UPDATE runs
+               SET session_id = $2, command_id = $3, updated_at = NOW()
+             WHERE id = $1
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            run_id,
+            session,
+            cmd
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn set_run_artifacts(
+        &self,
+        run_id: i32,
+        commit_title: Option<String>,
+        commit_body: Option<String>,
+    ) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            UPDATE runs
+               SET commit_title = $2, commit_body = $3, updated_at = NOW()
+             WHERE id = $1
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            run_id,
+            commit_title,
+            commit_body
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn update_run_branch(&self, run_id: i32, branch: &str) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            UPDATE runs
+               SET branch = $2, updated_at = NOW()
+             WHERE id = $1
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            run_id,
+            branch
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn update_run_sandbox(
+        &self,
+        run_id: i32,
+        sandbox_id: &str,
+        hostname: &str,
+    ) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            UPDATE runs
+               SET sandbox_id = $2, sandbox_hostname = $3, updated_at = NOW()
+             WHERE id = $1
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            run_id,
+            sandbox_id,
+            hostname
+        )
+        .fetch_one(&self.pool)
+        .await?;
         Ok(run)
     }
 }

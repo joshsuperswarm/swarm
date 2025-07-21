@@ -175,35 +175,43 @@ async fn handle_task_success(
         Some(token) => token.access_token,
         None => {
             tracing::error!("No GitHub token for user {} in task {}", user.id, task_id);
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+                let _ = app_state.database.update_run_status(run_id, "failed").await;
+            }
             return Ok(());
         }
     };
 
     // Extract necessary information
-    let sandbox_id = match task.sandbox_id.as_ref() {
-        Some(id) => id,
-        None => {
-            tracing::error!("No sandbox ID for task {}", task_id);
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+    // Get run information (sandbox_id and branch are stored on the run)
+    let run = match app_state.database.get_latest_run_id_for_task(task_id).await {
+        Ok(Some(run_id)) => match app_state.database.get_run_by_id(run_id).await {
+            Ok(Some(run)) => run,
+            _ => {
+                tracing::error!("Run {} not found for task {}", run_id, task_id);
+                return Ok(());
+            }
+        },
+        _ => {
+            tracing::error!("No run found for task {}", task_id);
             return Ok(());
         }
     };
 
-    let branch = match task.github_branch.as_ref() {
+    let sandbox_id = match run.sandbox_id.as_ref() {
+        Some(id) => id,
+        None => {
+            tracing::error!("No sandbox ID for task {} run {}", task_id, run.id);
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
+            return Ok(());
+        }
+    };
+
+    let branch = match run.branch.as_ref() {
         Some(branch) => branch,
         None => {
-            tracing::error!("No branch for task {}", task_id);
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            tracing::error!("No branch for task {} run {}", task_id, run.id);
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Ok(());
         }
     };
@@ -217,10 +225,9 @@ async fn handle_task_success(
                 user.id,
                 task_id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+                let _ = app_state.database.update_run_status(run_id, "failed").await;
+            }
             return Ok(());
         }
     };
@@ -233,10 +240,9 @@ async fn handle_task_success(
                 user.id,
                 task_id
             );
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+                let _ = app_state.database.update_run_status(run_id, "failed").await;
+            }
             return Ok(());
         }
     };
@@ -246,14 +252,15 @@ async fn handle_task_success(
     let repo_path = format!("/home/swarm/{}", repo_name);
 
     // Validate that AI-generated artifacts are present
-    let commit_title = match task.commit_title.as_ref() {
+    let commit_title = match run.commit_title.as_ref() {
         Some(title) if !title.trim().is_empty() => title,
         _ => {
-            tracing::error!("Task {} missing AI-generated commit title", task_id);
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            tracing::error!(
+                "Task {} run {} missing AI-generated commit title",
+                task_id,
+                run.id
+            );
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
             return Ok(());
         }
     };
@@ -267,10 +274,9 @@ async fn handle_task_success(
         Some(title) if !title.trim().is_empty() => title,
         _ => {
             tracing::error!("Task {} missing AI-generated PR title", task_id);
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+                let _ = app_state.database.update_run_status(run_id, "failed").await;
+            }
             return Ok(());
         }
     };
@@ -323,10 +329,9 @@ async fn handle_task_success(
         }
         Err(e) => {
             tracing::error!("Failed to create PR client for task {}: {}", task_id, e);
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+                let _ = app_state.database.update_run_status(run_id, "failed").await;
+            }
             return Ok(());
         }
     };
@@ -372,21 +377,29 @@ async fn handle_task_success(
                 } // Prevent infinite loops
             }
 
-            let _ = app_state
-                .database
-                .update_task_status(task_id, "failed", None)
-                .await;
+            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+                let _ = app_state.database.update_run_status(run_id, "failed").await;
+            }
             return Ok(());
         }
     };
 
-    // Update task with PR URL and status
+    // Update task with PR URL
     if let Err(e) = app_state
         .database
-        .update_task_status(task_id, "pr_opened", Some(&pr_url))
+        .update_task_pr_url(task_id, &pr_url)
         .await
     {
-        tracing::error!("Error updating task {} status to pr_opened: {}", task_id, e);
+        tracing::error!("Error updating task {} PR URL: {}", task_id, e);
+    }
+
+    // Update run status to pr_opened
+    if let Err(e) = app_state
+        .database
+        .update_run_status(run.id, "pr_opened")
+        .await
+    {
+        tracing::error!("Error updating run {} status to pr_opened: {}", run.id, e);
     } else {
         tracing::info!(
             "✓ Task {} completed successfully with PR: {}",
@@ -1180,26 +1193,26 @@ async fn get_tasks(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Get user's tasks from database
-    match app_state.database.get_user_tasks(user.id).await {
-        Ok(tasks) => {
-            let task_responses: Vec<_> = tasks
+    // Get user's tasks with latest run data from database
+    match app_state.database.get_user_runs_latest(user.id).await {
+        Ok(task_runs) => {
+            let task_responses: Vec<_> = task_runs
                 .into_iter()
-                .map(|task| {
+                .map(|task_run| {
                     json!({
-                        "id": task.id,
-                        "title": task.title,
-                        "description": task.description,
-                        "repository_id": task.repository_id,
-                        "user_id": task.user_id,
-                        "status": task.status.unwrap_or_else(|| "pending".to_string()),
-                        "github_pr_url": task.github_pr_url,
-                        "github_branch": task.github_branch,
-                        "sandbox_id": task.sandbox_id,
-                        "sandbox_hostname": task.sandbox_hostname,
-                        "ssh_hostname": task.sandbox_hostname,
-                        "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
-                        "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
+                        "id": task_run.task_id,
+                        "title": task_run.title,
+                        "description": task_run.description,
+                        "repository_id": task_run.repository_id,
+                        "user_id": task_run.user_id,
+                        "status": task_run.status.unwrap_or_else(|| "pending".to_string()),
+                        "github_pr_url": task_run.github_pr_url,
+                        "github_branch": task_run.github_branch,
+                        "sandbox_id": task_run.sandbox_id,
+                        "sandbox_hostname": task_run.sandbox_hostname,
+                        "ssh_hostname": task_run.sandbox_hostname,
+                        "created_at": task_run.created_at.map(|dt| dt.to_rfc3339()),
+                        "updated_at": task_run.updated_at.map(|dt| dt.to_rfc3339())
                     })
                 })
                 .collect();
