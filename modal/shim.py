@@ -690,7 +690,8 @@ The system requires these markers to automatically generate commit messages and 
     # -------- 4.  craft final command ---------------------------------------
     shell_script = textwrap.dedent(f"""
         {env_setup}
-        export PATH="/home/swarm/.local/bin:/home/swarm/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
+        export PATH="/home/swarm/.local/bin:/home/swarm/.cargo/bin:/home/swarm/.bun/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
+        export DATABASE_URL="postgresql://swarm:password@localhost:5432/swarm"
         cd {shlex.quote(req.repo_path)}
         cat {shlex.quote(prompt_path)} | claude -p --dangerously-skip-permissions --verbose --output-format stream-json
     """)
