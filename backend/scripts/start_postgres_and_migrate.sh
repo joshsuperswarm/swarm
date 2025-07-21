@@ -15,17 +15,28 @@ MIGRATIONS_DIR="$REPO_ROOT/backend/migrations"
 
 # Initialise cluster on first run
 if [[ ! -s "$PGDATA/PG_VERSION" ]]; then
+  echo "Initializing PostgreSQL cluster..."
   initdb -D "$PGDATA" -U "$PGUSER"
+  echo "✓ PostgreSQL cluster initialized"
 fi
 
 # Start postgres in the background (daemonised by pg_ctl)
+echo "Starting PostgreSQL server..."
 pg_ctl -D "$PGDATA" -o "-p $PGPORT -k /tmp" -l "$PGDATA/postgres.log" start
+echo "✓ PostgreSQL server started"
+
+echo "Waiting for PostgreSQL to be ready..."
 until pg_isready -q -h /tmp -p "$PGPORT"; do sleep 0.5; done
+echo "✓ PostgreSQL is ready"
 
 # Create target database
+echo "Creating database '$DBNAME'..."
 createdb -h /tmp -p "$PGPORT" -U "$PGUSER" "$DBNAME"
+echo "✓ Database '$DBNAME' created"
 
+echo "Running migrations..."
 export DATABASE_URL="postgres://$PGUSER@localhost:$PGPORT/$DBNAME"
 sqlx migrate run --source "$MIGRATIONS_DIR"
+echo "✓ Migrations completed"
 
 echo "✅ Postgres started on $PGPORT and migrations applied."
