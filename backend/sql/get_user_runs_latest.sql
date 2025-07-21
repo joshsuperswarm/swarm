@@ -15,8 +15,8 @@ SELECT DISTINCT ON (r.task_id)
        r.command_id,
        r.commit_title,
        r.commit_body,
-       NULL::TEXT      AS pr_title,  -- placeholder for API compatibility
-       NULL::TEXT      AS pr_body,   -- placeholder for API compatibility
+       t.pr_title,     -- PR artifacts from task
+       t.pr_body,      -- PR artifacts from task
        r.created_at,
        r.updated_at,
        t.github_pr_url -- still lives on task

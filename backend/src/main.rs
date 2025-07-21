@@ -265,10 +265,7 @@ async fn handle_task_success(
         }
     };
 
-    let commit_body = task
-        .commit_body
-        .as_deref()
-        .unwrap_or("AI-generated changes");
+    let commit_body = run.commit_body.as_deref().unwrap_or("AI-generated changes");
 
     let pr_title = match task.pr_title.as_ref() {
         Some(title) if !title.trim().is_empty() => title,
@@ -1324,9 +1321,6 @@ async fn create_task(
             "user_id": task.user_id,
             "status": task.status.unwrap_or_else(|| "pending".to_string()),
             "github_pr_url": task.github_pr_url,
-            "sandbox_id": task.sandbox_id,
-            "sandbox_hostname": task.sandbox_hostname,
-            "ssh_hostname": task.sandbox_hostname,
             "created_at": task.created_at.map(|dt| dt.to_rfc3339()),
             "updated_at": task.updated_at.map(|dt| dt.to_rfc3339())
         }

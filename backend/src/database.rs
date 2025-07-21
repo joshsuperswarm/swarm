@@ -213,7 +213,7 @@ impl Database {
     }
 
     pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
-        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
+        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -236,60 +236,6 @@ impl Database {
         Ok(task)
     }
 
-    pub async fn update_task_sandbox(
-        &self,
-        task_id: i32,
-        sandbox_id: &str,
-        hostname: &str,
-        status: &str,
-    ) -> AppResult<Task> {
-        let task = sqlx::query_file_as!(
-            Task,
-            "sql/update_task_sandbox.sql",
-            task_id,
-            sandbox_id,
-            hostname,
-            status
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        // Note: Runs are now updated directly via run update methods
-
-        Ok(task)
-    }
-
-    pub async fn update_task_command_ids(
-        &self,
-        task_id: i32,
-        session_id: &str,
-        command_id: &str,
-    ) -> AppResult<Task> {
-        let task = sqlx::query_file_as!(
-            Task,
-            "sql/update_task_command_ids.sql",
-            task_id,
-            session_id,
-            command_id
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        // Note: Runs are now updated directly via run update methods
-
-        Ok(task)
-    }
-
-    pub async fn update_task_branch(&self, task_id: i32, github_branch: &str) -> AppResult<Task> {
-        let task = sqlx::query_file_as!(Task, "sql/update_task_branch.sql", task_id, github_branch)
-            .fetch_one(&self.pool)
-            .await?;
-
-        // Note: Runs are now updated directly via run update methods
-
-        Ok(task)
-    }
-
     pub async fn update_task_title(&self, task_id: i32, title: &str) -> AppResult<Task> {
         let task = sqlx::query_file_as!(Task, "sql/update_task_title.sql", task_id, title)
             .fetch_one(&self.pool)
@@ -303,42 +249,12 @@ impl Database {
     pub async fn update_task_pr_url(&self, task_id: i32, pr_url: &str) -> AppResult<Task> {
         let task = sqlx::query_as!(
             Task,
-            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at",
+            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at",
             pr_url,
             task_id
         )
         .fetch_one(&self.pool)
         .await?;
-        Ok(task)
-    }
-
-    pub async fn set_task_artifacts(
-        &self,
-        task_id: i32,
-        commit_title: Option<String>,
-        commit_body: Option<String>,
-        pr_title: Option<String>,
-        pr_body: Option<String>,
-    ) -> AppResult<Task> {
-        let task = sqlx::query_as!(
-            Task,
-            r#"
-            UPDATE tasks 
-            SET commit_title = $2, commit_body = $3, pr_title = $4, pr_body = $5, updated_at = NOW()
-            WHERE id = $1
-            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at
-            "#,
-            task_id,
-            commit_title,
-            commit_body,
-            pr_title,
-            pr_body
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        // Note: Runs are now updated directly via run update methods
-
         Ok(task)
     }
 
@@ -354,7 +270,7 @@ impl Database {
             UPDATE tasks 
             SET pr_title = $2, pr_body = $3, updated_at = NOW()
             WHERE id = $1
-            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at
+            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at
             "#,
             task_id,
             pr_title,
@@ -501,73 +417,6 @@ impl Database {
         Ok(rows)
     }
 
-    /// Insert first run or keep run in sync with the current Task state.
-    pub async fn sync_run_from_task(&self, task: &crate::models::Task) -> AppResult<Run> {
-        // Try to UPDATE the latest run
-        if let Some(run) = sqlx::query_as!(
-            Run,
-            r#"
-            UPDATE runs
-               SET sandbox_id       = $2,
-                   sandbox_hostname = $3,
-                   session_id       = $4,
-                   command_id       = $5,
-                   branch           = $6,
-                   status           = $7,
-                   commit_title     = $8,
-                   commit_body      = $9,
-                   updated_at       = NOW()
-             WHERE id = (
-                 SELECT id FROM runs
-                  WHERE task_id = $1
-                  ORDER BY created_at DESC
-                  LIMIT 1
-             )
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
-            "#,
-            task.id,
-            task.sandbox_id,
-            task.sandbox_hostname,
-            task.session_id,
-            task.command_id,
-            task.github_branch,
-            task.status,
-            task.commit_title,
-            task.commit_body
-        )
-        .fetch_optional(&self.pool)
-        .await?
-        {
-            return Ok(run);             // Updated an existing row
-        }
-
-        // Nothing to update - INSERT a fresh run
-        let run = sqlx::query_as!(
-            Run,
-            r#"
-            INSERT INTO runs (
-                task_id, sandbox_id, sandbox_hostname, session_id, command_id,
-                branch, status, commit_title, commit_body,
-                created_at, updated_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, NOW(), NOW())
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
-            "#,
-            task.id,
-            task.sandbox_id,
-            task.sandbox_hostname,
-            task.session_id,
-            task.command_id,
-            task.github_branch,
-            task.status,
-            task.commit_title,
-            task.commit_body
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(run)
-    }
-
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
@@ -687,6 +536,21 @@ impl Database {
             run_id,
             sandbox_id,
             hostname
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn create_run(&self, task_id: i32) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            INSERT INTO runs (task_id, status, created_at, updated_at)
+            VALUES ($1, 'pending', NOW(), NOW())
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            task_id
         )
         .fetch_one(&self.pool)
         .await?;

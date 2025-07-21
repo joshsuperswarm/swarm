@@ -19,16 +19,16 @@ use tracing::instrument;
 pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<()> {
     tracing::info!("Starting task pipeline for task {}", task.id);
 
-    // Get or create the initial run for this task
-    let run = match app_state.database.sync_run_from_task(&task).await {
+    // Create a new run for this task
+    let run = match app_state.database.create_run(task.id).await {
         Ok(run) => run,
         Err(e) => {
-            tracing::error!("Failed to sync run for task {}: {}", task.id, e);
+            tracing::error!("Failed to create run for task {}: {}", task.id, e);
             let _ = app_state
                 .database
                 .update_task_status(task.id, "failed", None)
                 .await;
-            return Err(anyhow::anyhow!("Failed to sync run: {}", e));
+            return Err(anyhow::anyhow!("Failed to create run: {}", e));
         }
     };
     tracing::info!("Using run {} for task {}", run.id, task.id);
