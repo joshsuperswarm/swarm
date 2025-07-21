@@ -10,7 +10,7 @@ PGDATA="${PGDATA:-$HOME/.postgres}"
 PGUSER="${PGUSER:-swarm}"
 PGPORT="${PGPORT:-5432}"
 DBNAME="${DBNAME:-swarm}"
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$HOME")"
+REPO_ROOT="/home/swarm/swarm"
 MIGRATIONS_DIR="$REPO_ROOT/backend/migrations"
 
 # Initialise cluster on first run
