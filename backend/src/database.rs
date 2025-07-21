@@ -480,9 +480,28 @@ impl Database {
 
     /// Insert first run or keep run in sync with the current Task state.
     pub async fn sync_run_from_task(&self, task: &crate::models::Task) -> AppResult<Run> {
-        let run = sqlx::query_file_as!(
+        // Try to UPDATE the latest run
+        if let Some(run) = sqlx::query_as!(
             Run,
-            "sql/sync_run_from_task.sql",
+            r#"
+            UPDATE runs
+               SET sandbox_id       = $2,
+                   sandbox_hostname = $3,
+                   session_id       = $4,
+                   command_id       = $5,
+                   branch           = $6,
+                   status           = $7,
+                   commit_title     = $8,
+                   commit_body      = $9,
+                   updated_at       = NOW()
+             WHERE id = (
+                 SELECT id FROM runs
+                  WHERE task_id = $1
+                  ORDER BY created_at DESC
+                  LIMIT 1
+             )
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
             task.id,
             task.sandbox_id,
             task.sandbox_hostname,
@@ -491,9 +510,34 @@ impl Database {
             task.github_branch,
             task.status,
             task.commit_title,
-            task.commit_body,
-            task.pr_title,
-            task.pr_body
+            task.commit_body
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        {
+            return Ok(run);             // Updated an existing row
+        }
+
+        // Nothing to update - INSERT a fresh run
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            INSERT INTO runs (
+                task_id, sandbox_id, sandbox_hostname, session_id, command_id,
+                branch, status, commit_title, commit_body,
+                created_at, updated_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, NOW(), NOW())
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            "#,
+            task.id,
+            task.sandbox_id,
+            task.sandbox_hostname,
+            task.session_id,
+            task.command_id,
+            task.github_branch,
+            task.status,
+            task.commit_title,
+            task.commit_body
         )
         .fetch_one(&self.pool)
         .await?;

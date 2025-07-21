@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, clerk_user_id, github_username, github_user_id, email, default_repo_id, created_at, updated_at \nFROM users \nWHERE clerk_user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "clerk_user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "github_username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "github_user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "default_repo_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": ["Text"]
+    },
+    "nullable": [false, false, true, true, true, true, true, true]
+  },
+  "hash": "1d6d0ab437c3f7320230499347be02f51a7858b0e8ad196276ebd4cc3328d01f"
+}

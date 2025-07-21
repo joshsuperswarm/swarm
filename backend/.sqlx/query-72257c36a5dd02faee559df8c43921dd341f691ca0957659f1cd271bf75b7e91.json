@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tasks\nSET session_id = $2,\n    command_id = $3,\n    updated_at = NOW()\nWHERE id = $1\nRETURNING *;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "repository_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "github_pr_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "github_branch",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "commit_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "commit_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "pr_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "pr_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "sandbox_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "session_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "command_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "sandbox_hostname",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4", "Text", "Text"]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "72257c36a5dd02faee559df8c43921dd341f691ca0957659f1cd271bf75b7e91"
+}

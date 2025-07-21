@@ -66,8 +66,6 @@ pub fn _force_ts_generation() {
         status: None,
         commit_title: None,
         commit_body: None,
-        pr_title: None,
-        pr_body: None,
         created_at: None,
         updated_at: None,
     };
@@ -182,8 +180,6 @@ pub struct Run {
     pub status: Option<String>,
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
-    pub pr_title: Option<String>,
-    pub pr_body: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -199,8 +195,6 @@ pub struct CreateRun {
     pub status: Option<String>,
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
-    pub pr_title: Option<String>,
-    pub pr_body: Option<String>,
 }
 
 // Response models for API

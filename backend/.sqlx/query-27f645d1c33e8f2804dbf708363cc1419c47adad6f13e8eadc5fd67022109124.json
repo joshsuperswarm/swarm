@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "repository_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "github_pr_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "github_branch",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "sandbox_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "sandbox_hostname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "session_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "command_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "commit_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "commit_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "pr_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "pr_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": ["Varchar", "Int4"]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "27f645d1c33e8f2804dbf708363cc1419c47adad6f13e8eadc5fd67022109124"
+}

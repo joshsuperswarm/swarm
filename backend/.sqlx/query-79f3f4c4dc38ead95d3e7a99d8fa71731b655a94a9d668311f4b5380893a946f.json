@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO github_tokens (user_id, access_token, token_type, scope)\nVALUES ($1, $2, $3, $4)\nON CONFLICT (user_id) DO UPDATE SET\n    access_token = EXCLUDED.access_token,\n    token_type = EXCLUDED.token_type,\n    scope = EXCLUDED.scope,\n    updated_at = NOW()\nRETURNING id, user_id, access_token, token_type, scope, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "access_token",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "token_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4", "Text", "Varchar", "Text"]
+    },
+    "nullable": [false, false, false, true, true, true, true]
+  },
+  "hash": "79f3f4c4dc38ead95d3e7a99d8fa71731b655a94a9d668311f4b5380893a946f"
+}

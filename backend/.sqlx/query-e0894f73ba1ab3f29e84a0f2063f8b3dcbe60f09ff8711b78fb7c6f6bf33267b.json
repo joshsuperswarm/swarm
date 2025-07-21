@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO users (clerk_user_id, github_username, github_user_id, email)\nVALUES ($1, $2, $3, $4)\nRETURNING id, clerk_user_id, github_username, github_user_id, email, default_repo_id, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "clerk_user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "github_username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "github_user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "default_repo_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": ["Varchar", "Varchar", "Int4", "Varchar"]
+    },
+    "nullable": [false, false, true, true, true, true, true, true]
+  },
+  "hash": "e0894f73ba1ab3f29e84a0f2063f8b3dcbe60f09ff8711b78fb7c6f6bf33267b"
+}

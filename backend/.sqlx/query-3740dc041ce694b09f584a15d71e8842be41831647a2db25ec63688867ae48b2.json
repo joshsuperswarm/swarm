@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO task_logs (task_id, log_line) VALUES ($1, $2::jsonb)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4", "Jsonb"]
+    },
+    "nullable": []
+  },
+  "hash": "3740dc041ce694b09f584a15d71e8842be41831647a2db25ec63688867ae48b2"
+}
