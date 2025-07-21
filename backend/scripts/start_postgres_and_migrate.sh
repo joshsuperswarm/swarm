@@ -22,14 +22,8 @@ fi
 pg_ctl -D "$PGDATA" -o "-p $PGPORT -k /tmp" -l "$PGDATA/postgres.log" start
 until pg_isready -q -h /tmp -p "$PGPORT"; do sleep 0.5; done
 
-# Create target database if missing
-psql -h /tmp -p "$PGPORT" -U "$PGUSER" -tc \
-  "SELECT 1 FROM pg_database WHERE datname = '$DBNAME'" | grep -q 1 \
-  || createdb -h /tmp -p "$PGPORT" -U "$PGUSER" "$DBNAME"
-
-# Ensure sqlx-cli is installed
-command -v sqlx >/dev/null 2>&1 || \
-  cargo install sqlx-cli --no-default-features --features rustls,postgres
+# Create target database
+createdb -h /tmp -p "$PGPORT" -U "$PGUSER" "$DBNAME"
 
 export DATABASE_URL="postgres://$PGUSER@localhost:$PGPORT/$DBNAME"
 sqlx migrate run --source "$MIGRATIONS_DIR"
