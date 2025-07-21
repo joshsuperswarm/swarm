@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
-    Repository, RepositoryWithTasks, Task, TaskLog, User,
+    Repository, RepositoryWithTasks, Run, Task, TaskLog, User,
 };
 use sqlx::PgPool;
 
@@ -192,6 +192,9 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
+
         Ok(task)
     }
 
@@ -222,6 +225,9 @@ impl Database {
                 .fetch_one(&self.pool)
                 .await?;
 
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
+
         Ok(task)
     }
 
@@ -243,6 +249,9 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
+
         Ok(task)
     }
 
@@ -262,6 +271,9 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
+
         Ok(task)
     }
 
@@ -270,6 +282,9 @@ impl Database {
             .fetch_one(&self.pool)
             .await?;
 
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
+
         Ok(task)
     }
 
@@ -277,6 +292,9 @@ impl Database {
         let task = sqlx::query_file_as!(Task, "sql/update_task_title.sql", task_id, title)
             .fetch_one(&self.pool)
             .await?;
+
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
 
         Ok(task)
     }
@@ -317,6 +335,9 @@ impl Database {
         )
         .fetch_one(&self.pool)
         .await?;
+
+        // keep runs table in sync
+        let _ = self.sync_run_from_task(&task).await;
 
         Ok(task)
     }
@@ -455,6 +476,29 @@ impl Database {
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
+    }
+
+    /// Insert first run or keep run in sync with the current Task state.
+    pub async fn sync_run_from_task(&self, task: &crate::models::Task) -> AppResult<Run> {
+        let run = sqlx::query_file_as!(
+            Run,
+            "sql/sync_run_from_task.sql",
+            task.id,
+            task.sandbox_id,
+            task.sandbox_hostname,
+            task.session_id,
+            task.command_id,
+            task.github_branch,
+            task.status,
+            task.commit_title,
+            task.commit_body,
+            task.pr_title,
+            task.pr_body
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(run)
     }
 }
 
