@@ -7,7 +7,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBackendJwtQuery } from "@/services/auth";
 import { useNavigate } from "react-router-dom";
-import type { Task } from "@/types";
+import type { TaskWithRun } from "@/types";
 import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
 import { useTasksQuery } from "@/services/queries";
@@ -15,7 +15,7 @@ import { ApiService } from "@/services/api";
 
 
 // Memoize DataTable outside component to ensure stable reference
-const MemoizedDataTable = React.memo(DataTable<Task, unknown>); // default shallow compare
+const MemoizedDataTable = React.memo(DataTable<TaskWithRun, unknown>); // default shallow compare
 
 // Key filter to ignore hotkeys when user is typing
 const keyFilter = (keyboardEvent: KeyboardEvent) => {

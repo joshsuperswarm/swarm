@@ -59,7 +59,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
-    getRowId: row => String((row as { id: number }).id),
+    getRowId: row => String((row as { task_id: number }).task_id),
     state: {
       sorting,
     },
@@ -113,9 +113,9 @@ export function DataTable<TData, TValue>({
                       highlightedRow === row.id && "bg-blue-50"
                     )}
                     onClick={() => {
-                      const task = row.original as { id: number };
-                      if (task?.id) {
-                        window.location.href = `/tasks/${task.id}`;
+                      const task = row.original as { task_id: number };
+                      if (task?.task_id) {
+                        window.location.href = `/tasks/${task.task_id}`;
                       }
                     }}
                   >
