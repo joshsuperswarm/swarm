@@ -15,7 +15,7 @@ MIGRATIONS_DIR="$REPO_ROOT/backend/migrations"
 
 # Initialise cluster on first run
 if [[ ! -s "$PGDATA/PG_VERSION" ]]; then
-  initdb -D "$PGDATA" -U "$PGUSER" --locale=en_US.UTF-8
+  initdb -D "$PGDATA" -U "$PGUSER"
 fi
 
 # Start postgres in the background (daemonised by pg_ctl)
