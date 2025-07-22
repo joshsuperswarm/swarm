@@ -17,12 +17,12 @@ import { ApiService } from "@/services/api";
 // Memoize DataTable outside component to ensure stable reference
 const MemoizedDataTable = React.memo(DataTable<TaskWithRun, unknown>); // default shallow compare
 
-// Key filter to ignore hotkeys when user is typing
+// Key filter to ignore hotkeys when user is typing or interacting with UI elements
 const keyFilter = (keyboardEvent: KeyboardEvent) => {
   const target = keyboardEvent.target as HTMLElement;
   const tagName = target.tagName.toLowerCase();
   const isContentEditable = target.contentEditable === "true";
-  return !(tagName === "input" || tagName === "textarea" || isContentEditable);
+  return !(tagName === "input" || tagName === "textarea" || tagName === "button" || isContentEditable);
 };
 
 export function TasksPage() {
