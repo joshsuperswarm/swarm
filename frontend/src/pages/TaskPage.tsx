@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { TodoList } from '@/components/TodoList';
@@ -229,10 +227,8 @@ export function TaskPage() {
       {/* Task Description */}
       <div className="space-y-3 mb-6">
         <h3 className="text-sm font-semibold">Description</h3>
-        <div className="prose prose-sm max-w-none prose-gray">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {liveTask.description || '_No description provided_'}
-          </ReactMarkdown>
+        <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+          {liveTask.description || 'No description provided'}
         </div>
       </div>
 
