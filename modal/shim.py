@@ -796,15 +796,10 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
         logger.error(f"Failed to push changes: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to push changes: {str(e)}")
 
-@app.get("/artifacts/{run_mode}", response_model=ArtifactResp)
-async def get_artifact(run_mode: str):
+@app.get("/artifacts/{task_id}/{run_mode}", response_model=ArtifactResp)
+async def get_artifact(task_id: int, run_mode: str):
     """Fetch artifact from .swarm directory."""
     try:
-        # Get task_id from environment variable set during task execution
-        task_id = os.environ.get("SWARM_TASK_ID")
-        if not task_id:
-            raise HTTPException(status_code=400, detail="SWARM_TASK_ID environment variable not set")
-        
         path = f".swarm/task-{task_id}-{run_mode}.md"
         
         # Check if file exists
