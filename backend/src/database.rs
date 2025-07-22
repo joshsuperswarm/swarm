@@ -420,7 +420,7 @@ impl Database {
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
-            "SELECT id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at FROM runs WHERE id = $1",
+            "SELECT id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at FROM runs WHERE id = $1",
             run_id
         )
         .fetch_optional(&self.pool)
@@ -446,7 +446,7 @@ impl Database {
             UPDATE runs
                SET status = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             status
@@ -468,7 +468,7 @@ impl Database {
             UPDATE runs
                SET session_id = $2, command_id = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             session,
@@ -491,7 +491,7 @@ impl Database {
             UPDATE runs
                SET commit_title = $2, commit_body = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             commit_title,
@@ -509,7 +509,7 @@ impl Database {
             UPDATE runs
                SET branch = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             branch
@@ -531,7 +531,7 @@ impl Database {
             UPDATE runs
                SET sandbox_id = $2, sandbox_hostname = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             sandbox_id,
@@ -542,19 +542,49 @@ impl Database {
         Ok(run)
     }
 
-    pub async fn create_run(&self, task_id: i32) -> AppResult<Run> {
+    pub async fn create_run(&self, task_id: i32, mode: &str) -> AppResult<Run> {
         let run = sqlx::query_as!(
             Run,
             r#"
-            INSERT INTO runs (task_id, status, created_at, updated_at)
-            VALUES ($1, 'pending', NOW(), NOW())
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, created_at, updated_at
+            INSERT INTO runs (task_id, mode, status, created_at, updated_at)
+            VALUES ($1, $2, 'pending', NOW(), NOW())
+            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
-            task_id
+            task_id,
+            mode,
         )
         .fetch_one(&self.pool)
         .await?;
         Ok(run)
+    }
+
+    pub async fn upsert_comment(
+        &self,
+        task_id: i32,
+        run_id: i32,
+        mode: &str,
+        body_md: &str,
+        sha: &str,
+    ) -> AppResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO comments (task_id, run_id, mode, body_md, sha)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (task_id, run_id, mode)
+            DO UPDATE SET
+                body_md = EXCLUDED.body_md,
+                sha = EXCLUDED.sha,
+                created_at = NOW()
+            "#,
+            task_id,
+            run_id,
+            mode,
+            body_md,
+            sha
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 

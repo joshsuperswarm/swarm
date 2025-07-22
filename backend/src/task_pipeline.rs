@@ -20,7 +20,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<(
     tracing::info!("Starting task pipeline for task {}", task.id);
 
     // Create a new run for this task
-    let run = match app_state.database.create_run(task.id).await {
+    let run = match app_state.database.create_run(task.id, "execute").await {
         Ok(run) => run,
         Err(e) => {
             tracing::error!("Failed to create run for task {}: {}", task.id, e);

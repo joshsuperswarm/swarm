@@ -1,3 +1,4 @@
+use http;
 use octocrab::{Octocrab, OctocrabBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -158,6 +159,56 @@ impl GitHubClient {
             Err(e) => Err(e),
         }
     }
+
+    /// Fetches the contents of a file from a GitHub repository
+    pub async fn fetch_file_contents(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+    ) -> Result<(String, String), octocrab::Error> {
+        use octocrab::models::repos::Content;
+
+        let content = self
+            .client
+            .repos(owner, repo)
+            .get_content()
+            .path(path)
+            .send()
+            .await?;
+
+        match content.items.first() {
+            Some(Content {
+                content: Some(encoded_content),
+                sha,
+                ..
+            }) => {
+                // Decode base64 content
+                use base64::engine::Engine as _;
+                let decoded_bytes = base64::engine::general_purpose::STANDARD
+                    .decode(encoded_content.replace('\n', ""))
+                    .map_err(|e| octocrab::Error::Other {
+                        source: Box::new(e),
+                        backtrace: std::backtrace::Backtrace::disabled(),
+                    })?;
+
+                let content_str =
+                    String::from_utf8(decoded_bytes).map_err(|e| octocrab::Error::Other {
+                        source: Box::new(e),
+                        backtrace: std::backtrace::Backtrace::disabled(),
+                    })?;
+
+                Ok((content_str, sha.clone()))
+            }
+            _ => Err(octocrab::Error::Other {
+                source: Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "File not found or is not a file",
+                )),
+                backtrace: std::backtrace::Backtrace::disabled(),
+            }),
+        }
+    }
 }
 
 pub async fn fetch_current_user(access_token: &str) -> anyhow::Result<(String, i32)> // (login, id)
@@ -178,6 +229,54 @@ pub fn parse_repo_full_name(full_name: &str) -> Option<(String, String)> {
         Some((parts[0].to_string(), parts[1].to_string()))
     } else {
         None
+    }
+}
+
+/// Fetches and stores a comment artifact from GitHub repository
+pub async fn fetch_and_store_comment(
+    db: &crate::Database,
+    task_id: i32,
+    run_id: i32,
+    mode: &str,
+    owner: &str,
+    repo: &str,
+    access_token: &str,
+) -> anyhow::Result<()> {
+    // Only fetch artifacts for plan and review modes
+    if mode != "plan" && mode != "review" {
+        return Ok(());
+    }
+
+    let github_client = GitHubClient::new(access_token)?;
+    let path = format!(".swarm/task-{task_id}-{mode}.md");
+
+    match github_client.fetch_file_contents(owner, repo, &path).await {
+        Ok((content, sha)) => {
+            db.upsert_comment(task_id, run_id, mode, &content, &sha)
+                .await?;
+            tracing::info!("Fetched and stored {} artifact for task {}", mode, task_id);
+            Ok(())
+        }
+        Err(octocrab::Error::GitHub { source, .. })
+            if source.status_code == http::StatusCode::NOT_FOUND =>
+        {
+            tracing::info!(
+                "No {} artifact found for task {} at path {}",
+                mode,
+                task_id,
+                path
+            );
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to fetch {} artifact for task {}: {}",
+                mode,
+                task_id,
+                e
+            );
+            Err(anyhow::anyhow!("Failed to fetch artifact: {}", e))
+        }
     }
 }
 

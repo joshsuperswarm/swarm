@@ -132,6 +132,7 @@ pub struct Run {
     pub status: Option<String>,
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
+    pub mode: String,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -166,6 +167,7 @@ pub struct TaskWithRun {
     pub command_id: Option<String>,
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
+    pub mode: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
@@ -211,4 +213,15 @@ pub struct AgentTodo {
     pub priority: String,
     pub status: String,
     pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Comment {
+    pub id: i64,
+    pub task_id: i32,
+    pub run_id: i32,
+    pub mode: String, // "plan" | "review"
+    pub body_md: String,
+    pub sha: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
 }
