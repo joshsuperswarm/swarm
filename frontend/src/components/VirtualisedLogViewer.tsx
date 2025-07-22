@@ -27,7 +27,7 @@ export const VirtualisedLogViewer: React.FC<{ lines: string[]; height?: number }
         lines.map((line, index) => (
           <pre 
             key={index} 
-            className="m-0 p-2 text-xs leading-relaxed whitespace-pre-wrap break-words text-gray-100 font-mono"
+            className="m-0 px-2 text-xs leading-relaxed whitespace-pre-wrap break-words text-gray-100 font-mono"
           >
             {line}
           </pre>
