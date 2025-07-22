@@ -6,6 +6,8 @@ import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo"
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+export type RunMode = 'execute' | 'plan' | 'review';
+
 interface HealthResponse {
   status: string;
   message: string;
@@ -15,6 +17,7 @@ interface HealthResponse {
 interface CreateTaskRequest {
   description: string;
   repository_id: number;
+  mode: RunMode;
 }
 
 interface TaskLog {
@@ -72,6 +75,10 @@ export class ApiService {
     // Client-side validation
     if (!task.description.trim()) {
       throw new Error('Description cannot be empty');
+    }
+    
+    if (!['execute', 'plan', 'review'].includes(task.mode)) {
+      throw new Error('Invalid run mode');
     }
     
     // Sanitize data

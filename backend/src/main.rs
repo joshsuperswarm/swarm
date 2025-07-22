@@ -1211,6 +1211,7 @@ async fn get_tasks(
 struct CreateTaskRequest {
     description: String,
     repository_id: i32,
+    mode: String,
 }
 
 async fn create_task(
@@ -1279,6 +1280,12 @@ async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    // Validate mode
+    if !["execute", "plan", "review"].contains(&payload.mode.as_str()) {
+        tracing::warn!("Rejected task creation: invalid mode '{}'", payload.mode);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     // Title will be generated in background pipeline
     let title = String::new();
 
@@ -1304,8 +1311,11 @@ async fn create_task(
     let pipeline_state = app_state.clone();
     let task_clone = task.clone();
     let task_id = task.id;
+    let mode = payload.mode.clone();
     tokio::spawn(async move {
-        if let Err(e) = task_pipeline::run_full_task_pipeline(pipeline_state, task_clone).await {
+        if let Err(e) =
+            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, &mode).await
+        {
             tracing::error!("Task {} pipeline error: {}", task_id, e);
         }
     });

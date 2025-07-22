@@ -16,11 +16,11 @@ use tracing::instrument;
 ///
 /// On any error, marks the task as "failed" in the database.
 #[instrument(skip_all, fields(task_id = task.id))]
-pub async fn run_full_task_pipeline(app_state: AppState, task: Task) -> Result<()> {
+pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str) -> Result<()> {
     tracing::info!("Starting task pipeline for task {}", task.id);
 
     // Create a new run for this task
-    let run = match app_state.database.create_run(task.id, "execute").await {
+    let run = match app_state.database.create_run(task.id, mode).await {
         Ok(run) => run,
         Err(e) => {
             tracing::error!("Failed to create run for task {}: {}", task.id, e);

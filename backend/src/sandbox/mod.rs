@@ -91,6 +91,7 @@ pub trait SandboxProvider: Send + Sync {
     async fn fetch_artifact(
         &self,
         sandbox_id: &str,
+        task_id: i32,
         run_mode: &str,
     ) -> SandboxResult<(String /*body*/, String /*sha*/)>;
 }

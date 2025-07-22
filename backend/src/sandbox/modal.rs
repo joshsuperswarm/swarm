@@ -943,9 +943,13 @@ impl SandboxProvider for ModalProvider {
     async fn fetch_artifact(
         &self,
         _sandbox_id: &str,
+        task_id: i32,
         run_mode: &str,
     ) -> SandboxResult<(String, String)> {
-        let url = format!("{}/artifacts/{}", self.client.base_url, run_mode);
+        let url = format!(
+            "{}/artifacts/{}/{}",
+            self.client.base_url, task_id, run_mode
+        );
 
         let response = self.client.client.get(&url).send().await.map_err(|e| {
             SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e))

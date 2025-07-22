@@ -4,7 +4,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
 import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
-import { ApiService } from './services/api'
+import { ApiService, type RunMode } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useCreateTaskMutation } from '@/services/queries'
@@ -21,6 +21,7 @@ function App() {
   const handleTaskCreated = async (taskData: {
     description: string;
     repositoryId: number | null;
+    mode: RunMode;
   }) => {
     try {
       if (!taskData.repositoryId) {
@@ -31,6 +32,7 @@ function App() {
       await createTask.mutateAsync({
         description: taskData.description,
         repository_id: taskData.repositoryId,
+        mode: taskData.mode,
       });
 
       setIsCreateModalOpen(false);

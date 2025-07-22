@@ -1,7 +1,7 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, Zap, FileText, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +23,38 @@ export const createColumns = (): ColumnDef<Task>[] => [
     cell: ({ row }) => <div className="w-[80px] text-xs font-mono">{row.getValue("task_id")}</div>,
     enableSorting: false,
     enableHiding: false,
+  },
+  {
+    accessorKey: "mode",
+    header: "Mode",
+    cell: ({ row }) => {
+      const mode = row.getValue("mode") as string | null;
+      if (!mode) return <span className="text-xs text-muted-foreground">-</span>;
+      
+      const getModeConfig = (mode: string) => {
+        switch (mode) {
+          case 'execute':
+            return { icon: Zap, label: 'Execute', color: 'text-green-600' };
+          case 'plan':
+            return { icon: FileText, label: 'Plan', color: 'text-blue-600' };
+          case 'review':
+            return { icon: Search, label: 'Review', color: 'text-purple-600' };
+          default:
+            return { icon: Zap, label: mode, color: 'text-gray-600' };
+        }
+      };
+
+      const config = getModeConfig(mode);
+      const Icon = config.icon;
+
+      return (
+        <div className="flex w-[80px] items-center gap-1">
+          <Icon className={`h-3 w-3 ${config.color}`} />
+          <span className={`text-xs ${config.color}`}>{config.label}</span>
+        </div>
+      );
+    },
+    enableSorting: false,
   },
   {
     accessorKey: "title",

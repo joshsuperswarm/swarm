@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X, Zap, FileText, Search } from 'lucide-react';
 import { useUserStore } from '@/store/userStore';
+import type { RunMode } from '@/services/api';
 
 interface CreateTaskData {
   description: string;
   repositoryId: number | null;
+  mode: RunMode;
 }
 
 interface CreateTaskFormData {
   description: string;
   repositoryId: number | null;
+  mode: RunMode;
 }
 
 interface CreateTaskModalProps {
@@ -26,12 +29,33 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<CreateTaskFormData>({
     description: '',
-    repositoryId: null
+    repositoryId: null,
+    mode: 'execute'
   });
   
   const [loading, setLoading] = useState(false);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Run mode cycling
+  const runModes: RunMode[] = ['execute', 'plan', 'review'];
+  
+  const cycleRunMode = () => {
+    const currentIndex = runModes.indexOf(formData.mode);
+    const nextIndex = (currentIndex + 1) % runModes.length;
+    setFormData(prev => ({ ...prev, mode: runModes[nextIndex] }));
+  };
+
+  const getModeConfig = (mode: RunMode) => {
+    switch (mode) {
+      case 'execute':
+        return { icon: Zap, label: 'Execute', color: 'text-green-600 bg-green-50 border-green-200', description: 'Execute changes immediately' };
+      case 'plan':
+        return { icon: FileText, label: 'Plan', color: 'text-blue-600 bg-blue-50 border-blue-200', description: 'Create a plan only' };
+      case 'review':
+        return { icon: Search, label: 'Review', color: 'text-purple-600 bg-purple-50 border-purple-200', description: 'Review and analyze code' };
+    }
+  };
   
   // Get user data from store instead of fetching on every modal open
   const { user, loading: userLoading } = useUserStore();
@@ -56,7 +80,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     }
   }, [isOpen]);
 
-  // Focus trap for accessibility
+  // Focus trap for accessibility and run mode cycling
   useEffect(() => {
     if (!isOpen) return;
 
@@ -68,6 +92,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       }
       
       if (e.key === 'Tab') {
+        // Handle Shift+Tab for mode cycling
+        if (e.shiftKey) {
+          e.preventDefault();
+          cycleRunMode();
+          return;
+        }
+
         const modal = modalRef.current;
         if (!modal) return;
 
@@ -77,23 +108,16 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
         const firstElement = focusableElements[0] as HTMLElement;
         const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
-        if (e.shiftKey) {
-          if (document.activeElement === firstElement) {
-            e.preventDefault();
-            lastElement.focus();
-          }
-        } else {
-          if (document.activeElement === lastElement) {
-            e.preventDefault();
-            firstElement.focus();
-          }
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, cycleRunMode]);
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -113,7 +137,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     // Reset form
     setFormData({
       description: '',
-      repositoryId: null
+      repositoryId: null,
+      mode: 'execute'
     });
 
     setLoading(false);
@@ -161,6 +186,23 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               </p>
             </div>
           )}
+
+          {/* Run Mode Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Mode:</span>
+              <button
+                type="button"
+                onClick={cycleRunMode}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${getModeConfig(formData.mode).color}`}
+                title={`${getModeConfig(formData.mode).description} (Shift+Tab to cycle)`}
+              >
+                {React.createElement(getModeConfig(formData.mode).icon, { size: 14 })}
+                {getModeConfig(formData.mode).label}
+              </button>
+            </div>
+            <div className="text-xs text-gray-500">Shift+Tab to cycle</div>
+          </div>
 
           <div className="space-y-1">
             <textarea

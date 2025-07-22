@@ -270,7 +270,7 @@ async fn wait_for_artifacts(
                     run_id, task_id
                 );
                 return finalize_success(
-                    app_state, provider, run_id, task_id, sandbox_id, command_id,
+                    app_state, provider, run_id, task_id, sandbox_id, command_id, &run.mode,
                 )
                 .await;
             }
@@ -282,8 +282,16 @@ async fn wait_for_artifacts(
                 "run {} / task {} timed out waiting for artifacts after 30 seconds",
                 run_id, task_id
             );
-            return finalize_success(app_state, provider, run_id, task_id, sandbox_id, command_id)
-                .await;
+            // Get run mode for timeout case
+            let run_mode = if let Ok(Some(run)) = app_state.database.get_run_by_id(run_id).await {
+                run.mode
+            } else {
+                "execute".to_string() // fallback to execute if we can't get the run
+            };
+            return finalize_success(
+                app_state, provider, run_id, task_id, sandbox_id, command_id, &run_mode,
+            )
+            .await;
         }
 
         // Wait before next poll
@@ -298,6 +306,7 @@ async fn finalize_success(
     task_id: i32,
     sandbox_id: &str,
     command_id: &str,
+    run_mode: &str,
 ) -> anyhow::Result<()> {
     info!("task {task_id} finished with exit‑code 0 – collecting logs & artifacts");
 
@@ -314,8 +323,9 @@ async fn finalize_success(
     }
 
     // Fetch comment artifacts after successful completion and before delete_sandbox
-    for run_mode in &["plan", "review"] {
-        match provider.fetch_artifact(sandbox_id, run_mode).await {
+    // Only fetch artifacts for plan and review modes - execute mode doesn't generate artifacts
+    if run_mode == "plan" || run_mode == "review" {
+        match provider.fetch_artifact(sandbox_id, task_id, run_mode).await {
             Ok((body_md, sha)) => {
                 if let Err(e) = app_state
                     .database
@@ -341,6 +351,11 @@ async fn finalize_success(
                 );
             }
         }
+    } else {
+        info!(
+            "Skipping artifact fetch for {} mode - no artifacts expected",
+            run_mode
+        );
     }
 
     app_state.database.update_run_status(run_id, "done").await?;
