@@ -86,6 +86,13 @@ pub trait SandboxProvider: Send + Sync {
 
     /// Delete a sandbox
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
+
+    /// Fetch artifact from sandbox
+    async fn fetch_artifact(
+        &self,
+        sandbox_id: &str,
+        run_mode: &str,
+    ) -> SandboxResult<(String /*body*/, String /*sha*/)>;
 }
 
 pub type DynSandbox = Arc<dyn SandboxProvider + Send + Sync>;

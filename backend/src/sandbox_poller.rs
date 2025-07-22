@@ -293,13 +293,13 @@ async fn wait_for_artifacts(
 
 async fn finalize_success(
     app_state: &AppState,
-    _provider: &dyn SandboxProvider,
+    provider: &dyn SandboxProvider,
     run_id: i32,
     task_id: i32,
     sandbox_id: &str,
     command_id: &str,
 ) -> anyhow::Result<()> {
-    info!("task {task_id} finished with exit‑code 0 – collecting logs & pushing");
+    info!("task {task_id} finished with exit‑code 0 – collecting logs & artifacts");
 
     // Use provider-specific log collection on success
     if let Some(modal_url) = &app_state.config.modal_url {
@@ -312,6 +312,37 @@ async fn finalize_success(
             .await
             .ok();
     }
+
+    // Fetch comment artifacts after successful completion and before delete_sandbox
+    for run_mode in &["plan", "review"] {
+        match provider.fetch_artifact(sandbox_id, run_mode).await {
+            Ok((body_md, sha)) => {
+                if let Err(e) = app_state
+                    .database
+                    .upsert_comment(task_id, run_id, run_mode, &body_md, &sha)
+                    .await
+                {
+                    warn!(
+                        "Failed to store {} artifact for task {}: {}",
+                        run_mode, task_id, e
+                    );
+                } else {
+                    info!(
+                        "Successfully stored {} artifact for task {}",
+                        run_mode, task_id
+                    );
+                }
+            }
+            Err(e) => {
+                // Log but don't fail the task - artifacts are optional
+                info!(
+                    "No {} artifact found for task {} or fetch failed: {}",
+                    run_mode, task_id, e
+                );
+            }
+        }
+    }
+
     app_state.database.update_run_status(run_id, "done").await?;
 
     // Spawn handle_task_success for PR creation

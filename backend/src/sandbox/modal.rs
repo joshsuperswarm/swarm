@@ -939,6 +939,49 @@ impl SandboxProvider for ModalProvider {
                 SandboxError::SandboxOperationError(format!("Failed to delete sandbox: {}", e))
             })
     }
+
+    async fn fetch_artifact(
+        &self,
+        _sandbox_id: &str,
+        run_mode: &str,
+    ) -> SandboxResult<(String, String)> {
+        let url = format!("{}/artifacts/{}", self.client.base_url, run_mode);
+
+        let response = self.client.client.get(&url).send().await.map_err(|e| {
+            SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e))
+        })?;
+
+        if response.status().is_success() {
+            let artifact_resp: serde_json::Value = response.json().await.map_err(|e| {
+                SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e))
+            })?;
+
+            let body = artifact_resp["body"]
+                .as_str()
+                .ok_or_else(|| {
+                    SandboxError::SandboxOperationError("Missing 'body' field".to_string())
+                })?
+                .to_string();
+
+            let sha = artifact_resp["sha"]
+                .as_str()
+                .ok_or_else(|| {
+                    SandboxError::SandboxOperationError("Missing 'sha' field".to_string())
+                })?
+                .to_string();
+
+            Ok((body, sha))
+        } else {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            Err(SandboxError::SandboxOperationError(format!(
+                "Failed to fetch artifact: {}",
+                error_text
+            )))
+        }
+    }
 }
 
 #[cfg(test)]

@@ -8,6 +8,8 @@ import threading
 import shlex
 import textwrap
 import base64
+import hashlib
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -85,6 +87,10 @@ class PushChangesReq(BaseModel):
     author_email: str
     commit_title: str
     commit_body: str
+
+class ArtifactResp(BaseModel):
+    body: str
+    sha: str
 
 # FastAPI app
 app = FastAPI(title="Modal Sandbox Shim", version="1.0.0")
@@ -790,6 +796,37 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
         logger.error(f"Failed to push changes: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to push changes: {str(e)}")
 
+@app.get("/artifacts/{run_mode}", response_model=ArtifactResp)
+async def get_artifact(run_mode: str):
+    """Fetch artifact from .swarm directory."""
+    try:
+        # Get task_id from environment variable set during task execution
+        task_id = os.environ.get("SWARM_TASK_ID")
+        if not task_id:
+            raise HTTPException(status_code=400, detail="SWARM_TASK_ID environment variable not set")
+        
+        path = f".swarm/task-{task_id}-{run_mode}.md"
+        
+        # Check if file exists
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail=f"Artifact file {path} not found")
+        
+        # Read the file content
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Generate SHA-1 hash of the content
+        sha = hashlib.sha1(content.encode('utf-8')).hexdigest()
+        
+        logger.info(f"Successfully fetched artifact {path} (sha: {sha[:8]})")
+        
+        return ArtifactResp(body=content, sha=sha)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch artifact for run_mode {run_mode}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch artifact: {str(e)}")
 
 # Legacy endpoint for backward compatibility
 @app.post("/create_sandbox", response_model=CreateSandboxResp)
