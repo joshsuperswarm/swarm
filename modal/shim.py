@@ -330,7 +330,8 @@ async def exec_command(sandbox_id: str, req: ExecReq):
         proc = sb.exec(
             "su", "-", "swarm", "-c", f"cd {workdir} && {cmd_str}",
             stdout=StreamType.PIPE,
-            stderr=StreamType.PIPE
+            stderr=StreamType.PIPE,
+            bufsize=1,
         )
 
         # Create buffer key and start background thread to consume output
