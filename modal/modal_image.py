@@ -25,24 +25,25 @@ image = (
     )
     .run_commands(
         "su - swarm -c \"curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs "
-        "| sh -s -- -y --profile minimal --default-toolchain stable\"",
-        "su - swarm -c \"curl -fsSL https://bun.sh/install | bash\""
+        '| sh -s -- -y --profile minimal --default-toolchain stable"',
+        'su - swarm -c "curl -fsSL https://bun.sh/install | bash"',
     )
+    .run_commands('su - swarm -c "curl -fsSL https://claude.ai/install.sh | bash"')
     .run_commands(
-        "su - swarm -c \"curl -fsSL https://claude.ai/install.sh | bash\""
+        'su - swarm -c "cargo install sqlx-cli --no-default-features --features rustls,postgres"'
     )
-    .run_commands(
-        "su - swarm -c \"cargo install sqlx-cli --no-default-features --features rustls,postgres\""
+    .env(
+        {
+            "PATH": (
+                "/home/swarm/.local/bin:"
+                "/home/swarm/.cargo/bin:"
+                "/home/swarm/.bun/bin:"
+                "$PATH"
+            )
+        }
     )
-    .env({
-        "PATH": (
-            "/home/swarm/.local/bin:"
-            "/home/swarm/.cargo/bin:"
-            "/home/swarm/.bun/bin:"
-            "$PATH"
-        )
-    })
 )
+
 
 # Image is available as:  sandbox-shim/swarm_dev_image:latest
 @app.function(image=image)

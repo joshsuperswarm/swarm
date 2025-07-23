@@ -17,7 +17,12 @@ from datetime import datetime
 from collections import defaultdict, deque
 from modal.stream_type import StreamType
 from modal_image import image as swarm_dev_img
-from prompts import PLAN_MODE_INSTRUCTIONS, REVIEW_MODE_INSTRUCTIONS, EXECUTE_MODE_INSTRUCTIONS, CLAUDE_PROMPT_TEMPLATE
+from prompts import (
+    PLAN_MODE_INSTRUCTIONS,
+    REVIEW_MODE_INSTRUCTIONS,
+    EXECUTE_MODE_INSTRUCTIONS,
+    CLAUDE_PROMPT_TEMPLATE,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +38,7 @@ PROCS: Dict[str, Dict[str, Any]] = {}
 # Global buffer store for non-blocking log retrieval
 LOG_BUFFERS = defaultdict(lambda: {"stdout": deque(), "stderr": deque()})
 
+
 # Request/Response models
 class CreateSandboxReq(BaseModel):
     repo_url: str
@@ -42,32 +48,40 @@ class CreateSandboxReq(BaseModel):
     author_name: Optional[str] = None
     author_email: Optional[str] = None
 
+
 class CreateSandboxResp(BaseModel):
     sandbox_id: str
     hostname: str
+
 
 class ExecReq(BaseModel):
     cmd: List[str]
     cwd: Optional[str] = None
 
+
 class ExecResp(BaseModel):
     proc_id: str
 
+
 class ExitCodeResp(BaseModel):
     code: Optional[int]
+
 
 class LogsResp(BaseModel):
     stdout: str
     stderr: str
 
+
 class SandboxStatusResp(BaseModel):
     status: str  # "starting", "running", "stopped", "failed"
+
 
 class WorkflowReq(BaseModel):
     repo_url: Optional[str] = None
     branch: Optional[str] = None
     user_name: Optional[str] = None
     user_email: Optional[str] = None
+
 
 class ClaudeCodeExecReq(BaseModel):
     repo_path: str
@@ -81,6 +95,7 @@ class ClaudeCodeExecReq(BaseModel):
     author_email: str
     mode: str = "execute"  # execute, plan, or review
 
+
 class PushChangesReq(BaseModel):
     repo_path: str
     branch: str
@@ -90,18 +105,22 @@ class PushChangesReq(BaseModel):
     commit_title: str
     commit_body: str
 
+
 class ArtifactResp(BaseModel):
     body: str
     sha: str
 
+
 # FastAPI app
 app = FastAPI(title="Modal Sandbox Shim", version="1.0.0")
+
 
 def get_sb(sandbox_id: str) -> modal.Sandbox:
     """Get sandbox by ID from memory."""
     if sandbox_id in SANDBOXES:
         return SANDBOXES[sandbox_id]
     raise HTTPException(status_code=404, detail=f"Sandbox {sandbox_id} not found")
+
 
 def _tail_process_output(proc, key):
     """Consume process output in background threads using Modal's streaming."""
@@ -147,12 +166,14 @@ def _tail_process_output(proc, key):
     # Return completion events so caller can wait for them
     return stdout_complete, stderr_complete
 
+
 def _cleanup_process_logs(sandbox_id, proc_id):
     """Clean up log buffers for a completed process."""
     buffer_key = (sandbox_id, proc_id)
     if buffer_key in LOG_BUFFERS:
         del LOG_BUFFERS[buffer_key]
         logger.debug(f"Cleaned up log buffer for {buffer_key}")
+
 
 @app.post("/sandboxes", response_model=CreateSandboxResp)
 async def create_sandbox(req: CreateSandboxReq):
@@ -183,19 +204,30 @@ async def create_sandbox(req: CreateSandboxReq):
             clone_url = req.repo_url
             if req.github_token and "github.com" in req.repo_url:
                 # Convert https://github.com/user/repo to https://token@github.com/user/repo
-                clone_url = req.repo_url.replace("https://github.com", f"https://x-access-token:{req.github_token}@github.com")
+                clone_url = req.repo_url.replace(
+                    "https://github.com",
+                    f"https://x-access-token:{req.github_token}@github.com",
+                )
                 logger.info(f"Using authenticated clone for {req.repo_url}")
             else:
                 logger.info(f"Using public clone for {req.repo_url}")
 
             # Extract repo name from URL for folder name
-            repo_name = req.repo_url.rstrip('/').split('/')[-1]
-            if repo_name.endswith('.git'):
+            repo_name = req.repo_url.rstrip("/").split("/")[-1]
+            if repo_name.endswith(".git"):
                 repo_name = repo_name[:-4]
 
-            logger.info(f"Cloning {req.repo_url} branch {req.branch} to /home/swarm/{repo_name}")
+            logger.info(
+                f"Cloning {req.repo_url} branch {req.branch} to /home/swarm/{repo_name}"
+            )
             # Run git clone as swarm user
-            clone_proc = sb.exec("su", "-", "swarm", "-c", f"git clone {clone_url} /home/swarm/{repo_name} -b {req.branch}")
+            clone_proc = sb.exec(
+                "su",
+                "-",
+                "swarm",
+                "-c",
+                f"git clone {clone_url} /home/swarm/{repo_name} -b {req.branch}",
+            )
 
             # Wait for clone to complete and get result
             clone_exit_code = clone_proc.wait()
@@ -207,8 +239,12 @@ async def create_sandbox(req: CreateSandboxReq):
                 logger.error(f"Git clone failed with exit code {clone_exit_code}")
                 # Try to get error output
                 try:
-                    if hasattr(clone_proc, 'stderr') and clone_proc.stderr:
-                        stderr = clone_proc.stderr.read() if hasattr(clone_proc.stderr, 'read') else str(clone_proc.stderr)
+                    if hasattr(clone_proc, "stderr") and clone_proc.stderr:
+                        stderr = (
+                            clone_proc.stderr.read()
+                            if hasattr(clone_proc.stderr, "read")
+                            else str(clone_proc.stderr)
+                        )
                         logger.error(f"Git clone error: {stderr}")
                 except Exception as error_output:
                     logger.warning(f"Could not read git clone error: {error_output}")
@@ -216,7 +252,13 @@ async def create_sandbox(req: CreateSandboxReq):
                 # Try basic clone without branch specification as fallback
                 try:
                     logger.info(f"Retrying clone without branch specification")
-                    fallback_proc = sb.exec("su", "-", "swarm", "-c", f"git clone {clone_url} /home/swarm/{repo_name}")
+                    fallback_proc = sb.exec(
+                        "su",
+                        "-",
+                        "swarm",
+                        "-c",
+                        f"git clone {clone_url} /home/swarm/{repo_name}",
+                    )
                     fallback_exit_code = fallback_proc.wait()
                     logger.info(f"Fallback git clone exit code: {fallback_exit_code}")
                 except Exception as fallback_error:
@@ -232,12 +274,24 @@ async def create_sandbox(req: CreateSandboxReq):
                 logger.info("Configuring git user settings during startup")
 
                 # Configure git user.name
-                git_name_proc = sb.exec("su", "-", "swarm", "-c", f"git config --global user.name '{req.author_name}'")
+                git_name_proc = sb.exec(
+                    "su",
+                    "-",
+                    "swarm",
+                    "-c",
+                    f"git config --global user.name '{req.author_name}'",
+                )
                 git_name_exit = git_name_proc.wait()
                 logger.info(f"Git user.name config exit code: {git_name_exit}")
 
                 # Configure git user.email
-                git_email_proc = sb.exec("su", "-", "swarm", "-c", f"git config --global user.email '{req.author_email}'")
+                git_email_proc = sb.exec(
+                    "su",
+                    "-",
+                    "swarm",
+                    "-c",
+                    f"git config --global user.email '{req.author_email}'",
+                )
                 git_email_exit = git_email_proc.wait()
                 logger.info(f"Git user.email config exit code: {git_email_exit}")
 
@@ -245,10 +299,14 @@ async def create_sandbox(req: CreateSandboxReq):
                 if req.github_token and repo_name:
                     try:
                         # Extract repo full name from URL (e.g., "jmvldz/swarm")
-                        repo_full_name = req.repo_url.replace("https://github.com/", "").replace(".git", "")
+                        repo_full_name = req.repo_url.replace(
+                            "https://github.com/", ""
+                        ).replace(".git", "")
 
-                        logger.info(f"Configuring authenticated git remote for {repo_full_name}")
-                        remote_config_cmd = f'''
+                        logger.info(
+                            f"Configuring authenticated git remote for {repo_full_name}"
+                        )
+                        remote_config_cmd = f"""
                         cd /home/swarm/{repo_name} &&
                         if [ -d .git ]; then
                             if git remote | grep -q "^origin$"; then
@@ -262,27 +320,37 @@ async def create_sandbox(req: CreateSandboxReq):
                         else
                             echo "No git repository found, skipping remote config";
                         fi
-                        '''
+                        """
 
-                        remote_proc = sb.exec("su", "-", "swarm", "-c", remote_config_cmd)
+                        remote_proc = sb.exec(
+                            "su", "-", "swarm", "-c", remote_config_cmd
+                        )
                         remote_exit = remote_proc.wait()
                         logger.info(f"Git remote config exit code: {remote_exit}")
 
                     except Exception as remote_error:
-                        logger.warning(f"Failed to configure git remote: {remote_error}")
+                        logger.warning(
+                            f"Failed to configure git remote: {remote_error}"
+                        )
 
                 logger.info("Successfully configured git settings during startup")
 
             except Exception as git_config_error:
-                logger.warning(f"Failed to configure git during startup: {git_config_error}")
+                logger.warning(
+                    f"Failed to configure git during startup: {git_config_error}"
+                )
                 # Don't fail sandbox creation - this is not critical
         else:
             logger.info("No git author info provided, skipping git configuration")
 
         # ── Run backend/scripts/start_postgres_and_migrate.sh ────────────────
-        script_path = f"/home/swarm/{repo_name}/backend/scripts/start_postgres_and_migrate.sh"
+        script_path = (
+            f"/home/swarm/{repo_name}/backend/scripts/start_postgres_and_migrate.sh"
+        )
 
-        pg_proc = sb.exec("su", "-", "swarm", "-c", f"chmod +x {script_path} && {script_path}")
+        pg_proc = sb.exec(
+            "su", "-", "swarm", "-c", f"chmod +x {script_path} && {script_path}"
+        )
 
         # Wait for postgres setup to complete and get result
         pg_exit_code = pg_proc.wait()
@@ -294,29 +362,39 @@ async def create_sandbox(req: CreateSandboxReq):
             logger.error(f"Postgres setup failed with exit code {pg_exit_code}")
             # Try to get both stdout and stderr output
             try:
-                if hasattr(pg_proc, 'stdout') and pg_proc.stdout:
-                    stdout = pg_proc.stdout.read() if hasattr(pg_proc.stdout, 'read') else str(pg_proc.stdout)
+                if hasattr(pg_proc, "stdout") and pg_proc.stdout:
+                    stdout = (
+                        pg_proc.stdout.read()
+                        if hasattr(pg_proc.stdout, "read")
+                        else str(pg_proc.stdout)
+                    )
                     logger.info(f"Postgres setup stdout: {stdout}")
-                if hasattr(pg_proc, 'stderr') and pg_proc.stderr:
-                    stderr = pg_proc.stderr.read() if hasattr(pg_proc.stderr, 'read') else str(pg_proc.stderr)
+                if hasattr(pg_proc, "stderr") and pg_proc.stderr:
+                    stderr = (
+                        pg_proc.stderr.read()
+                        if hasattr(pg_proc.stderr, "read")
+                        else str(pg_proc.stderr)
+                    )
                     logger.error(f"Postgres setup stderr: {stderr}")
             except Exception as error_output:
                 logger.warning(f"Could not read postgres setup output: {error_output}")
 
             raise HTTPException(
                 status_code=500,
-                detail=f"Postgres bootstrap failed (exit {pg_exit_code})"
+                detail=f"Postgres bootstrap failed (exit {pg_exit_code})",
             )
 
         logger.info(f"Created sandbox {sandbox_id} with repo {req.repo_url}")
 
         return CreateSandboxResp(
-            sandbox_id=sandbox_id,
-            hostname=f"sandbox-{sandbox_id}"
+            sandbox_id=sandbox_id, hostname=f"sandbox-{sandbox_id}"
         )
     except Exception as e:
         logger.error(f"Failed to create sandbox: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create sandbox: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create sandbox: {str(e)}"
+        )
+
 
 @app.post("/sandboxes/{sandbox_id}/exec", response_model=ExecResp)
 async def exec_command(sandbox_id: str, req: ExecReq):
@@ -331,12 +409,18 @@ async def exec_command(sandbox_id: str, req: ExecReq):
 
         # Execute command as swarm user using Modal's exec method
         # Build the command to run as swarm user
-        cmd_str = ' '.join(f"'{part}'" for part in cmd_parts)
+        cmd_str = " ".join(f"'{part}'" for part in cmd_parts)
 
-        logger.info(f"Executing command in sandbox {sandbox_id}: {' '.join(req.cmd)} (cwd: {workdir})")
+        logger.info(
+            f"Executing command in sandbox {sandbox_id}: {' '.join(req.cmd)} (cwd: {workdir})"
+        )
 
         proc = sb.exec(
-            "su", "-", "swarm", "-c", f"cd {workdir} && {cmd_str}",
+            "su",
+            "-",
+            "swarm",
+            "-c",
+            f"cd {workdir} && {cmd_str}",
             stdout=StreamType.PIPE,
             stderr=StreamType.PIPE,
             bufsize=1,
@@ -352,29 +436,38 @@ async def exec_command(sandbox_id: str, req: ExecReq):
             "buffer_key": buffer_key,
             "stdout_complete": stdout_complete,
             "stderr_complete": stderr_complete,
-            "output_fully_consumed": False
+            "output_fully_consumed": False,
         }
 
         # Check for immediate command failure
         time.sleep(0.1)  # Brief pause to allow immediate failures to be detected
         exit_code = proc.poll()
         if exit_code is not None:
-            logger.error(f"Command failed immediately with exit code {exit_code}: {' '.join(req.cmd)}")
+            logger.error(
+                f"Command failed immediately with exit code {exit_code}: {' '.join(req.cmd)}"
+            )
             # Give a moment for any error output to be captured
             time.sleep(0.5)
             # Log any captured stderr immediately
             current_stderr = "".join(LOG_BUFFERS[buffer_key]["stderr"])
             if current_stderr.strip():
-                logger.error(f"Immediate command failure stderr: {current_stderr.strip()}")
+                logger.error(
+                    f"Immediate command failure stderr: {current_stderr.strip()}"
+                )
 
         logger.info(f"Command started in sandbox {sandbox_id} with proc_id {proc_id}")
         return ExecResp(proc_id=proc_id)
 
     except Exception as e:
         logger.error(f"Failed to execute command: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to execute command: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to execute command: {str(e)}"
+        )
 
-@app.get("/sandboxes/{sandbox_id}/procs/{proc_id}/exit_code", response_model=ExitCodeResp)
+
+@app.get(
+    "/sandboxes/{sandbox_id}/procs/{proc_id}/exit_code", response_model=ExitCodeResp
+)
 async def get_exit_code(sandbox_id: str, proc_id: str):
     """Get the exit code of a process, ensuring all output is consumed first."""
     try:
@@ -396,7 +489,9 @@ async def get_exit_code(sandbox_id: str, proc_id: str):
 
         # Process has finished - ensure all output is consumed before returning exit code
         if not proc_info.get("output_fully_consumed", False):
-            logger.info(f"Process {proc_id} finished with exit code {exit_code}, waiting for output consumption...")
+            logger.info(
+                f"Process {proc_id} finished with exit code {exit_code}, waiting for output consumption..."
+            )
 
             # Get completion events
             stdout_complete = proc_info.get("stdout_complete")
@@ -410,21 +505,35 @@ async def get_exit_code(sandbox_id: str, proc_id: str):
                 if stdout_ready and stderr_ready:
                     logger.info(f"All output consumed for process {proc_id}")
                 else:
-                    logger.warning(f"Timeout waiting for output consumption for process {proc_id}")
+                    logger.warning(
+                        f"Timeout waiting for output consumption for process {proc_id}"
+                    )
                     # Try to get any remaining output with communicate as fallback
                     try:
-                        remaining_stdout, remaining_stderr = proc.communicate(timeout=5.0)
+                        remaining_stdout, remaining_stderr = proc.communicate(
+                            timeout=5.0
+                        )
                         if remaining_stdout:
-                            LOG_BUFFERS[proc_info["buffer_key"]]["stdout"].extend(remaining_stdout.splitlines(True))
+                            LOG_BUFFERS[proc_info["buffer_key"]]["stdout"].extend(
+                                remaining_stdout.splitlines(True)
+                            )
                         if remaining_stderr:
-                            LOG_BUFFERS[proc_info["buffer_key"]]["stderr"].extend(remaining_stderr.splitlines(True))
-                        logger.info(f"Fallback communicate() captured remaining output for process {proc_id}")
+                            LOG_BUFFERS[proc_info["buffer_key"]]["stderr"].extend(
+                                remaining_stderr.splitlines(True)
+                            )
+                        logger.info(
+                            f"Fallback communicate() captured remaining output for process {proc_id}"
+                        )
                     except Exception as comm_error:
-                        logger.warning(f"Fallback communicate() failed for process {proc_id}: {str(comm_error)}")
+                        logger.warning(
+                            f"Fallback communicate() failed for process {proc_id}: {str(comm_error)}"
+                        )
                         # Best effort - continue anyway
             else:
                 # No completion events (older process or different execution path)
-                logger.info(f"No completion events for process {proc_id}, assuming output consumed")
+                logger.info(
+                    f"No completion events for process {proc_id}, assuming output consumed"
+                )
 
             # Mark as fully consumed
             proc_info["output_fully_consumed"] = True
@@ -435,7 +544,10 @@ async def get_exit_code(sandbox_id: str, proc_id: str):
         raise
     except Exception as e:
         logger.error(f"Failed to get exit code: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get exit code: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get exit code: {str(e)}"
+        )
+
 
 @app.get("/sandboxes/{sandbox_id}/procs/{proc_id}/logs", response_model=LogsResp)
 async def get_logs(sandbox_id: str, proc_id: str, since: int = 0):
@@ -467,6 +579,7 @@ async def get_logs(sandbox_id: str, proc_id: str, since: int = 0):
         logger.error(f"Failed to get logs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
 
+
 @app.get("/sandboxes/{sandbox_id}/procs/{proc_id}/logs_once", response_model=LogsResp)
 async def get_logs_once(sandbox_id: str, proc_id: str):
     """Get current buffer contents immediately without blocking."""
@@ -487,7 +600,10 @@ async def get_logs_once(sandbox_id: str, proc_id: str):
         raise
     except Exception as e:
         logger.error(f"Failed to get logs once: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get logs once: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get logs once: {str(e)}"
+        )
+
 
 @app.delete("/sandboxes/{sandbox_id}")
 async def terminate_sandbox(sandbox_id: str):
@@ -499,10 +615,12 @@ async def terminate_sandbox(sandbox_id: str):
         if sandbox_id in PROCS:
             for proc_id, proc_info in PROCS[sandbox_id].items():
                 try:
-                    proc = proc_info["proc"] if isinstance(proc_info, dict) else proc_info
-                    if hasattr(proc, 'terminate'):
+                    proc = (
+                        proc_info["proc"] if isinstance(proc_info, dict) else proc_info
+                    )
+                    if hasattr(proc, "terminate"):
                         proc.terminate()
-                    elif hasattr(proc, 'kill'):
+                    elif hasattr(proc, "kill"):
                         proc.kill()
                 except Exception as e:
                     logger.warning(f"Could not terminate process {proc_id}: {str(e)}")
@@ -512,9 +630,9 @@ async def terminate_sandbox(sandbox_id: str):
 
         # Terminate the sandbox
         try:
-            if hasattr(sb, 'terminate'):
+            if hasattr(sb, "terminate"):
                 sb.terminate()
-            elif hasattr(sb, 'close'):
+            elif hasattr(sb, "close"):
                 sb.close()
         except Exception as e:
             logger.warning(f"Could not terminate sandbox: {str(e)}")
@@ -533,7 +651,10 @@ async def terminate_sandbox(sandbox_id: str):
 
     except Exception as e:
         logger.error(f"Failed to terminate sandbox: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to terminate sandbox: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to terminate sandbox: {str(e)}"
+        )
+
 
 @app.get("/sandboxes/{sandbox_id}", response_model=SandboxStatusResp)
 async def get_sandbox_status(sandbox_id: str):
@@ -550,7 +671,10 @@ async def get_sandbox_status(sandbox_id: str):
         return SandboxStatusResp(status="stopped")
     except Exception as e:
         logger.error(f"Failed to get sandbox status: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get sandbox status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get sandbox status: {str(e)}"
+        )
+
 
 @app.get("/health")
 async def health_check():
@@ -559,8 +683,9 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "sandboxes": len(SANDBOXES),
-        "processes": sum(len(procs) for procs in PROCS.values())
+        "processes": sum(len(procs) for procs in PROCS.values()),
     }
+
 
 # Workflow helper endpoints
 @app.post("/sandboxes/{sandbox_id}/clone_repo", response_model=ExecResp)
@@ -570,39 +695,59 @@ async def clone_repo(sandbox_id: str, req: WorkflowReq):
         raise HTTPException(status_code=400, detail="repo_url is required")
 
     # Extract repo name from URL for folder name
-    repo_name = req.repo_url.rstrip('/').split('/')[-1]
-    if repo_name.endswith('.git'):
+    repo_name = req.repo_url.rstrip("/").split("/")[-1]
+    if repo_name.endswith(".git"):
         repo_name = repo_name[:-4]
 
     # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
-        cmd=["git", "clone", req.repo_url, f"/home/swarm/{repo_name}", "-b", req.branch or "main"],
-        cwd="/home/swarm"
+        cmd=[
+            "git",
+            "clone",
+            req.repo_url,
+            f"/home/swarm/{repo_name}",
+            "-b",
+            req.branch or "main",
+        ],
+        cwd="/home/swarm",
     )
     return await exec_command(sandbox_id, exec_req)
+
 
 @app.post("/sandboxes/{sandbox_id}/install_tools", response_model=ExecResp)
 async def install_tools(sandbox_id: str):
     """Verify that development tools are available (already installed in pre-built image)."""
     # Tools are already installed in the pre-built image, just verify availability
     exec_req = ExecReq(
-        cmd=["bash", "-c", "which claude && which cargo && which bun && which node && echo 'All tools available'"],
-        cwd="/home/swarm"
+        cmd=[
+            "bash",
+            "-c",
+            "which claude && which cargo && which bun && which node && echo 'All tools available'",
+        ],
+        cwd="/home/swarm",
     )
     return await exec_command(sandbox_id, exec_req)
+
 
 @app.post("/sandboxes/{sandbox_id}/configure_git", response_model=ExecResp)
 async def configure_git(sandbox_id: str, req: WorkflowReq):
     """Configure Git user settings."""
     if not req.user_name or not req.user_email:
-        raise HTTPException(status_code=400, detail="user_name and user_email are required")
+        raise HTTPException(
+            status_code=400, detail="user_name and user_email are required"
+        )
 
     # Commands are now automatically run as swarm user via exec_command
     exec_req = ExecReq(
-        cmd=["bash", "-c", f"git config --global user.name '{req.user_name}' && git config --global user.email '{req.user_email}'"],
-        cwd="/home/swarm"  # Git config is global, so any directory works
+        cmd=[
+            "bash",
+            "-c",
+            f"git config --global user.name '{req.user_name}' && git config --global user.email '{req.user_email}'",
+        ],
+        cwd="/home/swarm",  # Git config is global, so any directory works
     )
     return await exec_command(sandbox_id, exec_req)
+
 
 @app.post("/sandboxes/{sandbox_id}/push_changes", response_model=ExecResp)
 async def push_changes(sandbox_id: str, req: WorkflowReq):
@@ -611,10 +756,15 @@ async def push_changes(sandbox_id: str, req: WorkflowReq):
     # Note: This endpoint would need repo URL to determine the correct folder
     # For now, assume the repo is in the working directory
     exec_req = ExecReq(
-        cmd=["bash", "-c", f"git add . && git commit -m 'Auto-commit changes' && git push origin {branch}"],
-        cwd="/home/swarm"  # This would need to be updated to use the actual repo folder
+        cmd=[
+            "bash",
+            "-c",
+            f"git add . && git commit -m 'Auto-commit changes' && git push origin {branch}",
+        ],
+        cwd="/home/swarm",  # This would need to be updated to use the actual repo folder
     )
     return await exec_command(sandbox_id, exec_req)
+
 
 # New Claude Code specific endpoints
 @app.post("/sandboxes/{sandbox_id}/install_claude_code", response_model=ExecResp)
@@ -624,22 +774,22 @@ async def install_claude_code(sandbox_id: str):
         logger.info(f"Verifying Claude Code in sandbox {sandbox_id}")
 
         # Claude Code is already installed in the pre-built image, just verify
-        verify_cmd = '''
+        verify_cmd = """
             export PATH="$HOME/.local/bin:$PATH" && \
             which claude && \
             claude --version
-        '''
+        """
 
-        exec_req = ExecReq(
-            cmd=["bash", "-c", verify_cmd],
-            cwd="/home/swarm"
-        )
+        exec_req = ExecReq(cmd=["bash", "-c", verify_cmd], cwd="/home/swarm")
 
         return await exec_command(sandbox_id, exec_req)
 
     except Exception as e:
         logger.error(f"Failed to verify Claude Code: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to verify Claude Code: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to verify Claude Code: {str(e)}"
+        )
+
 
 @app.post("/sandboxes/{sandbox_id}/exec_claude_code", response_model=ExecResp)
 async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
@@ -652,7 +802,7 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     sb = get_sb(sandbox_id)
 
     # -------- 1.  Create the Claude prompt with artifact markers ------------
-    
+
     # Generate mode-specific instructions
     if req.mode == "plan":
         mode_instructions = PLAN_MODE_INSTRUCTIONS.format(task_id=req.task_id)
@@ -662,35 +812,37 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
         mode_instructions = EXECUTE_MODE_INSTRUCTIONS
 
     claude_prompt = CLAUDE_PROMPT_TEMPLATE.format(
-        task_id=req.task_id,
-        prompt=req.prompt,
-        mode_instructions=mode_instructions
+        task_id=req.task_id, prompt=req.prompt, mode_instructions=mode_instructions
     )
 
     # -------- 2.  write prompt file -----------------------------------------
-    prompt_id   = str(uuid.uuid4())
-    prompt_dir  = "/home/swarm/tmp"
+    prompt_id = str(uuid.uuid4())
+    prompt_dir = "/home/swarm/tmp"
     prompt_path = f"{prompt_dir}/{prompt_id}.txt"
 
     # make sure tmp dir exists (idempotent, fast)
     sb.exec("mkdir", "-p", prompt_dir).wait()
 
     b64_prompt = base64.b64encode(claude_prompt.encode()).decode()
-    write_cmd = f"echo {shlex.quote(b64_prompt)} | base64 -d > {shlex.quote(prompt_path)}"
+    write_cmd = (
+        f"echo {shlex.quote(b64_prompt)} | base64 -d > {shlex.quote(prompt_path)}"
+    )
     write_result = sb.exec("bash", "-c", write_cmd).wait()
     if write_result == 0:
         logger.info("Prompt written successfully to %s", prompt_path)
     else:
-        logger.error("Failed to write prompt to %s (exit code: %d)", prompt_path, write_result)
+        logger.error(
+            "Failed to write prompt to %s (exit code: %d)", prompt_path, write_result
+        )
 
     # -------- 3.  build environment -----------------------------------------
     env_pairs = {
-        "GITHUB_TOKEN":       req.github_token,
-        "ANTHROPIC_API_KEY":  req.anthropic_api_key,
-        "SWARM_TASK_ID":      str(req.task_id),
-        "SWARM_BRANCH":       req.branch,
-        "GIT_AUTHOR_NAME":    req.author_name,
-        "GIT_AUTHOR_EMAIL":   req.author_email,
+        "GITHUB_TOKEN": req.github_token,
+        "ANTHROPIC_API_KEY": req.anthropic_api_key,
+        "SWARM_TASK_ID": str(req.task_id),
+        "SWARM_BRANCH": req.branch,
+        "GIT_AUTHOR_NAME": req.author_name,
+        "GIT_AUTHOR_EMAIL": req.author_email,
     }
     if req.openai_api_key:
         env_pairs["OPENAI_API_KEY"] = req.openai_api_key
@@ -700,22 +852,25 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     )
 
     # -------- 4.  craft final command ---------------------------------------
-    shell_script = textwrap.dedent(f"""
+    shell_script = textwrap.dedent(
+        f"""
         {env_setup}
         export PATH="/home/swarm/.local/bin:/home/swarm/.cargo/bin:/home/swarm/.bun/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
         export DATABASE_URL="postgresql://swarm:password@localhost:5432/swarm"
         cd {shlex.quote(req.repo_path)}
         cat {shlex.quote(prompt_path)} | claude -p --dangerously-skip-permissions --verbose --output-format stream-json
-    """)
+    """
+    )
 
     logger.info(f"Executing Claude Code for task {req.task_id} in repo {req.repo_path}")
     logger.debug(f"Claude Code shell script:\n{shell_script}")
 
     exec_req = ExecReq(
         cmd=["bash", "-c", shell_script],
-        cwd=req.repo_path          # still needed for container
+        cwd=req.repo_path,  # still needed for container
     )
     return await exec_command(sandbox_id, exec_req)
+
 
 @app.post("/sandboxes/{sandbox_id}/push_changes_advanced", response_model=ExecResp)
 async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
@@ -732,11 +887,15 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
         logger.info(f"Directory change exit code: {cd_exit_code}")
 
         if cd_exit_code != 0:
-            raise HTTPException(status_code=500, detail=f"Failed to change to directory {req.repo_path}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to change to directory {req.repo_path}"
+            )
 
         # Step 2: Stage all changes
         logger.info("Step 2: Staging all changes")
-        add_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git add -A")
+        add_proc = sb.exec(
+            "su", "-", "swarm", "-c", f"cd {req.repo_path} && git add -A"
+        )
         add_exit_code = add_proc.wait()
         logger.info(f"Git add exit code: {add_exit_code}")
 
@@ -746,16 +905,30 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
         # Step 3: Write commit message to temporary file
         logger.info("Step 3: Writing commit message to temporary file")
         commit_msg_content = f"{req.commit_title}\n\n{req.commit_body}"
-        write_msg_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && cat > /tmp/commit_message_{req.task_id} << 'EOF'\n{commit_msg_content}\nEOF")
+        write_msg_proc = sb.exec(
+            "su",
+            "-",
+            "swarm",
+            "-c",
+            f"cd {req.repo_path} && cat > /tmp/commit_message_{req.task_id} << 'EOF'\n{commit_msg_content}\nEOF",
+        )
         write_msg_exit_code = write_msg_proc.wait()
         logger.info(f"Commit message write exit code: {write_msg_exit_code}")
 
         if write_msg_exit_code != 0:
-            raise HTTPException(status_code=500, detail="Failed to write commit message")
+            raise HTTPException(
+                status_code=500, detail="Failed to write commit message"
+            )
 
         # Step 4: Commit changes to current branch
         logger.info("Step 4: Committing changes to current branch")
-        commit_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git commit -F /tmp/commit_message_{req.task_id}")
+        commit_proc = sb.exec(
+            "su",
+            "-",
+            "swarm",
+            "-c",
+            f"cd {req.repo_path} && git commit -F /tmp/commit_message_{req.task_id}",
+        )
         commit_exit_code = commit_proc.wait()
         logger.info(f"Git commit exit code: {commit_exit_code}")
 
@@ -764,25 +937,43 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
 
         # Step 5: Create new branch from the commit
         logger.info(f"Step 5: Creating new branch {req.branch}")
-        branch_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git checkout -B {req.branch}")
+        branch_proc = sb.exec(
+            "su",
+            "-",
+            "swarm",
+            "-c",
+            f"cd {req.repo_path} && git checkout -B {req.branch}",
+        )
         branch_exit_code = branch_proc.wait()
         logger.info(f"Git branch creation exit code: {branch_exit_code}")
 
         if branch_exit_code != 0:
-            raise HTTPException(status_code=500, detail=f"Failed to create branch {req.branch}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to create branch {req.branch}"
+            )
 
         # Step 6: Push the branch to origin
         logger.info(f"Step 6: Pushing branch {req.branch} to origin")
-        push_proc = sb.exec("su", "-", "swarm", "-c", f"cd {req.repo_path} && git push -u origin {req.branch}")
+        push_proc = sb.exec(
+            "su",
+            "-",
+            "swarm",
+            "-c",
+            f"cd {req.repo_path} && git push -u origin {req.branch}",
+        )
         push_exit_code = push_proc.wait()
         logger.info(f"Git push exit code: {push_exit_code}")
 
         if push_exit_code != 0:
-            raise HTTPException(status_code=500, detail=f"Failed to push branch {req.branch}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to push branch {req.branch}"
+            )
 
         # Step 7: Clean up temporary commit message file
         logger.info("Step 7: Cleaning up temporary files")
-        cleanup_proc = sb.exec("su", "-", "swarm", "-c", f"rm -f /tmp/commit_message_{req.task_id}")
+        cleanup_proc = sb.exec(
+            "su", "-", "swarm", "-c", f"rm -f /tmp/commit_message_{req.task_id}"
+        )
         cleanup_exit_code = cleanup_proc.wait()
         logger.info(f"Cleanup exit code: {cleanup_exit_code}")
 
@@ -801,32 +992,38 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
         logger.error(f"Failed to push changes: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to push changes: {str(e)}")
 
+
 @app.get("/artifacts/{task_id}/{run_mode}", response_model=ArtifactResp)
 async def get_artifact(task_id: int, run_mode: str):
     """Fetch artifact from .swarm directory."""
     try:
         path = f".swarm/task-{task_id}-{run_mode}.md"
-        
+
         # Check if file exists
         if not os.path.exists(path):
-            raise HTTPException(status_code=404, detail=f"Artifact file {path} not found")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Artifact file {path} not found"
+            )
+
         # Read the file content
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             content = f.read()
-        
+
         # Generate SHA-1 hash of the content
-        sha = hashlib.sha1(content.encode('utf-8')).hexdigest()
-        
+        sha = hashlib.sha1(content.encode("utf-8")).hexdigest()
+
         logger.info(f"Successfully fetched artifact {path} (sha: {sha[:8]})")
-        
+
         return ArtifactResp(body=content, sha=sha)
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to fetch artifact for run_mode {run_mode}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch artifact: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch artifact: {str(e)}"
+        )
+
 
 # Legacy endpoint for backward compatibility
 @app.post("/create_sandbox", response_model=CreateSandboxResp)
@@ -834,6 +1031,8 @@ async def create_sandbox_legacy(req: CreateSandboxReq):
     """Legacy endpoint for backward compatibility."""
     return await create_sandbox(req)
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

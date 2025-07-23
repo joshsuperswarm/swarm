@@ -9,11 +9,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+
 def main():
     """Start the FastAPI service."""
     # Set default port if not specified
-    port = int(os.getenv('PORT', '8000'))
-    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("HOST", "0.0.0.0")
 
     print(f"Starting Modal Sandbox Shim on {host}:{port}")
 
@@ -29,6 +30,7 @@ def main():
         reload=False,
         workers=1,
     )
+
 
 if __name__ == "__main__":
     main()
