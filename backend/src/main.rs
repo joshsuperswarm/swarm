@@ -1465,25 +1465,14 @@ async fn get_task_todos(
     State(app_state): State<AppState>,
     Path(task_id): Path<i32>,
 ) -> Result<Json<Value>, StatusCode> {
-    // 1. make sure the task belongs to the caller
     let db_user = get_or_create_user(&app_state.database, &user.id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let task = app_state
-        .database
-        .get_task_by_id(task_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if task.as_ref().map(|t| t.user_id) != Some(db_user.id) {
-        return Err(StatusCode::FORBIDDEN);
-    }
-
-    // 2. fetch todos
+    // Single database query that combines ownership verification with todo fetching
     let todos = app_state
         .database
-        .get_agent_todos(task_id)
+        .get_agent_todos_for_user(task_id, db_user.id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

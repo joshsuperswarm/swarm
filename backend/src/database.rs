@@ -417,6 +417,18 @@ impl Database {
         Ok(rows)
     }
 
+    pub async fn get_agent_todos_for_user(&self, task_id: i32, user_id: i32) -> AppResult<Vec<AgentTodo>> {
+        let rows = sqlx::query_file_as!(
+            AgentTodo,
+            "sql/get_agent_todos_for_user.sql",
+            task_id,
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
