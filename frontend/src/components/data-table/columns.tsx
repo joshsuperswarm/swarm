@@ -76,9 +76,30 @@ export const createColumns = (): ColumnDef<Task>[] => [
       const status = statuses.find(
         (status) => status.value === row.getValue("status")
       )
+      const task = row.original
 
       if (!status) {
         return null
+      }
+
+      // If status is "pr_opened" and we have a PR URL, make it clickable
+      if (status.value === "pr_opened" && task.github_pr_url) {
+        return (
+          <div className="flex w-[100px] items-center">
+            {status.icon && (
+              <status.icon className="mr-1 h-3 w-3 text-muted-foreground" />
+            )}
+            <a 
+              href={task.github_pr_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline"
+              onClick={(e) => e.stopPropagation()} // Prevent row click
+            >
+              {status.label}
+            </a>
+          </div>
+        )
       }
 
       return (

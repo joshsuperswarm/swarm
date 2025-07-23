@@ -194,56 +194,41 @@ export function TaskPage() {
           </Button>
         </div>
         
-        <div className="flex items-start gap-3">
-          <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-            #{liveTask.task_id}
-          </span>
-          <h1 className="text-2xl font-bold text-gray-900 flex-1">{liveTask.title}</h1>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="flex items-end gap-4">
+            <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
+              #{liveTask.task_id}
+            </span>
+            <h1 className="text-2xl font-bold text-gray-900">{liveTask.title}</h1>
+          </div>
+          
+          {/* Right side - Status only */}
+          <div className="flex items-center gap-4">
+            {status && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Status
+                </span>
+                {status.icon && (
+                  <status.icon className="h-3 w-3 text-muted-foreground" />
+                )}
+                {status.value === "pr_opened" && liveTask.github_pr_url ? (
+                  <a 
+                    href={liveTask.github_pr_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    {status.label}
+                  </a>
+                ) : (
+                  <span className="text-sm">{status.label}</span>
+                )}
+              </div>
+            )}
+          </div>
+          
         </div>
-      </div>
-
-      {/* Task Properties */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg mb-6">
-        {status && (
-          <div className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Status
-            </span>
-            <div className="flex items-center">
-              {status.icon && (
-                <status.icon className="mr-1 h-3 w-3 text-muted-foreground" />
-              )}
-              <span className="text-sm">{status.label}</span>
-            </div>
-          </div>
-        )}
-        
-        {liveTask.github_pr_url && (
-          <div className="space-y-1">
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Pull Request
-            </div>
-            <div>
-              <a 
-                href={liveTask.github_pr_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:underline block"
-              >
-                View on GitHub
-              </a>
-            </div>
-          </div>
-        )}
-        
-        {liveTask.sandbox_id && (
-          <div className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Sandbox ID
-            </span>
-            <span className="text-sm font-mono">{liveTask.sandbox_id}</span>
-          </div>
-        )}
       </div>
 
       {/* Task Description */}
