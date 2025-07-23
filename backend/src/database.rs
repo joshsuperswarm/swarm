@@ -186,8 +186,7 @@ impl Database {
             "sql/create_task.sql",
             task.user_id,
             task.repository_id,
-            task.title,
-            task.description
+            task.title
         )
         .fetch_one(&self.pool)
         .await?;
