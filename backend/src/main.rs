@@ -1214,7 +1214,11 @@ async fn get_tasks(
                             task_run.latest_todos = Some(filtered_todos);
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to fetch todos for task {}: {}", task_run.task_id, e);
+                            tracing::warn!(
+                                "Failed to fetch todos for task {}: {}",
+                                task_run.task_id,
+                                e
+                            );
                             task_run.latest_todos = Some(Vec::new());
                         }
                     }
@@ -1338,9 +1342,11 @@ async fn create_task(
     let task_clone = task.clone();
     let task_id = task.id;
     let mode = payload.mode.clone();
+    let description = payload.description.clone();
     tokio::spawn(async move {
         if let Err(e) =
-            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, &mode).await
+            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, &mode, &description)
+                .await
         {
             tracing::error!("Task {} pipeline error: {}", task_id, e);
         }

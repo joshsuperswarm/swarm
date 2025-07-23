@@ -16,7 +16,12 @@ use tracing::instrument;
 ///
 /// On any error, marks the task as "failed" in the database.
 #[instrument(skip_all, fields(task_id = task.id))]
-pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str) -> Result<()> {
+pub async fn run_full_task_pipeline(
+    app_state: AppState,
+    task: Task,
+    mode: &str,
+    description: &str,
+) -> Result<()> {
     tracing::info!("Starting task pipeline for task {}", task.id);
 
     // Create a new run for this task
@@ -34,16 +39,21 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str)
     tracing::info!("Using run {} for task {}", run.id, task.id);
 
     // NEW: store the original prompt as first user message
-    if let Err(e) = app_state.database
-        .create_initial_user_message(task.id, run.id, task
-            .description
-            .as_deref()
-            .unwrap_or_default())
-        .await 
+    if let Err(e) = app_state
+        .database
+        .create_initial_user_message(task.id, run.id, description)
+        .await
     {
-        tracing::error!("Failed to create initial user message for task {}: {}", task.id, e);
+        tracing::error!(
+            "Failed to create initial user message for task {}: {}",
+            task.id,
+            e
+        );
         let _ = app_state.database.update_run_status(run.id, "failed").await;
-        return Err(anyhow::anyhow!("Failed to create initial user message: {}", e));
+        return Err(anyhow::anyhow!(
+            "Failed to create initial user message: {}",
+            e
+        ));
     }
 
     // Get the user from the task
@@ -121,12 +131,9 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str)
     };
 
     // Generate concise title
-    let title = claude::generate_title(
-        task.description.as_deref().unwrap_or(""),
-        &anthropic_api_key,
-    )
-    .await
-    .unwrap_or_else(|_| "Untitled task".into());
+    let title = claude::generate_title(description, &anthropic_api_key)
+        .await
+        .unwrap_or_else(|_| "Untitled task".into());
 
     app_state
         .database
@@ -179,12 +186,11 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str)
 
     // Start sandbox
     let repo_url = format!("https://github.com/{}", repository.full_name);
-    let prompt = task
-        .description
-        .as_ref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(&task.title)
-        .to_string();
+    let prompt = if description.is_empty() {
+        title.clone()
+    } else {
+        description.to_string()
+    };
 
     // Update run status to spinning immediately before sending request to modal
     if let Err(e) = app_state

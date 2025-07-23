@@ -3,7 +3,18 @@ SELECT DISTINCT ON (r.task_id)
        r.id           AS run_id,
        t.id           AS task_id,
        t.title,
-       t.description,
+       /* NEW – fall back to first user message */
+       COALESCE(
+         t.description,
+         (
+           SELECT body_md
+           FROM   messages m
+           WHERE  m.task_id = t.id
+           AND    m.role    = 'user'
+           ORDER  BY m.created_at
+           LIMIT 1
+         )
+       )              AS description,
        t.repository_id,
        t.user_id,
        -- surfaced run fields
