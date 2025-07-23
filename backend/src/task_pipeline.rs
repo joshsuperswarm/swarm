@@ -33,6 +33,19 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str)
     };
     tracing::info!("Using run {} for task {}", run.id, task.id);
 
+    // NEW: store the original prompt as first user message
+    if let Err(e) = app_state.database
+        .create_initial_user_message(task.id, run.id, task
+            .description
+            .as_deref()
+            .unwrap_or_default())
+        .await 
+    {
+        tracing::error!("Failed to create initial user message for task {}: {}", task.id, e);
+        let _ = app_state.database.update_run_status(run.id, "failed").await;
+        return Err(anyhow::anyhow!("Failed to create initial user message: {}", e));
+    }
+
     // Get the user from the task
     let user = match app_state.database.get_user_by_id(task.user_id).await {
         Ok(Some(user)) => user,
