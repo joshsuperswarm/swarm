@@ -8,6 +8,8 @@ import { ApiService, type RunMode } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useCreateTaskMutation } from '@/services/queries'
+import { Edit } from 'lucide-react'
+import swarmLogo from './assets/swarm-logo.png'
 import './App.css'
 
 function App() {
@@ -104,13 +106,18 @@ function App() {
     })()
   }, [isSignedIn, user, loadUserProfile, clearUserProfile, api])
 
-  // Global hotkey to close create task modal
+  // Global hotkeys
   useHotkeys('esc', () => {
     if (isCreateModalOpen) {
       setIsCreateModalOpen(false);
     }
   }, {
     enabled: isCreateModalOpen
+  });
+
+  // Create task with 'c' key
+  useHotkeys('c', () => {
+    setIsCreateModalOpen(true);
   });
 
   if (!isLoaded) {
@@ -126,13 +133,30 @@ function App() {
   }
 
   return (
-    <Layout onCreateTask={() => setIsCreateModalOpen(true)}>
+    <Layout>
       <div className="flex flex-col h-full">
-        <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0" style={{paddingTop: '18px', paddingBottom: '18px'}}>
-          <div className="flex justify-end items-center">
-            <UserButton />
+        <nav className="bg-white border-b border-gray-200 px-6 flex-shrink-0" style={{paddingTop: '18px', paddingBottom: '18px'}}>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <img 
+                src={swarmLogo} 
+                alt="Swarm" 
+                className="h-5 w-auto mr-3"
+              />
+              <h1 className="text-xl font-bold text-gray-900">Swarm</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                title="Create new task (c)"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+              <UserButton />
+            </div>
           </div>
-        </div>
+        </nav>
 
         <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />
       </div>

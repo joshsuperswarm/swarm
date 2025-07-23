@@ -36,12 +36,7 @@ export function DataTable<TData, TValue>({
   highlightedRow,
 }: DataTableProps<TData, TValue>) {
   // console.log('🔄 DataTable render - data length:', data.length, 'columns:', columns.length)
-  const [sorting, setSorting] = React.useState<SortingState>([
-    {
-      id: "created_at",
-      desc: true,
-    },
-  ])
+  const [sorting, setSorting] = React.useState<SortingState>([])
 
   React.useEffect(() => {
     // console.log('🔄 DataTable mounted')

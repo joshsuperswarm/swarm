@@ -28,8 +28,11 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
   const navigate = useNavigate();
-  const { data: tasks = [], isFetching, error } = useTasksQuery();
+  const { data: rawTasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Reverse the array so newest appears at top but j/k navigation works correctly
+  const tasks = useMemo(() => [...rawTasks].reverse(), [rawTasks]);
 
   /* ✨ warm the cache for the first N tasks so detail pages feel instant */
   const qc = useQueryClient();
@@ -102,7 +105,7 @@ export function TasksPage() {
   }, []);
 
   return (
-    <div className="relative flex-1 min-w-0 overflow-hidden px-0 py-4 sm:px-6">
+    <div className="relative flex-1 min-w-0 overflow-hidden px-4 py-4">
       {/* Error overlay */}
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80">
@@ -124,9 +127,6 @@ export function TasksPage() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <div className="mb-4">
-          <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
-        </div>
         <MemoizedDataTable
           data={tasks}
           columns={columns}

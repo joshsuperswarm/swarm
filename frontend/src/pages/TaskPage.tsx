@@ -46,8 +46,11 @@ export function TaskPage() {
   const isValidTaskId = taskId > 0 && !isNaN(taskId);
   
   // list for j/k navigation
-  const { data: allTasks = [] } = useTasksQuery();
+  const { data: rawAllTasks = [] } = useTasksQuery();
   const { data: liveTask, isLoading: loading, error } = useTaskQuery(taskId, isValidTaskId);
+  
+  // Reverse the array to match TasksPage order
+  const allTasks = useMemo(() => [...rawAllTasks].reverse(), [rawAllTasks]);
   
   // Get todos for this task
   const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
