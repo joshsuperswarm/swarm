@@ -986,8 +986,8 @@ impl SandboxProvider for ModalProvider {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             Err(SandboxError::SandboxOperationError(format!(
-                "Failed to fetch artifact: {}",
-                error_text
+                "Failed to fetch artifact (status: {}): {}",
+                status, error_text
             )))
         }
     }
