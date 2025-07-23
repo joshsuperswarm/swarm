@@ -102,6 +102,9 @@ pub struct Task {
     pub user_id: i32,
     pub repository_id: i32,
     pub title: String,
+    /// Deprecated – will be removed after 2025-Q3
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub description: Option<String>,
     pub status: Option<String>,
     pub github_pr_url: Option<String>,
@@ -116,6 +119,7 @@ pub struct CreateTask {
     pub user_id: i32,
     pub repository_id: i32,
     pub title: String,
+    /// Deprecated – will be removed after 2025-Q3
     pub description: Option<String>,
 }
 
@@ -155,6 +159,7 @@ pub struct TaskWithRunDB {
     pub run_id: i32,
     pub task_id: i32,
     pub title: String,
+    /// Deprecated – will be removed after 2025-Q3
     pub description: Option<String>,
     pub repository_id: i32,
     pub user_id: i32,
@@ -180,6 +185,9 @@ pub struct TaskWithRun {
     pub run_id: i32,
     pub task_id: i32,
     pub title: String,
+    /// Deprecated – will be removed after 2025-Q3
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub description: Option<String>,
     pub repository_id: i32,
     pub user_id: i32,
