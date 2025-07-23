@@ -1185,6 +1185,7 @@ async fn set_default_repo(
 async fn get_tasks(
     CurrentUser(clerk_user): CurrentUser,
     State(app_state): State<AppState>,
+    Query(query): Query<TasksQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
     // Get or create user
@@ -1195,11 +1196,36 @@ async fn get_tasks(
 
     // Get user's tasks with latest run data from database
     match app_state.database.get_user_runs_latest(user.id).await {
-        Ok(task_runs) => Ok(Json(json!({
-            "tasks": task_runs,
-            "count": task_runs.len(),
-            "user_id": user.id
-        }))),
+        Ok(mut task_runs) => {
+            // If include=todos is specified, fetch todos for each task
+            if query.include.as_deref() == Some("todos") {
+                for task_run in &mut task_runs {
+                    match app_state.database.get_agent_todos(task_run.task_id).await {
+                        Ok(todos) => {
+                            // Limit to 20 todos per task and only include non-completed or recently updated ones
+                            let filtered_todos: Vec<_> = todos
+                                .into_iter()
+                                .filter(|todo| {
+                                    todo.status != "completed" || todo.updated_at.is_some()
+                                })
+                                .take(20)
+                                .collect();
+                            task_run.latest_todos = Some(filtered_todos);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to fetch todos for task {}: {}", task_run.task_id, e);
+                            task_run.latest_todos = Some(Vec::new());
+                        }
+                    }
+                }
+            }
+
+            Ok(Json(json!({
+                "tasks": task_runs,
+                "count": task_runs.len(),
+                "user_id": user.id
+            })))
+        }
         Err(e) => {
             tracing::error!("Error fetching tasks for user {}: {}", user.id, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -1386,6 +1412,11 @@ async fn connect_github(
 #[derive(Deserialize)]
 struct LogsQuery {
     since: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct TasksQuery {
+    include: Option<String>,
 }
 
 async fn get_task_logs(

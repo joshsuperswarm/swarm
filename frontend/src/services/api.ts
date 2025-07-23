@@ -67,8 +67,9 @@ export class ApiService {
     return request('/api/user/repos', { token });
   }
 
-  static async getTasks(token: string): Promise<{ tasks: TaskWithRun[]; count: number; user_id: number }> {
-    return request('/api/tasks', { token });
+  static async getTasks(token: string, options?: { include?: string }): Promise<{ tasks: TaskWithRun[]; count: number; user_id: number }> {
+    const queryParams = options?.include ? `?include=${options.include}` : '';
+    return request(`/api/tasks${queryParams}`, { token });
   }
 
   static async createTask(token: string, task: CreateTaskRequest): Promise<{ success: boolean; task: TaskWithRun }> {

@@ -29,11 +29,20 @@ export const persister = createSyncStoragePersister({
 /* LIST */
 export const useTasksQuery = () => {
   const { data: jwt, isSuccess } = useBackendJwtQuery()
+  const qc = useQueryClient()
   
   return useQuery({
     queryKey: ['tasks'],
     enabled: isSuccess,
-    queryFn: () => ApiService.getTasks(jwt!).then(r => r.tasks),
+    queryFn: () => ApiService.getTasks(jwt!, { include: 'todos' }).then(r => {
+      // Hydrate the todo cache for each task with bundled todos
+      r.tasks.forEach(task => {
+        if (task.latest_todos) {
+          qc.setQueryData(['task-todos', task.task_id], task.latest_todos)
+        }
+      })
+      return r.tasks
+    }),
     placeholderData: () => [],      // render instantly from cache
     staleTime: 5 * 1000,           // 5 seconds - allow frequent updates
     refetchInterval: 5 * 1000,      // Poll every 5 seconds

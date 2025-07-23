@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
-    Repository, RepositoryWithTasks, Run, Task, TaskLog, TaskWithRun, User,
+    Repository, RepositoryWithTasks, Run, Task, TaskLog, TaskWithRun, TaskWithRunDB, User,
 };
 use sqlx::PgPool;
 
@@ -206,10 +206,39 @@ impl Database {
     }
 
     pub async fn get_user_runs_latest(&self, user_id: i32) -> AppResult<Vec<TaskWithRun>> {
-        let rows = sqlx::query_file_as!(TaskWithRun, "sql/get_user_runs_latest.sql", user_id)
+        let rows = sqlx::query_file_as!(TaskWithRunDB, "sql/get_user_runs_latest.sql", user_id)
             .fetch_all(&self.pool)
             .await?;
-        Ok(rows)
+        
+        // Convert TaskWithRunDB to TaskWithRun (without todos for now)
+        let tasks = rows
+            .into_iter()
+            .map(|row| TaskWithRun {
+                run_id: row.run_id,
+                task_id: row.task_id,
+                title: row.title,
+                description: row.description,
+                repository_id: row.repository_id,
+                user_id: row.user_id,
+                status: row.status,
+                github_branch: row.github_branch,
+                sandbox_id: row.sandbox_id,
+                sandbox_hostname: row.sandbox_hostname,
+                session_id: row.session_id,
+                command_id: row.command_id,
+                commit_title: row.commit_title,
+                commit_body: row.commit_body,
+                mode: row.mode,
+                pr_title: row.pr_title,
+                pr_body: row.pr_body,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                github_pr_url: row.github_pr_url,
+                latest_todos: None, // Will be populated in the handler if requested
+            })
+            .collect();
+        
+        Ok(tasks)
     }
 
     pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
