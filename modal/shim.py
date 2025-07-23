@@ -17,6 +17,7 @@ from datetime import datetime
 from collections import defaultdict, deque
 from modal.stream_type import StreamType
 from modal_image import image as swarm_dev_img
+from prompts import PLAN_MODE_INSTRUCTIONS, REVIEW_MODE_INSTRUCTIONS, EXECUTE_MODE_INSTRUCTIONS, CLAUDE_PROMPT_TEMPLATE
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -654,42 +655,17 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     
     # Generate mode-specific instructions
     if req.mode == "plan":
-        mode_instructions = f"""
-After analyzing the codebase and understanding the requirements, create a detailed plan file at `.swarm/task-{req.task_id}-plan.md` containing:
-- Problem analysis and approach
-- Implementation strategy and steps
-- Potential challenges and considerations
-- Architecture or design decisions
-
-Do NOT implement the changes, only create the plan. Focus on thorough analysis and strategic planning.
-"""
+        mode_instructions = PLAN_MODE_INSTRUCTIONS.format(task_id=req.task_id)
     elif req.mode == "review":
-        mode_instructions = f"""
-After reviewing the codebase and the task requirements, create a comprehensive review file at `.swarm/task-{req.task_id}-review.md` containing:
-- Code quality assessment
-- Issues and potential problems identified
-- Security considerations
-- Performance implications
-- Recommendations for improvement
-
-Focus on analysis and recommendations, not implementation.
-"""
+        mode_instructions = REVIEW_MODE_INSTRUCTIONS.format(task_id=req.task_id)
     else:  # execute mode
-        mode_instructions = "Implement the requested changes."
+        mode_instructions = EXECUTE_MODE_INSTRUCTIONS
 
-    claude_prompt = f"""Please work on this task {req.task_id}: {req.prompt}.
-
-{mode_instructions}
-
-After completing the task, you MUST output the following markers in this exact format:
-
-COMMIT_MESSAGE_TITLE: Your commit title here
-COMMIT_MESSAGE_BODY: Your detailed commit message body here
-PR_TITLE: Your pull request title here
-PR_BODY: Your detailed pull request description here
-DONE
-
-The system requires these markers to automatically generate commit messages and pull requests. Without them, the task will fail."""
+    claude_prompt = CLAUDE_PROMPT_TEMPLATE.format(
+        task_id=req.task_id,
+        prompt=req.prompt,
+        mode_instructions=mode_instructions
+    )
 
     # -------- 2.  write prompt file -----------------------------------------
     prompt_id   = str(uuid.uuid4())
