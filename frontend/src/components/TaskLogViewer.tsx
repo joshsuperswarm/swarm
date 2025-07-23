@@ -15,9 +15,20 @@ interface TaskLog {
 interface TaskLogViewerProps {
   taskId: number;
   taskStatus?: string;
+  hideHeader?: boolean;
+  onLogsStateChange?: (state: {
+    isLoading: boolean;
+    isPolling: boolean;
+    taskCompleted: boolean;
+    logs: string[];
+    showPretty: boolean;
+    refresh: () => void;
+    togglePretty: () => void;
+    copyLogs: () => void;
+  }) => void;
 }
 
-const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus }) => {
+const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus, hideHeader = false, onLogsStateChange }) => {
   console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
   
   /* pull any prefetched logs from React Query – instant render */
@@ -178,6 +189,22 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
     }
   }, [taskCompleted, taskStatus]);
 
+  // Update parent with logs state
+  useEffect(() => {
+    if (onLogsStateChange) {
+      onLogsStateChange({
+        isLoading,
+        isPolling,
+        taskCompleted,
+        logs,
+        showPretty,
+        refresh: () => fetchLogs(lastLogIdRef.current || undefined),
+        togglePretty: () => setShowPretty(!showPretty),
+        copyLogs: copyLogsToClipboard,
+      });
+    }
+  }, [isLoading, isPolling, taskCompleted, logs, showPretty, fetchLogs, copyLogsToClipboard, onLogsStateChange]);
+
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -194,52 +221,54 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Live Claude Output</h3>
-        <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${
-            isLoading ? 'bg-yellow-500' : 
-            taskCompleted ? 'bg-blue-500' :
-            isPolling ? 'bg-green-500 animate-pulse' : 
-            'bg-green-500'
-          }`} />
-          <span className="text-xs text-muted-foreground">
-            {isLoading ? 'Loading...' : 
-             taskCompleted || (taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus)) ? `Task completed • ${logs.length} entries` :
-             isPolling ? 'Checking for new logs...' :
-             `${logs.length} log entries • Polling every 3s`}
-          </span>
-          {!isLoading && (
-            <>
-              <button 
-                onClick={() => fetchLogs(lastLogIdRef.current || undefined)} 
-                className="text-xs text-blue-600 hover:text-blue-800 underline"
-                disabled={isPolling}
-              >
-                Refresh
-              </button>
-              {logs.length > 0 && (
-                <>
-                  <button 
-                    onClick={() => setShowPretty(!showPretty)}
-                    className="text-xs text-purple-600 hover:text-purple-800 underline"
-                    title="Toggle between pretty and raw JSON view"
-                  >
-                    {showPretty ? '< /> Raw' : '{ } Pretty'}
-                  </button>
-                  <button 
-                    onClick={copyLogsToClipboard}
-                    className="text-xs text-green-600 hover:text-green-800 underline"
-                    title="Copy all logs to clipboard"
-                  >
-                    Copy Logs
-                  </button>
-                </>
-              )}
-            </>
-          )}
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Live Claude Output</h3>
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${
+              isLoading ? 'bg-yellow-500' : 
+              taskCompleted ? 'bg-blue-500' :
+              isPolling ? 'bg-green-500 animate-pulse' : 
+              'bg-green-500'
+            }`} />
+            <span className="text-xs text-muted-foreground">
+              {isLoading ? 'Loading...' : 
+               taskCompleted || (taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus)) ? `Task completed • ${logs.length} entries` :
+               isPolling ? 'Checking for new logs...' :
+               `${logs.length} log entries • Polling every 3s`}
+            </span>
+            {!isLoading && (
+              <>
+                <button 
+                  onClick={() => fetchLogs(lastLogIdRef.current || undefined)} 
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  disabled={isPolling}
+                >
+                  Refresh
+                </button>
+                {logs.length > 0 && (
+                  <>
+                    <button 
+                      onClick={() => setShowPretty(!showPretty)}
+                      className="text-xs text-purple-600 hover:text-purple-800 underline"
+                      title="Toggle between pretty and raw JSON view"
+                    >
+                      {showPretty ? '< /> Raw' : '{ } Pretty'}
+                    </button>
+                    <button 
+                      onClick={copyLogsToClipboard}
+                      className="text-xs text-green-600 hover:text-green-800 underline"
+                      title="Copy all logs to clipboard"
+                    >
+                      Copy Logs
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       
       <div className="h-96 w-full rounded-lg border bg-gray-900 p-4">
         {logs.length === 0 && !isLoading ? (

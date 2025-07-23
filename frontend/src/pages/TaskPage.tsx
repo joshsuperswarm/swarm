@@ -6,6 +6,7 @@ import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { TodoList } from '@/components/TodoList';
 import { statuses } from '@/data/data';
 import { useTasksQuery, useTaskQuery, useTaskTodosQuery } from '@/services/queries';
+import { Copy, ChevronDown, ChevronUp, Check } from 'lucide-react';
 
 // Key filter to ignore hotkeys when user is typing
 const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -21,6 +22,24 @@ export function TaskPage() {
   
   // Hide log viewer until the user opts in
   const [logsVisible, setLogsVisible] = useState(false);
+  
+  // Description collapse state - default to collapsed for long descriptions
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  
+  // Copy button state
+  const [isCopied, setIsCopied] = useState(false);
+  
+  // Logs state from TaskLogViewer
+  const [logsState, setLogsState] = useState<{
+    isLoading: boolean;
+    isPolling: boolean;
+    taskCompleted: boolean;
+    logs: string[];
+    showPretty: boolean;
+    refresh: () => void;
+    togglePretty: () => void;
+    copyLogs: () => void;
+  } | null>(null);
   
   // Parse and validate the task ID
   const taskId = id ? Number(id) : 0;
@@ -226,10 +245,94 @@ export function TaskPage() {
 
       {/* Task Description */}
       <div className="space-y-3 mb-6">
-        <h3 className="text-sm font-semibold">Description</h3>
-        <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-          {liveTask.description || 'No description provided'}
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Description</h3>
         </div>
+        {(liveTask.description || 'No description provided').split('\n').length <= 30 || isDescriptionExpanded ? (
+          <div className="relative group">
+            <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {liveTask.description || 'No description provided'}
+            </div>
+            <div className="absolute top-2 right-2 flex gap-1">
+              {(liveTask.description || 'No description provided').split('\n').length > 30 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsDescriptionExpanded(false)}
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-all bg-white border border-gray-200 hover:bg-gray-50"
+                  title="Collapse description"
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const text = liveTask.description || 'No description provided';
+                  navigator.clipboard.writeText(text).then(() => {
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 10000);
+                  }).catch(() => {
+                    // Fallback for browsers that don't support clipboard API
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 10000);
+                  });
+                }}
+                className={`h-6 px-2 opacity-0 group-hover:opacity-100 transition-all bg-white border border-gray-200 hover:bg-gray-50 ${
+                  isCopied ? 'opacity-100' : ''
+                }`}
+                title={isCopied ? 'Copied!' : 'Copy description'}
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="h-3 w-3 mr-1" />
+                    <span className="text-xs">Copied</span>
+                  </>
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+            {(liveTask.description || 'No description provided').split('\n').length > 30 && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDescriptionExpanded(false)}
+                  className="h-8 px-4 text-xs text-muted-foreground hover:text-foreground bg-white border-gray-300 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ChevronUp className="h-3 w-3 mr-1" />
+                  Collapse
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 leading-relaxed relative overflow-hidden">
+            <div className="whitespace-pre-wrap">
+              {(liveTask.description || 'No description provided').split('\n').slice(0, 10).join('\n')}
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-gray-100 to-transparent pointer-events-none"></div>
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDescriptionExpanded(true)}
+                className="h-8 px-4 text-xs text-muted-foreground hover:text-foreground bg-white border-gray-300 shadow-sm"
+              >
+                <ChevronDown className="h-3 w-3 mr-1" />
+                Expand ({(liveTask.description || 'No description provided').split('\n').length} lines)
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Todos */}
@@ -238,22 +341,81 @@ export function TaskPage() {
       {/* Live Logs */}
       {showLogsEligible && (
         <div className="space-y-3 mb-6">
-          {!logsVisible ? (
-            <Button size="sm" onClick={() => setLogsVisible(true)}>
-              Show logs
-            </Button>
-          ) : (
-            <>
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => setLogsVisible(false)}>
-                  Hide logs
-                </Button>
-              </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Logs</h3>
+            <div className="flex items-center gap-2">
+              {logsState && (
+                <>
+                  <div className={`h-2 w-2 rounded-full ${
+                    logsState.isLoading ? 'bg-yellow-500' : 
+                    logsState.taskCompleted ? 'bg-blue-500' :
+                    logsState.isPolling ? 'bg-green-500 animate-pulse' : 
+                    'bg-green-500'
+                  }`} />
+                  <span className="text-xs text-muted-foreground">
+                    {logsState.isLoading ? 'Loading...' : 
+                     logsState.taskCompleted || (liveTask.status && ['done', 'failed', 'pr_opened'].includes(liveTask.status)) ? `Task completed • ${logsState.logs.length} entries` :
+                     logsState.isPolling ? 'Checking for new logs...' :
+                     `${logsState.logs.length} log entries • Polling every 3s`}
+                  </span>
+                  {logsVisible && !logsState.isLoading && (
+                    <>
+                      <button 
+                        onClick={logsState.refresh}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        disabled={logsState.isPolling}
+                      >
+                        Refresh
+                      </button>
+                      {logsState.logs.length > 0 && (
+                        <>
+                          <button 
+                            onClick={logsState.togglePretty}
+                            className="text-xs text-purple-600 hover:text-purple-800 underline"
+                            title="Toggle between pretty and raw JSON view"
+                          >
+                            {logsState.showPretty ? '< /> Raw' : '{ } Pretty'}
+                          </button>
+                          <button 
+                            onClick={logsState.copyLogs}
+                            className="text-xs text-green-600 hover:text-green-800 underline"
+                            title="Copy all logs to clipboard"
+                          >
+                            Copy Logs
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLogsVisible(!logsVisible)}
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {logsVisible ? 'Hide logs' : 'Show logs'}
+              </Button>
+            </div>
+          </div>
+          {logsVisible && (
+            <TaskLogViewer
+              taskId={liveTask.task_id}
+              taskStatus={liveTask.status || undefined}
+              hideHeader={true}
+              onLogsStateChange={setLogsState}
+            />
+          )}
+          {!logsVisible && (
+            <div style={{ display: 'none' }}>
               <TaskLogViewer
                 taskId={liveTask.task_id}
                 taskStatus={liveTask.status || undefined}
+                hideHeader={true}
+                onLogsStateChange={setLogsState}
               />
-            </>
+            </div>
           )}
         </div>
       )}
