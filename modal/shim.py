@@ -993,21 +993,32 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
         raise HTTPException(status_code=500, detail=f"Failed to push changes: {str(e)}")
 
 
-@app.get("/artifacts/{task_id}/{run_mode}", response_model=ArtifactResp)
-async def get_artifact(task_id: int, run_mode: str):
-    """Fetch artifact from .swarm directory."""
+@app.get("/artifacts/{sandbox_id}/{task_id}/{run_mode}", response_model=ArtifactResp)
+async def get_artifact(sandbox_id: str, task_id: int, run_mode: str):
+    """Fetch artifact from .swarm directory inside Modal container."""
     try:
+        sb = get_sb(sandbox_id)
         path = f"/home/swarm/swarm/.swarm/task-{task_id}-{run_mode}.md"
 
-        # Check if file exists
-        if not os.path.exists(path):
+        # Check if file exists in container
+        test_proc = sb.exec("test", "-f", path)
+        file_exists = test_proc.wait() == 0
+
+        if not file_exists:
             raise HTTPException(
                 status_code=404, detail=f"Artifact file {path} not found"
             )
 
-        # Read the file content
-        with open(path, "r", encoding="utf-8") as f:
-            content = f.read()
+        # Read the file content from container
+        cat_proc = sb.exec("cat", path)
+        cat_result = cat_proc.wait()
+        if cat_result == 0:
+            content = cat_proc.stdout.read()
+        else:
+            error_msg = cat_proc.stderr.read()
+            raise HTTPException(
+                status_code=500, detail=f"Failed to read artifact file: {error_msg}"
+            )
 
         # Generate SHA-1 hash of the content
         sha = hashlib.sha1(content.encode("utf-8")).hexdigest()

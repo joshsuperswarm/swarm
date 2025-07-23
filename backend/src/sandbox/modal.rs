@@ -946,13 +946,13 @@ impl SandboxProvider for ModalProvider {
 
     async fn fetch_artifact(
         &self,
-        _sandbox_id: &str,
+        sandbox_id: &str,
         task_id: i32,
         run_mode: &str,
     ) -> SandboxResult<(String, String)> {
         let url = format!(
-            "{}/artifacts/{}/{}",
-            self.client.base_url, task_id, run_mode
+            "{}/artifacts/{}/{}/{}",
+            self.client.base_url, sandbox_id, task_id, run_mode
         );
 
         let response = self.client.client.get(&url).send().await.map_err(|e| {
@@ -980,6 +980,7 @@ impl SandboxProvider for ModalProvider {
 
             Ok((body, sha))
         } else {
+            let status = response.status();
             let error_text = response
                 .text()
                 .await
