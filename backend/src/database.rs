@@ -209,7 +209,7 @@ impl Database {
         let rows = sqlx::query_file_as!(TaskWithRunDB, "sql/get_user_runs_latest.sql", user_id)
             .fetch_all(&self.pool)
             .await?;
-        
+
         // Convert TaskWithRunDB to TaskWithRun (without todos for now)
         let tasks = rows
             .into_iter()
@@ -237,7 +237,7 @@ impl Database {
                 latest_todos: None, // Will be populated in the handler if requested
             })
             .collect();
-        
+
         Ok(tasks)
     }
 
@@ -446,7 +446,11 @@ impl Database {
         Ok(rows)
     }
 
-    pub async fn get_agent_todos_for_user(&self, task_id: i32, user_id: i32) -> AppResult<Vec<AgentTodo>> {
+    pub async fn get_agent_todos_for_user(
+        &self,
+        task_id: i32,
+        user_id: i32,
+    ) -> AppResult<Vec<AgentTodo>> {
         let rows = sqlx::query_file_as!(
             AgentTodo,
             "sql/get_agent_todos_for_user.sql",
@@ -599,29 +603,32 @@ impl Database {
         Ok(run)
     }
 
-    pub async fn upsert_comment(
+    pub async fn upsert_message(
         &self,
         task_id: i32,
         run_id: i32,
         mode: &str,
         body_md: &str,
         sha: &str,
+        role: &str,
     ) -> AppResult<()> {
         sqlx::query!(
             r#"
-            INSERT INTO comments (task_id, run_id, mode, body_md, sha)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO messages (task_id, run_id, mode, body_md, sha, role)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (task_id, run_id, mode)
             DO UPDATE SET
                 body_md = EXCLUDED.body_md,
                 sha = EXCLUDED.sha,
+                role = EXCLUDED.role,
                 created_at = NOW()
             "#,
             task_id,
             run_id,
             mode,
             body_md,
-            sha
+            sha,
+            role
         )
         .execute(&self.pool)
         .await?;

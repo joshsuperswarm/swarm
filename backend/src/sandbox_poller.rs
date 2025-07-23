@@ -329,7 +329,7 @@ async fn finalize_success(
             Ok((body_md, sha)) => {
                 if let Err(e) = app_state
                     .database
-                    .upsert_comment(task_id, run_id, run_mode, &body_md, &sha)
+                    .upsert_message(task_id, run_id, run_mode, &body_md, &sha, "assistant")
                     .await
                 {
                     warn!(
