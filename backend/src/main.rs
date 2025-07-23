@@ -1300,10 +1300,8 @@ async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Validate description
     if payload.description.trim().is_empty() {
-        tracing::warn!("Rejected task creation: empty description");
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(StatusCode::BAD_REQUEST); // still needed
     }
 
     // Validate mode
@@ -1315,7 +1313,8 @@ async fn create_task(
     // Title will be generated in background pipeline
     let title = String::new();
 
-    let sanitized_description = Some(payload.description.trim().to_string());
+    // description stays local, not persisted
+    let sanitized_description = None;
 
     // Create task in database first with "pending" status
     let create_task = CreateTask {
