@@ -7,12 +7,12 @@ This module contains all prompt templates used by the Modal sandbox system.
 
 # Mode-specific instruction templates
 PLAN_MODE_INSTRUCTIONS = """
-Create a concise plan file at `.swarm/task-{task_id}-plan.md`
-to address the given problem statement. Include at 2-3 potential implementation strategies.
+Create a concise plan file at `.swarm/task-{task_id}-plan.md` to address the given problem statement.
+Include at 2-3 potential implementation strategies.
 
 Do NOT implement the changes, only create the plan.
 
-Your plan should be very concise.
+Your plan should be concise but detailed enough to guide implementation for a less intelligent model.
 """
 
 REVIEW_MODE_INSTRUCTIONS = """
