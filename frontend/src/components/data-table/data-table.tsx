@@ -9,6 +9,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
+import { useNavigate } from "react-router-dom"
 
 import {
   Table,
@@ -54,6 +55,8 @@ export function DataTable<TData, TValue>({
       isFirstRender.current = false
     }
   }, [])
+
+  const navigate = useNavigate()
 
   // Create table with initial configuration
   const table = useReactTable({
@@ -113,9 +116,9 @@ export function DataTable<TData, TValue>({
                       highlightedRow === row.id && "bg-blue-50"
                     )}
                     onClick={() => {
-                      const task = row.original as { task_id: number };
+                      const task = row.original as { task_id: number }
                       if (task?.task_id) {
-                        window.location.href = `/tasks/${task.task_id}`;
+                        navigate(`/tasks/${task.task_id}`)
                       }
                     }}
                   >
