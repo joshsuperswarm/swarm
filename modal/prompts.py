@@ -38,7 +38,6 @@ COMMIT_MESSAGE_TITLE: Your concise commit title here
 COMMIT_MESSAGE_BODY: Your concise commit message body here
 PR_TITLE: Your concise pull request title here
 PR_BODY: Your very concise pull request description here
-DONE
 
 The system requires these markers to automatically generate commit messages and pull
 requests. Without them, the task will fail."""
