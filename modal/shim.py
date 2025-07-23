@@ -997,7 +997,7 @@ async def push_changes_advanced(sandbox_id: str, req: PushChangesReq):
 async def get_artifact(task_id: int, run_mode: str):
     """Fetch artifact from .swarm directory."""
     try:
-        path = f".swarm/task-{task_id}-{run_mode}.md"
+        path = f"/home/swarm/swarm/.swarm/task-{task_id}-{run_mode}.md"
 
         # Check if file exists
         if not os.path.exists(path):
