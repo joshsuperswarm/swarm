@@ -78,6 +78,7 @@ class ClaudeCodeExecReq(BaseModel):
     branch: str
     author_name: str
     author_email: str
+    mode: str = "execute"  # execute, plan, or review
 
 class PushChangesReq(BaseModel):
     repo_path: str
@@ -650,7 +651,35 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq):
     sb = get_sb(sandbox_id)
 
     # -------- 1.  Create the Claude prompt with artifact markers ------------
+    
+    # Generate mode-specific instructions
+    if req.mode == "plan":
+        mode_instructions = f"""
+After analyzing the codebase and understanding the requirements, create a detailed plan file at `.swarm/task-{req.task_id}-plan.md` containing:
+- Problem analysis and approach
+- Implementation strategy and steps
+- Potential challenges and considerations
+- Architecture or design decisions
+
+Do NOT implement the changes, only create the plan. Focus on thorough analysis and strategic planning.
+"""
+    elif req.mode == "review":
+        mode_instructions = f"""
+After reviewing the codebase and the task requirements, create a comprehensive review file at `.swarm/task-{req.task_id}-review.md` containing:
+- Code quality assessment
+- Issues and potential problems identified
+- Security considerations
+- Performance implications
+- Recommendations for improvement
+
+Focus on analysis and recommendations, not implementation.
+"""
+    else:  # execute mode
+        mode_instructions = "Implement the requested changes."
+
     claude_prompt = f"""Please work on this task {req.task_id}: {req.prompt}.
+
+{mode_instructions}
 
 After completing the task, you MUST output the following markers in this exact format:
 

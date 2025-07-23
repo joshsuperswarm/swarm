@@ -196,6 +196,7 @@ pub async fn run_full_task_pipeline(app_state: AppState, task: Task, mode: &str)
             &branch,
             &author_name,
             &author_email,
+            mode,
         )
         .await
     {

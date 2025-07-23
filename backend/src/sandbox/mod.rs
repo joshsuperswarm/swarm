@@ -52,6 +52,7 @@ pub trait SandboxProvider: Send + Sync {
         branch: &str,
         author_name: &str,
         author_email: &str,
+        mode: &str,
     ) -> SandboxResult<SandboxInfo>;
 
     /// Get the current status of a sandbox

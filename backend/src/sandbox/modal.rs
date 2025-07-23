@@ -247,6 +247,7 @@ impl ModalProvider {
         branch: &str,
         author_name: &str,
         author_email: &str,
+        mode: &str,
     ) -> SandboxResult<String> {
         info!(
             "Executing Claude Code via modal shim in sandbox {} for task {}",
@@ -263,7 +264,8 @@ impl ModalProvider {
             "openai_api_key": openai_api_key,
             "branch": branch,
             "author_name": author_name,
-            "author_email": author_email
+            "author_email": author_email,
+            "mode": mode
         });
 
         // Make HTTP request to modal shim for Claude Code execution
@@ -700,6 +702,7 @@ impl SandboxProvider for ModalProvider {
         branch: &str,
         author_name: &str,
         author_email: &str,
+        mode: &str,
     ) -> SandboxResult<SandboxInfo> {
         info!(
             "Starting Modal sandbox for task {}, repository: {}",
@@ -799,6 +802,7 @@ impl SandboxProvider for ModalProvider {
                 branch,
                 author_name,
                 author_email,
+                mode,
             )
             .await?;
 
