@@ -1,3 +1,7 @@
-INSERT INTO tasks (user_id, repository_id, title, description)
-VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at
+-- description is now NULL; first prompt will be written to messages later
+INSERT INTO tasks (user_id, repository_id, title)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, repository_id, title,
+         NULL::TEXT          AS description,
+         status, github_pr_url,
+         pr_title, pr_body, created_at, updated_at
