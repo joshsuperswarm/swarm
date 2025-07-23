@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO messages (task_id, run_id, mode, body_md, sha, role)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT (task_id, run_id, mode)\n            DO UPDATE SET\n                body_md = EXCLUDED.body_md,\n                sha = EXCLUDED.sha,\n                role = EXCLUDED.role,\n                created_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7e596edb7939285bb4985113b213cb772d0c5af6ae4b23e71f8226d800fbe53a"
+}

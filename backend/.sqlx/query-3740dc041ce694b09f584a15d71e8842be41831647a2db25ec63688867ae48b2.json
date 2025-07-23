@@ -4,7 +4,10 @@
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": ["Int4", "Jsonb"]
+      "Left": [
+        "Int4",
+        "Jsonb"
+      ]
     },
     "nullable": []
   },

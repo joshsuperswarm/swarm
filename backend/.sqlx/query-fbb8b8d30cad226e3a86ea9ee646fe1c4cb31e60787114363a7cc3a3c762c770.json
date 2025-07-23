@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE runs\n               SET sandbox_id       = $2,\n                   sandbox_hostname = $3,\n                   session_id       = $4,\n                   command_id       = $5,\n                   branch           = $6,\n                   status           = $7,\n                   commit_title     = $8,\n                   commit_body      = $9,\n                   updated_at       = NOW()\n             WHERE id = (\n                 SELECT id FROM runs\n                  WHERE task_id = $1\n                  ORDER BY created_at DESC\n                  LIMIT 1\n             )\n            RETURNING *\n            ",
+  "query": "\n            UPDATE runs\n               SET branch = $2, updated_at = NOW()\n             WHERE id = $1\n            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at\n            ",
   "describe": {
     "columns": [
       {
@@ -55,21 +55,16 @@
       },
       {
         "ordinal": 10,
-        "name": "pr_title",
+        "name": "mode",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
-        "name": "pr_body",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 12,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 13,
+        "ordinal": 12,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -77,13 +72,6 @@
     "parameters": {
       "Left": [
         "Int4",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Varchar",
-        "Text",
         "Text"
       ]
     },
@@ -98,11 +86,10 @@
       true,
       true,
       true,
-      true,
-      true,
+      false,
       true,
       true
     ]
   },
-  "hash": "79f4426e927330e7a619400609d9794c52aa4a479ad91278a3823f93569f8653"
+  "hash": "fbb8b8d30cad226e3a86ea9ee646fe1c4cb31e60787114363a7cc3a3c762c770"
 }

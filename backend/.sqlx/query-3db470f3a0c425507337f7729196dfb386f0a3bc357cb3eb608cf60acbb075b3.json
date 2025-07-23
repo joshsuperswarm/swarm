@@ -45,9 +45,21 @@
       }
     ],
     "parameters": {
-      "Left": ["Int4", "Int4"]
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
     },
-    "nullable": [false, false, true, true, true, true, true, true]
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
   },
   "hash": "3db470f3a0c425507337f7729196dfb386f0a3bc357cb3eb608cf60acbb075b3"
 }

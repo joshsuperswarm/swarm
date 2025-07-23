@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT todo_id, content, priority, status, updated_at\n               FROM agent_todos\n               WHERE task_id = $1\n               ORDER BY updated_at",
+  "query": "SELECT at.todo_id, at.content, at.priority, at.status, at.updated_at\nFROM agent_todos at\nJOIN tasks t ON at.task_id = t.id\nWHERE at.task_id = $1 AND t.user_id = $2\nORDER BY at.updated_at",
   "describe": {
     "columns": [
       {
@@ -31,6 +31,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int4",
         "Int4"
       ]
     },
@@ -42,5 +43,5 @@
       true
     ]
   },
-  "hash": "232be79d72ac1740db78429e6b31a5bd3d1e4850b2331b6202d532c89cfc4534"
+  "hash": "e0a9a9f6ef1bb38862f267a82eef907426417b5c8c7600d3d69ef5d48d6211d4"
 }

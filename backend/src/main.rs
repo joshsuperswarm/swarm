@@ -746,6 +746,7 @@ mod tests {
         let payload = CreateTaskRequest {
             description: "Test Description".to_string(),
             repository_id: 1,
+            mode: "execute".to_string(),
         };
 
         let start_time = Instant::now();

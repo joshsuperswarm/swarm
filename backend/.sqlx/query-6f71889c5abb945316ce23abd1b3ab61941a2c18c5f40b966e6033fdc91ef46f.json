@@ -50,9 +50,26 @@
       }
     ],
     "parameters": {
-      "Left": ["Int8", "Varchar", "Varchar", "Varchar", "Int4", "Bool"]
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Bool"
+      ]
     },
-    "nullable": [false, false, false, false, false, false, true, true, true]
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
   },
   "hash": "6f71889c5abb945316ce23abd1b3ab61941a2c18c5f40b966e6033fdc91ef46f"
 }

@@ -1,47 +1,47 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO tasks (user_id, repository_id, title, description)\nVALUES ($1, $2, $3, $4)\nRETURNING id, user_id, repository_id, title, description, status, github_pr_url, github_branch, sandbox_id, sandbox_hostname, session_id, command_id, commit_title, commit_body, pr_title, pr_body, created_at, updated_at",
+  "query": "-- One row per task (its latest run)\nSELECT DISTINCT ON (r.task_id)\n       r.id           AS run_id,\n       t.id           AS task_id,\n       t.title,\n       t.description,\n       t.repository_id,\n       t.user_id,\n       -- surfaced run fields\n       r.status,\n       r.branch        AS github_branch,\n       r.sandbox_id,\n       r.sandbox_hostname,\n       r.session_id,\n       r.command_id,\n       r.commit_title,\n       r.commit_body,\n       r.mode,         -- run mode (plan/execute/review)\n       t.pr_title,     -- PR artifacts from task\n       t.pr_body,      -- PR artifacts from task\n       r.created_at,\n       r.updated_at,\n       t.github_pr_url -- still lives on task\nFROM   tasks t\nJOIN   runs  r ON r.task_id = t.id\nWHERE  t.user_id = $1\nORDER  BY r.task_id, r.created_at DESC;",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "run_id",
         "type_info": "Int4"
       },
       {
         "ordinal": 1,
-        "name": "user_id",
+        "name": "task_id",
         "type_info": "Int4"
       },
       {
         "ordinal": 2,
-        "name": "repository_id",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 3,
         "name": "title",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "description",
         "type_info": "Text"
       },
       {
+        "ordinal": 4,
+        "name": "repository_id",
+        "type_info": "Int4"
+      },
+      {
         "ordinal": 5,
-        "name": "status",
-        "type_info": "Varchar"
+        "name": "user_id",
+        "type_info": "Int4"
       },
       {
         "ordinal": 6,
-        "name": "github_pr_url",
+        "name": "status",
         "type_info": "Varchar"
       },
       {
         "ordinal": 7,
         "name": "github_branch",
-        "type_info": "Varchar"
+        "type_info": "Text"
       },
       {
         "ordinal": 8,
@@ -75,32 +75,46 @@
       },
       {
         "ordinal": 14,
-        "name": "pr_title",
+        "name": "mode",
         "type_info": "Text"
       },
       {
         "ordinal": 15,
-        "name": "pr_body",
+        "name": "pr_title",
         "type_info": "Text"
       },
       {
         "ordinal": 16,
+        "name": "pr_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "github_pr_url",
+        "type_info": "Varchar"
       }
     ],
     "parameters": {
-      "Left": ["Int4", "Int4", "Varchar", "Text"]
+      "Left": [
+        "Int4"
+      ]
     },
     "nullable": [
       false,
       false,
       false,
+      true,
+      false,
       false,
       true,
       true,
@@ -110,7 +124,7 @@
       true,
       true,
       true,
-      true,
+      false,
       true,
       true,
       true,
@@ -118,5 +132,5 @@
       true
     ]
   },
-  "hash": "d2afedd9395f58d349b89afd2e7599457b44368dcd13dd3cab673b7aa7536a8f"
+  "hash": "174aa7cf8588e9530ddbcc647871db99749f0ea6d500069b6c0df9f511695c0d"
 }
