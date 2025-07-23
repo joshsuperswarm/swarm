@@ -7,27 +7,22 @@ This module contains all prompt templates used by the Modal sandbox system.
 
 # Mode-specific instruction templates
 PLAN_MODE_INSTRUCTIONS = """
-After analyzing the codebase and understanding the requirements, create a detailed
+After analyzing the codebase and understanding the requirements, create a concise
 plan file at `.swarm/task-{task_id}-plan.md` containing:
-- Problem analysis and approach
-- Implementation strategy and steps
-- Potential challenges and considerations
-- Architecture or design decisions
+- Problem analysis
+- Potential implementation strategies (default to including 2 or 3 approaches)
+- Architecture decisions
 
-Do NOT implement the changes, only create the plan. Focus on thorough analysis
-and strategic planning.
+Do NOT implement the changes, only create the plan.
 """
 
 REVIEW_MODE_INSTRUCTIONS = """
-After reviewing the codebase and the task requirements, create a comprehensive
+After reviewing the codebase and the task requirements, create a concise
 review file at `.swarm/task-{task_id}-review.md` containing:
 - Code quality assessment
-- Issues and potential problems identified
-- Security considerations
-- Performance implications
-- Recommendations for improvement
-
-Focus on analysis and recommendations, not implementation.
+- Recommendations for improvement (if any)
+- Architectural recommendations the code introduces too much complexity
+- Only flag security vulnerabilities if they are relevant to the task
 """
 
 EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."
@@ -39,10 +34,10 @@ CLAUDE_PROMPT_TEMPLATE = """Please work on this task {task_id}: {prompt}.
 
 After completing the task, you MUST output the following markers in this exact format:
 
-COMMIT_MESSAGE_TITLE: Your commit title here
-COMMIT_MESSAGE_BODY: Your detailed commit message body here
-PR_TITLE: Your pull request title here
-PR_BODY: Your detailed pull request description here
+COMMIT_MESSAGE_TITLE: Your concise commit title here
+COMMIT_MESSAGE_BODY: Your concise commit message body here
+PR_TITLE: Your concise pull request title here
+PR_BODY: Your very concise pull request description here
 DONE
 
 The system requires these markers to automatically generate commit messages and pull
