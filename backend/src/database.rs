@@ -634,6 +634,15 @@ impl Database {
         .await?;
         Ok(())
     }
+
+    pub async fn create_initial_user_message(
+        &self,
+        task_id: i32,
+        run_id: i32,
+        prompt: &str,
+    ) -> AppResult<()> {
+        self.upsert_message(task_id, run_id, "execute", prompt, "", "user").await
+    }
 }
 
 #[cfg(test)]
