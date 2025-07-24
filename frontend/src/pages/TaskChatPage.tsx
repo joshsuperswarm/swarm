@@ -17,7 +17,6 @@ function AgentDone({ taskId, prUrl, logs, todos }: {
   todos?: AgentTodo[];
 }) {
   const [showLogs, setShowLogs] = useState(false);
-  const [showTodos, setShowTodos] = useState(true);
   
   const logCount = logs?.total_count || 0;
   const todoCount = todos?.length || 0;
@@ -31,18 +30,7 @@ function AgentDone({ taskId, prUrl, logs, todos }: {
       {/* Todos Section */}
       {todoCount > 0 && (
         <div className="rounded-md p-3">
-          <button 
-            onClick={() => setShowTodos(x => !x)} 
-            className="text-sm font-medium flex items-center gap-2 w-full"
-          >
-            <span>{showTodos ? "−" : "+"}</span>
-            Todos ({todoCount})
-          </button>
-          {showTodos && (
-            <div className="mt-2">
-              <CollapsedTodoList todos={todos || []} />
-            </div>
-          )}
+          <CollapsedTodoList todos={todos || []} />
         </div>
       )}
       
