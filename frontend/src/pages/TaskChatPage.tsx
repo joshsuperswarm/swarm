@@ -30,12 +30,12 @@ function AgentDone({ taskId, prUrl, logs, todos }: {
       
       {/* Todos Section */}
       {todoCount > 0 && (
-        <div className="border border-linear-border rounded-md p-3">
+        <div className="rounded-md p-3">
           <button 
             onClick={() => setShowTodos(x => !x)} 
             className="text-sm font-medium flex items-center gap-2 w-full"
           >
-            <span>{showTodos ? "▼" : "▶"}</span>
+            <span>{showTodos ? "−" : "+"}</span>
             Todos ({todoCount})
           </button>
           {showTodos && (
@@ -48,12 +48,12 @@ function AgentDone({ taskId, prUrl, logs, todos }: {
       
       {/* Logs Section */}
       {logCount > 0 && (
-        <div className="border border-linear-border rounded-md p-3">
+        <div className="rounded-md p-3">
           <button 
             onClick={() => setShowLogs(x => !x)} 
             className="text-sm font-medium flex items-center gap-2 w-full"
           >
-            <span>{showLogs ? "▼" : "▶"}</span>
+            <span>{showLogs ? "−" : "+"}</span>
             Logs ({logCount})
           </button>
           {showLogs && logs?.entries && (
