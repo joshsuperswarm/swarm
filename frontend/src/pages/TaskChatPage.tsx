@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { TaskLogViewer } from "@/components/TaskLogViewer";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery, useSendMessageMutation } from "@/services/queries";
 import { useRunMode } from "@/hooks/useRunMode";
+import { User, Bot, Terminal, AlertCircle } from 'lucide-react';
 // import type { RunMode } from "@/services/api";
 
 function AgentDone({ taskId, prUrl, logs, todos }: { 
   taskId: number; 
   prUrl?: string; 
-  logs?: { entries: any[]; total_count: number; has_more: boolean };
-  todos?: any[];
+  logs?: { entries: unknown[]; total_count: number; has_more: boolean };
+  todos?: unknown[];
 }) {
   const [showLogs, setShowLogs] = useState(false);
   const [showTodos, setShowTodos] = useState(true);
@@ -123,68 +123,140 @@ export function TaskChatPage() {
     }
   };
   
-  const messageElements = messages.map(msg => {
-    const side = msg.role === 'user' ? 'left' : 'right';
-    
-    const content = <p className="whitespace-pre-wrap">{msg.content}</p>;
-    
-    return {
-      id: msg.id.toString(),
-      side: side as 'left' | 'right',
-      node: content
-    };
-  });
-  
-  // Add final message if task is finished
-  if (finished) {
-    messageElements.push({
-      id: "agent-finished",
-      side: "right" as const,
-      node: <AgentDone taskId={taskId} prUrl={task.github_pr_url || undefined} logs={logs} todos={todos} />
+  const getMessageIcon = (role: string, type?: string) => {
+    if (role === 'user') return <User className="w-5 h-5" />;
+    if (type === 'error') return <AlertCircle className="w-5 h-5" />;
+    if (type === 'tool_use') return <Terminal className="w-5 h-5" />;
+    return <Bot className="w-5 h-5" />;
+  };
+
+  const getMessageBubbleClass = (role: string, type?: string) => {
+    if (role === 'user') {
+      return 'bg-blue-600 text-white ml-12';
+    }
+    if (type === 'error') {
+      return 'bg-red-50 text-red-900 border border-red-200 mr-12';
+    }
+    if (type === 'code') {
+      return 'bg-gray-900 text-gray-100 font-mono text-sm mr-12';
+    }
+    return 'bg-white text-gray-900 border border-gray-200 mr-12';
+  };
+
+  const getAvatarClass = (role: string, type?: string) => {
+    if (role === 'user') {
+      return 'bg-blue-600 text-white';
+    }
+    if (type === 'error') {
+      return 'bg-red-100 text-red-600';
+    }
+    return 'bg-gray-100 text-gray-600';
+  };
+
+  const formatTime = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
-  }
+  };
   
   return (
     <div className="flex flex-col h-full">
       {/* Task Header */}
-      <div className="flex-shrink-0 p-3 bg-linear-bg">
+      <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-linear-text-muted bg-white border border-linear-border px-2 py-1 rounded">
+            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
               #{task.id}
             </span>
-            <h1 className="text-xl font-semibold text-linear-text">{task.title}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">{task.title}</h1>
           </div>
           
           {/* Task Status */}
           {status && (
             <div className="flex items-center gap-1">
-              <span className="text-xs font-medium text-linear-text-muted uppercase tracking-wide">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 Status
               </span>
               {status.icon && (
-                <status.icon className="h-3 w-3 text-linear-text-muted" />
+                <status.icon className="h-3 w-3 text-gray-500" />
               )}
-              <span className="text-sm text-linear-text">{status.label}</span>
+              <span className="text-sm text-gray-900">{status.label}</span>
             </div>
           )}
         </div>
       </div>
       
-      <div className="flex-1 flex flex-col gap-3 p-3 overflow-y-auto">
-        {messageElements.map(m => (
-          <ChatBubble key={m.id} side={m.side}>
-            {m.node}
-          </ChatBubble>
-        ))}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {messages.length === 0 && !finished && !sendMessage.isPending ? (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center">
+              <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">Start a conversation with Claude Code</p>
+            </div>
+          </div>
+        ) : (
+          messages.map((message) => (
+          <div key={message.id} className="flex items-start space-x-3">
+            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${getAvatarClass(message.role)}`}>
+              {getMessageIcon(message.role)}
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className={`rounded-lg p-4 ${getMessageBubbleClass(message.role)}`}>
+                <div className="whitespace-pre-wrap break-words">
+                  {message.content}
+                </div>
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                {formatTime(message.created_at || new Date().toISOString())}
+              </div>
+            </div>
+          </div>
+          ))
+        )}
+        
+        {/* Add final message if task is finished */}
+        {finished && (
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-gray-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="bg-white text-gray-900 border border-gray-200 rounded-lg p-4 mr-12">
+                <AgentDone taskId={taskId} prUrl={task.github_pr_url || undefined} logs={logs} todos={todos} />
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {sendMessage.isPending && (
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-gray-600" />
+            </div>
+            <div className="flex-1">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 mr-12">
+                <div className="flex items-center space-x-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                  <span className="text-gray-500 text-sm">Claude is thinking...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
-      <div className="flex-shrink-0 p-3 bg-linear-bg flex justify-center">
-        <div className="flex items-center gap-3 max-w-2xl w-full">
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
+        <div className="flex items-center gap-3 max-w-2xl mx-auto">
           {/* Mode indicator */}
           <button
             onClick={cycleRunMode}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-white border border-linear-border text-linear-text hover:bg-linear-bg-subtle transition-colors duration-150 ease-out"
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition-colors duration-150 ease-out"
             title="Shift+Tab to cycle modes"
           >
             <span>{getModeConfig(mode).icon}</span>
@@ -200,14 +272,14 @@ export function TaskChatPage() {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={finished || sendMessage.isPending}
-              className="w-full px-3 py-2 pr-10 rounded-md border border-linear-border bg-white text-linear-text placeholder:text-linear-text-muted focus:border-linear-accent focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
             
             {/* Send button inside input */}
             <button 
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || finished || sendMessage.isPending}
-              className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-sm bg-linear-text text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center"
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-sm bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center"
               title="Send message"
             >
               <span className="text-xs">
