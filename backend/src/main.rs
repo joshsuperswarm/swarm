@@ -1454,25 +1454,9 @@ async fn get_task_details(
     State(app_state): State<AppState>,
     Path(task_id): Path<i32>,
 ) -> Result<Json<TaskDetails>, StatusCode> {
-    tracing::info!(
-        "GET /api/tasks/{}/details - clerk_user_id={}",
-        task_id,
-        user.id
-    );
-
     // Get or create database user from Clerk user
-    tracing::info!(
-        "→ get_task_details API: getting DB user for clerk_id={}",
-        user.id
-    );
     let db_user = match get_or_create_user(&app_state.database, &user.id).await {
-        Ok(user) => {
-            tracing::info!(
-                "→ get_task_details API: found/created DB user id={}",
-                user.id
-            );
-            user
-        }
+        Ok(user) => user,
         Err(e) => {
             tracing::error!("→ get_task_details API: failed to get/create user: {:?}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -1480,18 +1464,8 @@ async fn get_task_details(
     };
 
     // Verify task exists and belongs to user
-    tracing::info!(
-        "→ get_task_details API: verifying task ownership for db_user_id={}",
-        db_user.id
-    );
     let tasks = match app_state.database.get_user_tasks(db_user.id).await {
-        Ok(tasks) => {
-            tracing::info!(
-                "→ get_task_details API: found {} tasks for user",
-                tasks.len()
-            );
-            tasks
-        }
+        Ok(tasks) => tasks,
         Err(e) => {
             tracing::error!("→ get_task_details API: failed to get user tasks: {:?}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -1499,13 +1473,7 @@ async fn get_task_details(
     };
 
     let _task = match tasks.into_iter().find(|t| t.id == task_id) {
-        Some(task) => {
-            tracing::info!(
-                "→ get_task_details API: task {} belongs to user - verified",
-                task_id
-            );
-            task
-        }
+        Some(task) => task,
         None => {
             tracing::warn!(
                 "→ get_task_details API: task {} not found for user or access denied",
@@ -1516,18 +1484,8 @@ async fn get_task_details(
     };
 
     // Get task details
-    tracing::info!(
-        "→ get_task_details API: calling database.get_task_details({})",
-        task_id
-    );
     let details = match app_state.database.get_task_details(task_id).await {
-        Ok(details) => {
-            tracing::info!(
-                "→ get_task_details API: successfully retrieved details for task {}",
-                task_id
-            );
-            details
-        }
+        Ok(details) => details,
         Err(e) => {
             tracing::error!(
                 "→ get_task_details API: failed to get task details: {:?}",
@@ -1537,10 +1495,6 @@ async fn get_task_details(
         }
     };
 
-    tracing::info!(
-        "→ get_task_details API: returning details for task {} to client",
-        task_id
-    );
     Ok(Json(details))
 }
 

@@ -785,22 +785,13 @@ impl Database {
     }
 
     pub async fn get_task_details(&self, task_id: i32) -> AppResult<TaskDetails> {
-        tracing::info!("→ get_task_details starting for task_id={}", task_id);
-
         // Get task
-        tracing::info!("→ get_task_details: fetching task by id");
         let task = self
             .get_task_by_id(task_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Task {} not found", task_id)))?;
-        tracing::info!(
-            "→ get_task_details: found task with status={:?}, title={}",
-            task.status,
-            task.title
-        );
 
         // Get current run (latest run for this task)
-        tracing::info!("→ get_task_details: fetching latest run");
         let current_run = sqlx::query_as!(
             Run,
             r#"SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, 
@@ -815,34 +806,10 @@ impl Database {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(ref run) = current_run {
-            tracing::info!(
-                "→ get_task_details: found current run id={}, status={:?}, mode={}",
-                run.id,
-                run.status,
-                run.mode
-            );
-        } else {
-            tracing::info!("→ get_task_details: no runs found for task");
-        }
-
         // Get messages with runs
-        tracing::info!("→ get_task_details: fetching messages with runs");
         let messages = self.get_task_messages(task_id, true).await?;
-        tracing::info!("→ get_task_details: found {} messages", messages.len());
-
-        for (i, msg) in messages.iter().enumerate() {
-            tracing::info!(
-                "→ get_task_details: message[{}] role={}, run_id={:?}, content_len={}",
-                i,
-                msg.role,
-                msg.run.as_ref().map(|r| r.id),
-                msg.content.len()
-            );
-        }
 
         // Get logs with pagination (last 100 entries)
-        tracing::info!("→ get_task_details: fetching logs (last 100 entries)");
         let log_rows = sqlx::query!(
             r#"
             SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
@@ -855,10 +822,8 @@ impl Database {
         )
         .fetch_all(&self.pool)
         .await?;
-        tracing::info!("→ get_task_details: fetched {} log rows", log_rows.len());
 
         // Get total log count
-        tracing::info!("→ get_task_details: counting total logs");
         let total_count = sqlx::query!(
             "SELECT COUNT(*) as count FROM task_logs WHERE task_id = $1",
             task_id
@@ -867,7 +832,6 @@ impl Database {
         .await?
         .count
         .unwrap_or(0) as i32;
-        tracing::info!("→ get_task_details: total log count = {}", total_count);
 
         let logs_vec: Vec<TaskLog> = log_rows
             .into_iter()
@@ -885,11 +849,6 @@ impl Database {
         } else {
             None
         };
-        tracing::info!(
-            "→ get_task_details: logs pagination - has_more={}, cursor={:?}",
-            has_more,
-            cursor
-        );
 
         let logs = TaskLogsPaginated {
             entries: logs_vec,
@@ -899,14 +858,8 @@ impl Database {
         };
 
         // Get todos
-        tracing::info!("→ get_task_details: fetching todos");
         let todos = self.get_agent_todos(task_id).await?;
-        tracing::info!("→ get_task_details: found {} todos", todos.len());
 
-        tracing::info!(
-            "→ get_task_details: successfully completed for task_id={}",
-            task_id
-        );
         Ok(TaskDetails {
             task,
             current_run,
