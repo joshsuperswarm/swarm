@@ -6,22 +6,21 @@ interface TodoListProps {
   loading?: boolean;
 }
 
-// Status icons mapping
-const statusIcons = {
-  pending: "○",
-  in_progress: "→", 
-  completed: "✓",
+// Status dot colors - outline circles for reduced visual weight
+const statusDots = {
+  pending: "border border-gray-300 bg-transparent",
+  in_progress: "border border-linear-accent bg-transparent",
+  completed: "border border-gray-400 bg-gray-400",
 } as const;
 
 export function TodoList({ todos, loading }: TodoListProps) {
   if (loading) {
     return (
-      <div className="space-y-3 mb-6">
-        <h3 className="text-sm font-semibold">Todos</h3>
-        <div className="bg-muted/30 rounded-lg p-4">
+      <div>
+        <div className="bg-white border border-linear-border rounded-md p-2">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
-            <span className="text-sm text-muted-foreground">Loading todos...</span>
+            <div className="animate-spin rounded-full h-3 w-3 border border-linear-border border-t-linear-accent"></div>
+            <span className="text-sm text-linear-text-muted">Loading todos...</span>
           </div>
         </div>
       </div>
@@ -29,52 +28,48 @@ export function TodoList({ todos, loading }: TodoListProps) {
   }
 
   return (
-    <div className="space-y-3 mb-6">
-      <h3 className="text-sm font-semibold">Todos</h3>
-      
+    <div>
       {todos.length === 0 ? (
-        <div className="bg-muted/30 rounded-lg p-4">
-          <p className="text-sm text-muted-foreground italic">No todos yet</p>
+        <div className="bg-white border border-linear-border rounded-md p-2">
+          <p className="text-sm text-linear-text-muted">No todos yet</p>
         </div>
       ) : (
-        <div className="bg-muted/30 rounded-lg p-4">
-          <div className="space-y-3">
+        <div className="bg-white border border-linear-border rounded-md p-1">
+          <div className="space-y-1">
             {todos.map((todo) => (
               <div
                 key={todo.todo_id}
                 className={cn(
-                  "flex items-start space-x-3 p-3 rounded-md border",
+                  "flex items-center space-x-3 p-2 rounded-sm transition-colors duration-150 ease-out",
                   todo.status === "completed" 
-                    ? "bg-gray-50 text-gray-500 border-gray-200" 
-                    : "bg-white border-gray-200"
+                    ? "text-linear-text-muted" 
+                    : "text-linear-text hover:bg-linear-bg-subtle"
                 )}
               >
-                <div className="flex-shrink-0 text-sm">
-                  {statusIcons[todo.status as keyof typeof statusIcons] || "○"}
+                <div className="flex-shrink-0">
+                  <div className={cn(
+                    "w-3 h-3 rounded-full",
+                    statusDots[todo.status as keyof typeof statusDots]
+                  )} />
                 </div>
                 
                 <div className="flex-1 min-w-0">
                   <p className={cn(
-                    "text-sm",
+                    "text-sm font-normal leading-5",
                     todo.status === "completed" && "line-through"
                   )}>
                     {todo.content}
                   </p>
                   
                   {todo.updated_at && (
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-linear-text-muted mt-1">
                       Updated {new Date(todo.updated_at).toLocaleString()}
                     </p>
                   )}
                 </div>
                 
                 <div className="flex-shrink-0">
-                  <span className={cn(
-                    "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                    todo.status === "completed" && "bg-green-100 text-green-800",
-                    todo.status === "in_progress" && "bg-blue-100 text-blue-800", 
-                    todo.status === "pending" && "bg-yellow-100 text-yellow-800"
-                  )}>
+                  <span className="text-xs text-linear-text-muted font-normal">
                     {todo.status.replace('_', ' ')}
                   </span>
                 </div>

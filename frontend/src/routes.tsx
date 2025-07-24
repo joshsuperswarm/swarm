@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { TasksPage } from '@/components/TasksPage';
 import { TaskPage } from '@/pages/TaskPage';
+import { TaskChatPage } from '@/pages/TaskChatPage';
 import { LoginPage } from '@/pages/LoginPage';
 
 interface RouterProps {
@@ -17,6 +18,7 @@ export function Router({ isSignedIn }: RouterProps) {
     <Routes>
       <Route path="/" element={<TasksPage />} />
       <Route path="/tasks/:id" element={<TaskPage />} />
+      <Route path="/mock/tasks/:id/chat" element={<TaskChatPage />} />
     </Routes>
   );
 }

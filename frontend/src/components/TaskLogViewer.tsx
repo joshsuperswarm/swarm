@@ -16,6 +16,7 @@ interface TaskLogViewerProps {
   taskId: number;
   taskStatus?: string;
   hideHeader?: boolean;
+  logs?: string[];
   onLogsStateChange?: (state: {
     isLoading: boolean;
     isPolling: boolean;
@@ -28,14 +29,15 @@ interface TaskLogViewerProps {
   }) => void;
 }
 
-const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus, hideHeader = false, onLogsStateChange }) => {
+const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus, hideHeader = false, logs: propLogs, onLogsStateChange }) => {
   console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
   
   /* pull any prefetched logs from React Query – instant render */
-  const { data: prefetchedLogs = [], isLoading: prefetchLoading } = useTaskLogsQuery(taskId);
+  const { data: prefetchedLogs = [], isLoading: prefetchLoading } = useTaskLogsQuery(taskId, !propLogs);
 
-  const [logs, setLogs] = useState<string[]>(prefetchedLogs.map(l => l.log_line)); // will be prettified below
-  const [isLoading, setIsLoading] = useState(prefetchLoading && prefetchedLogs.length === 0);
+  const initialLogs = propLogs || prefetchedLogs.map(l => l.log_line);
+  const [logs, setLogs] = useState<string[]>(initialLogs); // will be prettified below
+  const [isLoading, setIsLoading] = useState(!propLogs && prefetchLoading && prefetchedLogs.length === 0);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [taskCompleted, setTaskCompleted] = useState(false);
@@ -146,6 +148,11 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   }, [taskId, taskStatus, formatLogs, taskCompleted, api, queryClient]);
 
   useEffect(() => {
+    // Skip fetching if logs are provided via props
+    if (propLogs) {
+      return;
+    }
+
     // Check if task is in finished state
     const isFinished = taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus);
     
@@ -168,13 +175,25 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
         clearInterval(intervalRef.current);
       }
     };
-  }, [taskId, taskStatus, fetchLogs, taskCompleted]);
+  }, [taskId, taskStatus, fetchLogs, taskCompleted, propLogs]);
 
 
   // Update logs when showPretty *or* prefetched update
   useEffect(() => {
-    setLogs(formatLogs(rawLogsRef.current));
-  }, [showPretty, formatLogs, prefetchedLogs]);
+    if (propLogs) {
+      // When using propLogs, format them if they're JSON strings
+      if (showPretty) {
+        setLogs(propLogs.map(log => {
+          try { return JSON.stringify(JSON.parse(log), null, 2); }
+          catch { return log; }
+        }));
+      } else {
+        setLogs(propLogs);
+      }
+    } else {
+      setLogs(formatLogs(rawLogsRef.current));
+    }
+  }, [showPretty, formatLogs, prefetchedLogs, propLogs]);
 
   // Stop polling when task is completed or in finished state
   useEffect(() => {
@@ -223,15 +242,15 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
     <div className="space-y-2">
       {!hideHeader && (
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Live Claude Output</h3>
+          <h3 className="text-sm font-medium text-linear-text">Live Claude Output</h3>
           <div className="flex items-center gap-2">
             <div className={`h-2 w-2 rounded-full ${
-              isLoading ? 'bg-yellow-500' : 
-              taskCompleted ? 'bg-blue-500' :
-              isPolling ? 'bg-green-500 animate-pulse' : 
-              'bg-green-500'
+              isLoading ? 'bg-linear-text-muted' : 
+              taskCompleted ? 'bg-linear-accent' :
+              isPolling ? 'bg-linear-accent animate-pulse' : 
+              'bg-linear-accent'
             }`} />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-linear-text-muted font-normal">
               {isLoading ? 'Loading...' : 
                taskCompleted || (taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus)) ? `Task completed • ${logs.length} entries` :
                isPolling ? 'Checking for new logs...' :
@@ -241,7 +260,7 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
               <>
                 <button 
                   onClick={() => fetchLogs(lastLogIdRef.current || undefined)} 
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  className="text-xs text-linear-text-muted hover:text-linear-accent transition-colors duration-150 ease-out underline font-normal"
                   disabled={isPolling}
                 >
                   Refresh
@@ -250,17 +269,17 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
                   <>
                     <button 
                       onClick={() => setShowPretty(!showPretty)}
-                      className="text-xs text-purple-600 hover:text-purple-800 underline"
+                      className="text-xs text-linear-text-muted hover:text-linear-accent transition-colors duration-150 ease-out underline font-normal"
                       title="Toggle between pretty and raw JSON view"
                     >
-                      {showPretty ? '< /> Raw' : '{ } Pretty'}
+                      {showPretty ? 'Raw' : 'Pretty'}
                     </button>
                     <button 
                       onClick={copyLogsToClipboard}
-                      className="text-xs text-green-600 hover:text-green-800 underline"
+                      className="text-xs text-linear-text-muted hover:text-linear-accent transition-colors duration-150 ease-out underline font-normal"
                       title="Copy all logs to clipboard"
                     >
-                      Copy Logs
+                      Copy
                     </button>
                   </>
                 )}
@@ -270,11 +289,11 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
         </div>
       )}
       
-      <div className="h-96 w-full rounded-lg border bg-gray-900 p-4">
+      <div className="h-96 w-full rounded-md border border-linear-border bg-linear-text p-2">
         {logs.length === 0 && !isLoading ? (
-          <span className="text-gray-500 text-xs">No logs yet...</span>
+          <span className="text-white/70 text-xs font-normal">No logs yet...</span>
         ) : isLoading && logs.length === 0 ? (
-          <span className="text-gray-500 text-xs">Loading logs...</span>
+          <span className="text-white/70 text-xs font-normal">Loading logs...</span>
         ) : (
           <VirtualisedLogViewer lines={logs} height={352} />
         )}

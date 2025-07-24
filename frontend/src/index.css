@@ -64,10 +64,24 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-linear-bg text-linear-text font-normal text-base;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'cv03', 'cv04', 'cv09'; /* Inter feature settings */
   }
   html {
-    font-family: theme('fontFamily.sans');
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px; /* 15px root size - back up 1px */
+  }
+  
+  /* Typography scale with tight line-height */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
+    line-height: 1.3;
+  }
+  
+  /* Linear-style form elements */
+  input, textarea, select {
+    @apply text-linear-text;
   }
 }
 
@@ -84,17 +98,35 @@ html, body {
 
 @layer utilities {
   .panel {
-    @apply bg-white border border-border rounded-md shadow;
+    @apply bg-white border border-linear-border rounded-md;
   }
-  .ease-snappy {
-    transition-timing-function: cubic-bezier(.16,1,.3,1);
+  
+  /* Linear-style transitions */
+  .transition-linear {
+    @apply transition-all duration-150 ease-out;
   }
-  /* Linear-style input surface */
+  
+  /* Linear-style button */
+  .btn-linear {
+    @apply px-3 py-1.5 rounded-sm text-sm font-medium transition-linear
+           bg-white border border-linear-border text-linear-text
+           hover:bg-linear-bg-subtle hover:border-linear-accent
+           active:shadow-linear-active;
+  }
+  
+  /* Linear-style form elements */
   .field {
-    @apply bg-transparent border-none rounded-none
-           transition-colors duration-100
-           focus-visible:bg-transparent;
+    @apply bg-white border border-linear-border rounded-sm px-3 py-2
+           text-linear-text placeholder:text-linear-text-muted
+           transition-linear focus:border-linear-accent focus:outline-none;
   }
+  
+  /* Linear-style card */
+  .card-linear {
+    @apply bg-white border border-linear-border rounded-md p-2
+           transition-linear hover:border-linear-accent;
+  }
+  
 }
 
 /* Custom utility classes */
