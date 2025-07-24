@@ -133,39 +133,33 @@ export function TaskChatPage() {
   };
   
   return (
-    <div className="grid lg:grid-cols-[320px_minmax(0,1fr)] h-full">
-      {/* ─── Left rail ─── */}
-      <aside className="border-r bg-gray-50/60 p-6 space-y-4">
-        {/* Left rail content can go here */}
-      </aside>
-      
-      <main className="flex flex-col overflow-y-auto">
-        {/* Task Header */}
-        <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                #{task.id}
-              </span>
-              <h1 className="text-xl font-semibold text-gray-900">{task.title}</h1>
-            </div>
-            
-            {/* Task Status */}
-            {status && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Status
-                </span>
-                {status.icon && (
-                  <status.icon className="h-3 w-3 text-gray-500" />
-                )}
-                <span className="text-sm text-gray-900">{status.label}</span>
-              </div>
-            )}
+    <div className="flex flex-col h-full">
+      {/* Task Header */}
+      <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              #{task.id}
+            </span>
+            <h1 className="text-xl font-semibold text-gray-900">{task.title}</h1>
           </div>
+          
+          {/* Task Status */}
+          {status && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Status
+              </span>
+              {status.icon && (
+                <status.icon className="h-3 w-3 text-gray-500" />
+              )}
+              <span className="text-sm text-gray-900">{status.label}</span>
+            </div>
+          )}
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && !finished && !sendMessage.isPending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
@@ -214,9 +208,8 @@ export function TaskChatPage() {
           </div>
         )}
         </div>
-      </main>
       
-      <footer className="col-span-full p-4 border-t border-gray-200 bg-white">
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
           {/* Mode indicator */}
           <button
@@ -253,7 +246,7 @@ export function TaskChatPage() {
             </button>
           </div>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }
