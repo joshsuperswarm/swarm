@@ -64,7 +64,7 @@ export function TaskPage() {
   // Find current task index for navigation
   const currentTaskIndex = useMemo(() => {
     if (!liveTask || allTasks.length === 0) return -1;
-    return allTasks.findIndex(t => t.task_id === liveTask.task_id);
+    return allTasks.findIndex(t => t.task_id === liveTask.id);
   }, [liveTask, allTasks]);
 
 
@@ -199,7 +199,7 @@ export function TaskPage() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div className="flex items-end gap-4">
             <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-              #{liveTask.task_id}
+              #{liveTask.id}
             </span>
             <h1 className="text-2xl font-bold text-gray-900">{liveTask.title}</h1>
           </div>
@@ -391,7 +391,7 @@ export function TaskPage() {
           </div>
           {logsVisible && (
             <TaskLogViewer
-              taskId={liveTask.task_id}
+              taskId={liveTask.id}
               taskStatus={currentRunStatus || undefined}
               hideHeader={true}
               onLogsStateChange={setLogsState}
@@ -400,7 +400,7 @@ export function TaskPage() {
           {!logsVisible && (
             <div style={{ display: 'none' }}>
               <TaskLogViewer
-                taskId={liveTask.task_id}
+                taskId={liveTask.id}
                 taskStatus={currentRunStatus || undefined}
                 hideHeader={true}
                 onLogsStateChange={setLogsState}

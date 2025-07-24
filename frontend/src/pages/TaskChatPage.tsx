@@ -11,13 +11,13 @@ import { useRunMode } from "@/hooks/useRunMode";
 function AgentDone({ taskId, prUrl, logs, todos }: { 
   taskId: number; 
   prUrl?: string; 
-  logs?: { entries: any[]; total_count: bigint; has_more: boolean };
+  logs?: { entries: any[]; total_count: number; has_more: boolean };
   todos?: any[];
 }) {
   const [showLogs, setShowLogs] = useState(false);
   const [showTodos, setShowTodos] = useState(true);
   
-  const logCount = logs?.total_count ? Number(logs.total_count) : 0;
+  const logCount = logs?.total_count || 0;
   const todoCount = todos?.length || 0;
   
   return (

@@ -134,7 +134,7 @@ export const useTaskDetailsQuery = (taskId: number, enabled: boolean = true) => 
       console.log('  - Task:', result.task);
       console.log('  - Current run:', result.current_run);
       console.log('  - Messages count:', result.messages?.length || 0);
-      console.log('  - Logs count:', result.logs?.logs?.length || 0);
+      console.log('  - Logs count:', result.logs?.entries?.length || 0);
       console.log('  - Todos count:', result.todos?.length || 0);
       return result;
     },
