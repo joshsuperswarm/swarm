@@ -57,7 +57,7 @@ function AgentDone({ taskId, prUrl, logs, todos }: {
             Logs ({logCount})
           </button>
           {showLogs && logs?.entries && (
-            <div className="mt-2 max-h-96 overflow-y-auto">
+            <div className="mt-2">
               <TaskLogViewer taskId={taskId} hideHeader logs={logs.entries} />
             </div>
           )}
@@ -159,7 +159,8 @@ export function TaskChatPage() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 space-y-6">
         {messages.length === 0 && !finished && !sendMessage.isPending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
@@ -208,6 +209,7 @@ export function TaskChatPage() {
           </div>
         )}
         </div>
+      </div>
       
       <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
