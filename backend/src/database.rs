@@ -1,7 +1,8 @@
 use crate::error::AppResult;
 use crate::models::{
-    AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
-    Repository, RepositoryWithTasks, Run, Task, TaskLog, TaskWithRun, TaskWithRunDB, User,
+    AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
+    GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, Task, TaskLog,
+    TaskWithRun, TaskWithRunDB, User,
 };
 use sqlx::PgPool;
 
@@ -464,7 +465,7 @@ impl Database {
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
-            "SELECT id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at FROM runs WHERE id = $1",
+            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at FROM runs WHERE id = $1",
             run_id
         )
         .fetch_optional(&self.pool)
@@ -490,7 +491,7 @@ impl Database {
             UPDATE runs
                SET status = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             status
@@ -512,7 +513,7 @@ impl Database {
             UPDATE runs
                SET session_id = $2, command_id = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             session,
@@ -535,7 +536,7 @@ impl Database {
             UPDATE runs
                SET commit_title = $2, commit_body = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             commit_title,
@@ -553,7 +554,7 @@ impl Database {
             UPDATE runs
                SET branch = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             branch
@@ -575,7 +576,7 @@ impl Database {
             UPDATE runs
                SET sandbox_id = $2, sandbox_hostname = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             run_id,
             sandbox_id,
@@ -592,7 +593,7 @@ impl Database {
             r#"
             INSERT INTO runs (task_id, mode, status, created_at, updated_at)
             VALUES ($1, $2, 'pending', NOW(), NOW())
-            RETURNING id, task_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
             "#,
             task_id,
             mode,
@@ -641,6 +642,143 @@ impl Database {
         prompt: &str,
     ) -> AppResult<()> {
         self.upsert_message(task_id, run_id, "execute", prompt, "", "user").await
+    }
+
+    // Message operations for the new chat architecture
+    pub async fn get_task_messages(
+        &self,
+        task_id: i32,
+        include_runs: bool,
+    ) -> AppResult<Vec<MessageWithRun>> {
+        if include_runs {
+            let rows = sqlx::query!(
+                r#"
+                SELECT 
+                    m.id, m.task_id, m.role, m.body_md as content, m.created_at, 
+                    m.metadata as "metadata: serde_json::Value",
+                    r.id as run_id, r.task_id as run_task_id, r.message_id, r.sandbox_id, 
+                    r.sandbox_hostname, r.session_id, r.command_id, r.branch, r.status, 
+                    r.commit_title, r.commit_body, r.mode, r.created_at as run_created_at, 
+                    r.updated_at as run_updated_at
+                FROM messages m
+                LEFT JOIN runs r ON r.id = m.run_id
+                WHERE m.task_id = $1
+                ORDER BY m.created_at ASC
+                "#,
+                task_id
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
+            let messages = rows
+                .into_iter()
+                .map(|row| MessageWithRun {
+                    id: row.id,
+                    task_id: row.task_id,
+                    role: row.role,
+                    content: row.content,
+                    created_at: row.created_at,
+                    metadata: Some(row.metadata),
+                    run: if let Some(run_id) = row.run_id {
+                        Some(Run {
+                            id: run_id,
+                            task_id: row.run_task_id.unwrap_or(task_id),
+                            message_id: row.message_id,
+                            sandbox_id: row.sandbox_id,
+                            sandbox_hostname: row.sandbox_hostname,
+                            session_id: row.session_id,
+                            command_id: row.command_id,
+                            branch: row.branch,
+                            status: row.status,
+                            commit_title: row.commit_title,
+                            commit_body: row.commit_body,
+                            mode: row.mode.unwrap_or_default(),
+                            created_at: row.run_created_at,
+                            updated_at: row.run_updated_at,
+                        })
+                    } else {
+                        None
+                    },
+                })
+                .collect();
+
+            Ok(messages)
+        } else {
+            let rows = sqlx::query!(
+                r#"
+                SELECT id, task_id, role, body_md as content, created_at, 
+                       metadata as "metadata: serde_json::Value"
+                FROM messages
+                WHERE task_id = $1
+                ORDER BY created_at ASC
+                "#,
+                task_id
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
+            let messages = rows
+                .into_iter()
+                .map(|row| MessageWithRun {
+                    id: row.id,
+                    task_id: row.task_id,
+                    role: row.role,
+                    content: row.content,
+                    created_at: row.created_at,
+                    metadata: Some(row.metadata),
+                    run: None,
+                })
+                .collect();
+
+            Ok(messages)
+        }
+    }
+
+    pub async fn create_message(&self, message: CreateMessage) -> AppResult<Message> {
+        let metadata = message.metadata.unwrap_or_else(|| serde_json::json!({}));
+        let sha = message.sha.unwrap_or_default();
+
+        let result = sqlx::query_as!(
+            Message,
+            r#"
+            INSERT INTO messages (task_id, run_id, mode, body_md, sha, role, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, task_id, run_id, mode, body_md, sha, role, 
+                      metadata as "metadata: serde_json::Value", created_at
+            "#,
+            message.task_id,
+            message.run_id,
+            message.mode,
+            message.body_md,
+            sha,
+            message.role,
+            metadata
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result)
+    }
+
+    pub async fn attach_run_to_message(&self, message_id: i64, run_id: i32) -> AppResult<()> {
+        sqlx::query!(
+            "UPDATE messages SET run_id = $1 WHERE id = $2",
+            run_id,
+            message_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Also update the run to point to the message
+        sqlx::query!(
+            "UPDATE runs SET message_id = $1 WHERE id = $2",
+            message_id,
+            run_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
 

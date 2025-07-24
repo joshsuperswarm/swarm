@@ -1,20 +1,21 @@
 import { useState } from "react";
+import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
-import { TodoList } from "@/components/TodoList";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { CollapsedLogViewer } from "@/components/CollapsedLogViewer";
 import { TaskLogViewer } from "@/components/TaskLogViewer";
-import { mockTask, mockConversation, mockTodos, mockLogs } from "@/mock/taskMock";
 import { statuses } from "@/data/data";
+import { useTaskQuery, useTaskMessagesQuery, useSendMessageMutation } from "@/services/queries";
+import { useRunMode } from "@/hooks/useRunMode";
 import type { RunMode } from "@/services/api";
 
-function AgentDone() {
+function AgentDone({ taskId, prUrl }: { taskId: number; prUrl?: string }) {
   const [showLogs, setShowLogs] = useState(false);
   
   return (
     <div>
       <p className="mb-2">
-        ✓ {mockTask.github_pr_url ? "All done – PR opened!" : "Done."}
+        ✓ {prUrl ? "All done – PR opened!" : "Done."}
       </p>
       <button 
         onClick={() => setShowLogs(x => !x)} 
@@ -24,93 +25,53 @@ function AgentDone() {
       </button>
       {showLogs && (
         <div className="mt-2">
-          <TaskLogViewer taskId={mockTask.task_id} hideHeader logs={mockLogs} />
+          <TaskLogViewer taskId={taskId} hideHeader logs={[]} />
         </div>
       )}
     </div>
   );
 }
 
-// Canned response data
-const cannedTodos = [
-  { todo_id: "c1", content: "Analyze the request", status: "completed", updated_at: null, priority: "high" },
-  { todo_id: "c2", content: "Implement solution", status: "in_progress", updated_at: null, priority: "high" },
-  { todo_id: "c3", content: "Test changes", status: "pending", updated_at: null, priority: "medium" },
-];
-
-const cannedLogs = [
-  '{"level":"info","msg":"processing user request"}',
-  '{"level":"info","msg":"analyzing requirements"}',
-  '{"level":"info","msg":"starting implementation"}',
-];
-
 export function TaskChatPage() {
-  // Use mockTask regardless of id (keep simple)
-  const finished = ["done", "failed", "pr_opened"].includes(mockTask.status);
+  const { id } = useParams<{ id: string }>();
+  const taskId = parseInt(id || "0", 10);
   
-  // Get status configuration
-  const status = statuses.find((s) => s.value === mockTask.status);
+  // Real hooks instead of mocks
+  const { data: task } = useTaskQuery(taskId);
+  const { data: messages = [] } = useTaskMessagesQuery(taskId, task?.status);
+  const sendMessage = useSendMessageMutation(taskId);
+  const { mode, cycleRunMode, getModeConfig } = useRunMode("execute");
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
-  const [mode, setMode] = useState<RunMode>("plan");
   
-  // Prepend task description as first message
-  const initialConversation = [
-    {
-      id: "task-description",
-      side: "left" as const,
-      content: mockTask.description,
-      timestamp: "2024-01-15T09:59:00Z"
-    },
-    ...mockConversation.slice(1) // Skip the original first message since we're replacing it
-  ];
+  if (!task) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-linear-text-muted">Loading task...</p>
+        </div>
+      </div>
+    );
+  }
   
-  const [chatMessages, setChatMessages] = useState(initialConversation);
-  
-  // Mode cycling
-  const runModes: RunMode[] = ['plan', 'execute', 'review'];
-  
-  const cycleRunMode = () => {
-    const currentIndex = runModes.indexOf(mode);
-    const nextIndex = (currentIndex + 1) % runModes.length;
-    setMode(runModes[nextIndex]);
-  };
-  
-  const getModeConfig = (mode: RunMode) => {
-    switch (mode) {
-      case 'execute':
-        return { icon: '→', label: 'Execute', color: 'text-green-600' };
-      case 'plan':
-        return { icon: '◊', label: 'Plan', color: 'text-blue-600' };
-      case 'review':
-        return { icon: '◈', label: 'Review', color: 'text-purple-600' };
-    }
-  };
+  const finished = ["done", "failed", "pr_opened"].includes(task.status || "");
+  const status = statuses.find((s) => s.value === task.status);
   
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
     
-    // Add user message
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      side: "left" as const,
-      content: inputValue.trim(),
-      timestamp: new Date().toISOString()
-    };
-    
-    // Add canned agent response
-    const agentMessage = {
-      id: `agent-${Date.now()}`,
-      side: "right" as const,
-      content: "I'll help you with that. Let me work on this request.",
-      timestamp: new Date().toISOString(),
-      showTodos: true,
-      logs: cannedLogs
-    };
-    
-    setChatMessages(prev => [...prev, userMessage, agentMessage]);
-    setInputValue("");
+    sendMessage.mutate(
+      { content: inputValue, mode },
+      {
+        onSuccess: () => {
+          setInputValue("");
+        },
+        onError: (error) => {
+          console.error("Failed to send message:", error);
+        }
+      }
+    );
   };
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -123,55 +84,47 @@ export function TaskChatPage() {
     }
   };
   
-  const messages = chatMessages.map(msg => {
-    let content;
+  const messageElements = messages.map(msg => {
+    const side = msg.role === 'user' ? 'left' : 'right';
     
-    if (msg.side === "left") {
+    let content;
+    if (side === "left") {
       content = <p className="whitespace-pre-wrap">{msg.content}</p>;
     } else {
-      // Agent message
-      if (msg.showCollapsedTodos) {
-        content = (
-          <div>
-            <p className="mb-2">{msg.content}</p>
-            <CollapsedTodoList todos={mockTodos} />
-            {msg.logs && (
-              <div className="mt-2">
-                <CollapsedLogViewer taskId={mockTask.task_id} logs={msg.logs} />
-              </div>
-            )}
-          </div>
-        );
-      } else if (msg.showTodos) {
-        content = (
-          <div>
-            <p className="mb-2">{msg.content}</p>
-            <TodoList todos={cannedTodos} />
-            {msg.logs && (
-              <div className="mt-2">
-                <CollapsedLogViewer taskId={mockTask.task_id} logs={msg.logs} />
-              </div>
-            )}
-          </div>
-        );
-      } else {
-        content = <p>{msg.content}</p>;
-      }
+      // Assistant message - check metadata for logs and todos
+      const logs = msg.metadata?.logs ?? [];
+      const todos = msg.metadata?.todos ?? [];
+      
+      content = (
+        <div>
+          <p className="mb-2 whitespace-pre-wrap">{msg.content}</p>
+          {todos.length > 0 && (
+            <div className="mt-2">
+              <CollapsedTodoList todos={todos} />
+            </div>
+          )}
+          {logs.length > 0 && (
+            <div className="mt-2">
+              <CollapsedLogViewer taskId={taskId} logs={logs} />
+            </div>
+          )}
+        </div>
+      );
     }
     
     return {
-      id: msg.id,
-      side: msg.side,
+      id: msg.id.toString(),
+      side: side as 'left' | 'right',
       node: content
     };
   });
   
   // Add final message if task is finished
   if (finished) {
-    messages.push({
+    messageElements.push({
       id: "agent-finished",
       side: "right" as const,
-      node: <AgentDone />
+      node: <AgentDone taskId={taskId} prUrl={task.github_pr_url} />
     });
   }
   
@@ -182,9 +135,9 @@ export function TaskChatPage() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <span className="text-sm font-mono text-linear-text-muted bg-white border border-linear-border px-2 py-1 rounded">
-              #{mockTask.task_id}
+              #{task.task_id}
             </span>
-            <h1 className="text-xl font-semibold text-linear-text">{mockTask.title}</h1>
+            <h1 className="text-xl font-semibold text-linear-text">{task.title}</h1>
           </div>
           
           {/* Task Status */}
@@ -203,7 +156,7 @@ export function TaskChatPage() {
       </div>
       
       <div className="flex-1 flex flex-col gap-3 p-3 overflow-y-auto">
-        {messages.map(m => (
+        {messageElements.map(m => (
           <ChatBubble key={m.id} side={m.side}>
             {m.node}
           </ChatBubble>
@@ -226,21 +179,24 @@ export function TaskChatPage() {
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Type your message..."
+              placeholder={finished ? "Task completed" : "Type your message..."}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full px-3 py-2 pr-10 rounded-md border border-linear-border bg-white text-linear-text placeholder:text-linear-text-muted focus:border-linear-accent focus:outline-none transition-colors duration-150"
+              disabled={finished || sendMessage.isPending}
+              className="w-full px-3 py-2 pr-10 rounded-md border border-linear-border bg-white text-linear-text placeholder:text-linear-text-muted focus:border-linear-accent focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
             
             {/* Send button inside input */}
             <button 
               onClick={handleSendMessage}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || finished || sendMessage.isPending}
               className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-sm bg-linear-text text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center"
               title="Send message"
             >
-              <span className="text-xs">→</span>
+              <span className="text-xs">
+                {sendMessage.isPending ? "..." : "→"}
+              </span>
             </button>
           </div>
         </div>

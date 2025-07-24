@@ -32,8 +32,9 @@ use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use models::{
-    AgentTodo, CreateGitHubToken, CreateRepository, CreateTask, CreateUser, GitHubToken,
-    RepositoryTS, RepositoryWithTasks, Run, Task, TaskWithRun, User, UserWithDefaultRepo,
+    AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
+    GitHubToken, MessageWithRun, RepositoryTS, RepositoryWithTasks, Run, Task, TaskWithRun, User,
+    UserWithDefaultRepo,
 };
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
@@ -508,6 +509,8 @@ async fn main() -> AppResult<()> {
         .route("/api/tasks", post(create_task))
         .route("/api/tasks/:id/logs", get(get_task_logs))
         .route("/api/tasks/:id/todos", get(get_task_todos))
+        .route("/api/tasks/:id/messages", get(get_task_messages))
+        .route("/api/tasks/:id/messages", post(post_task_message))
         .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
@@ -1337,6 +1340,22 @@ async fn create_task(
         }
     };
 
+    // Insert initial description into messages table
+    let create_message = CreateMessage {
+        task_id: task.id,
+        run_id: None, // Will be set when run is created
+        mode: payload.mode.clone(),
+        body_md: payload.description.clone(),
+        sha: None,
+        role: "user".to_string(),
+        metadata: None,
+    };
+
+    if let Err(e) = app_state.database.create_message(create_message).await {
+        tracing::error!("Error creating initial message for task {}: {}", task.id, e);
+        // Continue even if message creation fails
+    }
+
     // Spawn detached task for heavy operations
     let pipeline_state = app_state.clone();
     let task_clone = task.clone();
@@ -1518,4 +1537,189 @@ async fn get_task_todos(
         "todos": todos,
         "count": todos.len()
     })))
+}
+
+#[derive(Deserialize)]
+struct MessagesQuery {
+    include: Option<String>,
+}
+
+async fn get_task_messages(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+    Query(query): Query<MessagesQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    let db_user = get_or_create_user(&app_state.database, &user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Verify task exists and belongs to user
+    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
+        Ok(tasks) => tasks,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
+        Some(task) => task,
+        None => return Err(StatusCode::FORBIDDEN),
+    };
+
+    // Parse include parameter to check if runs should be included
+    let include_runs = query
+        .include
+        .as_deref()
+        .map(|s| s.contains("runs"))
+        .unwrap_or(false);
+
+    let messages = match app_state
+        .database
+        .get_task_messages(task_id, include_runs)
+        .await
+    {
+        Ok(messages) => messages,
+        Err(e) => {
+            tracing::error!("Error fetching messages for task {}: {}", task_id, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    Ok(Json(json!(messages)))
+}
+
+#[derive(Deserialize)]
+struct PostMessageRequest {
+    content: String,
+    mode: Option<String>,
+}
+
+async fn post_task_message(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+    Json(payload): Json<PostMessageRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let db_user = get_or_create_user(&app_state.database, &user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Verify task exists and belongs to user
+    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
+        Ok(tasks) => tasks,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
+        Some(task) => task,
+        None => return Err(StatusCode::FORBIDDEN),
+    };
+
+    if payload.content.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Create the message
+    let create_message = CreateMessage {
+        task_id,
+        run_id: None, // Will be set later if mode is provided
+        mode: payload.mode.clone().unwrap_or_else(|| "execute".to_string()),
+        body_md: payload.content.clone(),
+        sha: None,
+        role: "user".to_string(),
+        metadata: None,
+    };
+
+    let message = match app_state.database.create_message(create_message).await {
+        Ok(message) => message,
+        Err(e) => {
+            tracing::error!("Error creating message for task {}: {}", task_id, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // If mode is provided, start a run and attach it to the message
+    let run = if let Some(mode) = payload.mode.as_ref() {
+        if !["execute", "plan", "review"].contains(&mode.as_str()) {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
+        match app_state.database.create_run(task_id, mode).await {
+            Ok(run) => {
+                // Attach the run to the message
+                if let Err(e) = app_state
+                    .database
+                    .attach_run_to_message(message.id, run.id)
+                    .await
+                {
+                    tracing::error!(
+                        "Error attaching run {} to message {}: {}",
+                        run.id,
+                        message.id,
+                        e
+                    );
+                }
+
+                // Spawn the task pipeline for this run
+                let pipeline_state = app_state.clone();
+                let task_clone = _task.clone();
+                let run_id = run.id;
+                let mode = mode.clone();
+                let description = payload.content.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = task_pipeline::run_full_task_pipeline(
+                        pipeline_state,
+                        task_clone,
+                        &mode,
+                        &description,
+                    )
+                    .await
+                    {
+                        tracing::error!("Task {} run {} pipeline error: {}", task_id, run_id, e);
+                    }
+                });
+
+                Some(run)
+            }
+            Err(e) => {
+                tracing::error!("Error creating run for task {}: {}", task_id, e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let response = if let Some(run) = run {
+        json!({
+            "message": {
+                "id": message.id,
+                "task_id": message.task_id,
+                "role": message.role,
+                "content": message.body_md,
+                "created_at": message.created_at,
+                "metadata": message.metadata
+            },
+            "run": {
+                "id": run.id,
+                "task_id": run.task_id,
+                "message_id": run.message_id,
+                "status": run.status,
+                "mode": run.mode,
+                "created_at": run.created_at
+            }
+        })
+    } else {
+        json!({
+            "message": {
+                "id": message.id,
+                "task_id": message.task_id,
+                "role": message.role,
+                "content": message.body_md,
+                "created_at": message.created_at,
+                "metadata": message.metadata
+            }
+        })
+    };
+
+    Ok(Json(response))
 }

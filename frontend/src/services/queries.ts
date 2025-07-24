@@ -102,6 +102,24 @@ export const useTaskLogsQuery = (taskId: number, enabled: boolean = true) => {
   })
 }
 
+/* TASK MESSAGES */
+export const useTaskMessagesQuery = (taskId: number, taskStatus?: string, enabled: boolean = true) => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  
+  return useQuery({
+    queryKey: ['task-messages', taskId],
+    enabled: enabled && taskId > 0 && isSuccess,
+    queryFn: () => ApiService.getTaskMessages(jwt!, taskId, { include: 'runs' }),
+    staleTime: 5 * 1000, // 5 seconds - allow frequent updates
+    refetchInterval: () => {
+      // Poll every 3 seconds while task is non-terminal
+      const isTerminal = ['done', 'failed', 'pr_opened'].includes(taskStatus ?? '');
+      return isTerminal ? false : 3 * 1000;
+    },
+    refetchIntervalInBackground: true,
+  })
+}
+
 /* CREATE */
 export const useCreateTaskMutation = () => {
   const qc = useQueryClient()
@@ -111,5 +129,21 @@ export const useCreateTaskMutation = () => {
     mutationFn: (task: Parameters<typeof ApiService.createTask>[1]) => 
       ApiService.createTask(jwt!, task),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+export const useSendMessageMutation = (taskId: number) => {
+  const qc = useQueryClient()
+  const { data: jwt } = useBackendJwtQuery()
+  
+  return useMutation({
+    mutationFn: (body: { content: string; mode?: Parameters<typeof ApiService.postTaskMessage>[2]['mode'] }) => 
+      ApiService.postTaskMessage(jwt!, taskId, body),
+    onSuccess: () => {
+      // Invalidate messages for this task to refetch
+      qc.invalidateQueries({ queryKey: ['task-messages', taskId] })
+      // Also invalidate tasks to update status
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
   })
 }

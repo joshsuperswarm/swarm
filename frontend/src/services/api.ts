@@ -3,10 +3,21 @@ import type { AgentTodo } from "@/types/generated/AgentTodo";
 import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo";
+import type { Run } from "@/types/generated/Run";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export type RunMode = 'execute' | 'plan' | 'review';
+
+export interface Message {
+  id: number;
+  task_id: number;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at: string;
+  metadata?: Record<string, unknown>;
+  run?: Run;
+}
 
 interface HealthResponse {
   status: string;
@@ -129,5 +140,22 @@ export class ApiService {
   static async getTaskTodos(token: string, taskId: number): Promise<AgentTodo[]> {
     const response = await request<{ task_id: number; todos: AgentTodo[]; count: number }>(`/api/tasks/${taskId}/todos`, { token });
     return response.todos;
+  }
+
+  static async getTaskMessages(token: string, taskId: number, opts?: { include?: string }): Promise<Message[]> {
+    const queryParams = opts?.include ? `?include=${opts.include}` : '';
+    return request(`/api/tasks/${taskId}/messages${queryParams}`, { token });
+  }
+
+  static async postTaskMessage(
+    token: string,
+    taskId: number,
+    body: { content: string; mode?: RunMode }
+  ): Promise<{ message: Message; run?: Run }> {
+    return request(`/api/tasks/${taskId}/messages`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 }

@@ -127,6 +127,7 @@ pub struct CreateTask {
 pub struct Run {
     pub id: i32,
     pub task_id: i32,
+    pub message_id: Option<i64>,
     pub sandbox_id: Option<String>,
     pub sandbox_hostname: Option<String>,
     pub session_id: Option<String>,
@@ -255,4 +256,39 @@ pub struct Comment {
     pub body_md: String,
     pub sha: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Message {
+    pub id: i64,
+    pub task_id: i32,
+    pub run_id: Option<i32>,
+    pub mode: String,
+    pub body_md: String,
+    pub sha: Option<String>,
+    pub role: String, // 'user' | 'assistant' | 'system'
+    pub metadata: serde_json::Value,
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMessage {
+    pub task_id: i32,
+    pub run_id: Option<i32>,
+    pub mode: String,
+    pub body_md: String,
+    pub sha: Option<String>,
+    pub role: String,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageWithRun {
+    pub id: i64,
+    pub task_id: i32,
+    pub role: String,
+    pub content: String, // from body_md
+    pub created_at: Option<DateTime<Utc>>,
+    pub metadata: Option<serde_json::Value>,
+    pub run: Option<Run>,
 }
