@@ -616,7 +616,7 @@ impl Database {
             r#"
             INSERT INTO messages (task_id, run_id, mode, body_md, sha, role)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (task_id, run_id, mode)
+            ON CONFLICT (task_id, run_id, mode) WHERE run_id IS NOT NULL
             DO UPDATE SET
                 body_md = EXCLUDED.body_md,
                 sha = EXCLUDED.sha,
@@ -635,16 +635,6 @@ impl Database {
         Ok(())
     }
 
-    pub async fn create_initial_user_message(
-        &self,
-        task_id: i32,
-        run_id: i32,
-        prompt: &str,
-    ) -> AppResult<()> {
-        self.upsert_message(task_id, run_id, "execute", prompt, "", "user")
-            .await
-    }
-
     // Message operations for the new chat architecture
     pub async fn get_task_messages(
         &self,
@@ -657,10 +647,13 @@ impl Database {
                 SELECT 
                     m.id, m.task_id, m.role, m.body_md as content, m.created_at, 
                     m.metadata as "metadata: serde_json::Value",
-                    r.id as "run_id?", r.task_id as "run_task_id?", r.message_id as "message_id?", r.sandbox_id, 
-                    r.sandbox_hostname, r.session_id, r.command_id, r.branch, r.status, 
-                    r.commit_title, r.commit_body, r.mode, r.created_at as run_created_at, 
-                    r.updated_at as run_updated_at
+                    r.id as "run_id?", r.task_id as "run_task_id?", r.message_id as "message_id?", 
+                    r.sandbox_id as "sandbox_id?", r.sandbox_hostname as "sandbox_hostname?", 
+                    r.session_id as "session_id?", r.command_id as "command_id?", 
+                    r.branch as "branch?", r.status as "status?", 
+                    r.commit_title as "commit_title?", r.commit_body as "commit_body?", 
+                    r.mode as "mode?", r.created_at as "run_created_at?", 
+                    r.updated_at as "run_updated_at?"
                 FROM messages m
                 LEFT JOIN runs r ON r.id = m.run_id
                 WHERE m.task_id = $1
@@ -681,22 +674,31 @@ impl Database {
                     created_at: row.created_at,
                     metadata: Some(row.metadata),
                     run: if let Some(run_id) = row.run_id {
-                        Some(Run {
-                            id: run_id,
-                            task_id: row.run_task_id.unwrap_or(task_id),
-                            message_id: row.message_id,
-                            sandbox_id: row.sandbox_id,
-                            sandbox_hostname: row.sandbox_hostname,
-                            session_id: row.session_id,
-                            command_id: row.command_id,
-                            branch: row.branch,
-                            status: row.status,
-                            commit_title: row.commit_title,
-                            commit_body: row.commit_body,
-                            mode: row.mode,
-                            created_at: row.run_created_at,
-                            updated_at: row.run_updated_at,
-                        })
+                        // Only create Run if we have the required non-nullable fields
+                        if let Some(mode) = row.mode {
+                            Some(Run {
+                                id: run_id,
+                                task_id: row.run_task_id.unwrap_or(task_id),
+                                message_id: row.message_id,
+                                sandbox_id: row.sandbox_id,
+                                sandbox_hostname: row.sandbox_hostname,
+                                session_id: row.session_id,
+                                command_id: row.command_id,
+                                branch: row.branch,
+                                status: row.status,
+                                commit_title: row.commit_title,
+                                commit_body: row.commit_body,
+                                mode: mode,
+                                created_at: row.run_created_at,
+                                updated_at: row.run_updated_at,
+                            })
+                        } else {
+                            tracing::warn!(
+                                "Run {} has NULL mode, skipping run attachment to message",
+                                run_id
+                            );
+                            None
+                        }
                     } else {
                         None
                     },
@@ -783,13 +785,22 @@ impl Database {
     }
 
     pub async fn get_task_details(&self, task_id: i32) -> AppResult<TaskDetails> {
+        tracing::info!("→ get_task_details starting for task_id={}", task_id);
+
         // Get task
+        tracing::info!("→ get_task_details: fetching task by id");
         let task = self
             .get_task_by_id(task_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Task {} not found", task_id)))?;
+        tracing::info!(
+            "→ get_task_details: found task with status={:?}, title={}",
+            task.status,
+            task.title
+        );
 
         // Get current run (latest run for this task)
+        tracing::info!("→ get_task_details: fetching latest run");
         let current_run = sqlx::query_as!(
             Run,
             r#"SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, 
@@ -804,10 +815,34 @@ impl Database {
         .fetch_optional(&self.pool)
         .await?;
 
+        if let Some(ref run) = current_run {
+            tracing::info!(
+                "→ get_task_details: found current run id={}, status={:?}, mode={}",
+                run.id,
+                run.status,
+                run.mode
+            );
+        } else {
+            tracing::info!("→ get_task_details: no runs found for task");
+        }
+
         // Get messages with runs
+        tracing::info!("→ get_task_details: fetching messages with runs");
         let messages = self.get_task_messages(task_id, true).await?;
+        tracing::info!("→ get_task_details: found {} messages", messages.len());
+
+        for (i, msg) in messages.iter().enumerate() {
+            tracing::info!(
+                "→ get_task_details: message[{}] role={}, run_id={:?}, content_len={}",
+                i,
+                msg.role,
+                msg.run.as_ref().map(|r| r.id),
+                msg.content.len()
+            );
+        }
 
         // Get logs with pagination (last 100 entries)
+        tracing::info!("→ get_task_details: fetching logs (last 100 entries)");
         let log_rows = sqlx::query!(
             r#"
             SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
@@ -820,8 +855,10 @@ impl Database {
         )
         .fetch_all(&self.pool)
         .await?;
+        tracing::info!("→ get_task_details: fetched {} log rows", log_rows.len());
 
         // Get total log count
+        tracing::info!("→ get_task_details: counting total logs");
         let total_count = sqlx::query!(
             "SELECT COUNT(*) as count FROM task_logs WHERE task_id = $1",
             task_id
@@ -830,6 +867,7 @@ impl Database {
         .await?
         .count
         .unwrap_or(0) as i32;
+        tracing::info!("→ get_task_details: total log count = {}", total_count);
 
         let logs_vec: Vec<TaskLog> = log_rows
             .into_iter()
@@ -847,6 +885,11 @@ impl Database {
         } else {
             None
         };
+        tracing::info!(
+            "→ get_task_details: logs pagination - has_more={}, cursor={:?}",
+            has_more,
+            cursor
+        );
 
         let logs = TaskLogsPaginated {
             entries: logs_vec,
@@ -856,8 +899,14 @@ impl Database {
         };
 
         // Get todos
+        tracing::info!("→ get_task_details: fetching todos");
         let todos = self.get_agent_todos(task_id).await?;
+        tracing::info!("→ get_task_details: found {} todos", todos.len());
 
+        tracing::info!(
+            "→ get_task_details: successfully completed for task_id={}",
+            task_id
+        );
         Ok(TaskDetails {
             task,
             current_run,
@@ -981,6 +1030,106 @@ mod tests {
             .await
             .expect("Failed to get token");
         assert!(retrieved_token.is_some());
+
+        cleanup_test_data(&pool).await;
+    }
+
+    #[tokio::test]
+    async fn test_user_and_assistant_messages_separate() {
+        let pool = setup_test_db().await;
+        let db = Database::new(pool.clone());
+
+        cleanup_test_data(&pool).await;
+
+        // Create test user
+        let create_user = CreateUser {
+            clerk_user_id: "test_clerk_messages".to_string(),
+            github_username: Some("messageuser".to_string()),
+            github_user_id: Some(98765),
+            email: Some("messages@example.com".to_string()),
+        };
+        let user = db.create_user(create_user).await.unwrap();
+
+        // Create test repository
+        let create_repo = crate::models::CreateRepository {
+            github_repo_id: 123456,
+            owner: "testowner".to_string(),
+            name: "testrepo".to_string(),
+            full_name: "testowner/testrepo".to_string(),
+            user_id: user.id,
+            is_private: false,
+        };
+        let repo = db.create_repository(create_repo).await.unwrap();
+
+        // Create test task
+        let create_task = crate::models::CreateTask {
+            user_id: user.id,
+            repository_id: repo.id,
+            title: "Test Task".to_string(),
+        };
+        let task = db.create_task(create_task).await.unwrap();
+
+        // Create user message (no run_id)
+        let user_msg = db
+            .create_message(CreateMessage {
+                task_id: task.id,
+                run_id: None,
+                mode: "execute".into(),
+                body_md: "User prompt".into(),
+                role: "user".into(),
+                sha: None,
+                metadata: None,
+            })
+            .await
+            .unwrap();
+
+        // Create run
+        let run = db.create_run(task.id, "execute").await.unwrap();
+
+        // Create placeholder assistant message
+        db.upsert_message(task.id, run.id, "execute", "", "", "assistant")
+            .await
+            .unwrap();
+
+        // Update assistant message with content
+        db.upsert_message(
+            task.id,
+            run.id,
+            "execute",
+            "Agent reply",
+            "abc123",
+            "assistant",
+        )
+        .await
+        .unwrap();
+
+        // Verify messages are separate
+        let msgs = db.get_task_messages(task.id, false).await.unwrap();
+        assert_eq!(msgs.len(), 2);
+
+        let user_message = msgs.iter().find(|m| m.role == "user").unwrap();
+        let assistant_message = msgs.iter().find(|m| m.role == "assistant").unwrap();
+
+        assert_eq!(user_message.content, "User prompt");
+        assert_eq!(assistant_message.content, "Agent reply");
+
+        // Verify run associations
+        let msgs_with_runs = db.get_task_messages(task.id, true).await.unwrap();
+        let user_msg_with_run = msgs_with_runs.iter().find(|m| m.role == "user").unwrap();
+        let assistant_msg_with_run = msgs_with_runs
+            .iter()
+            .find(|m| m.role == "assistant")
+            .unwrap();
+
+        assert!(
+            user_msg_with_run.run.is_none(),
+            "User message should not have a run"
+        );
+        assert!(
+            assistant_msg_with_run.run.is_some(),
+            "Assistant message should have a run"
+        );
+        assert_eq!(assistant_msg_with_run.run.as_ref().unwrap().id, run.id);
 
         cleanup_test_data(&pool).await;
     }

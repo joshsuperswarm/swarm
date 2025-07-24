@@ -1,5 +1,5 @@
 use crate::claude;
-use crate::models::Task;
+use crate::models::{CreateMessage, Task};
 use crate::AppState;
 use anyhow::Result;
 use chrono::Utc;
@@ -38,10 +38,18 @@ pub async fn run_full_task_pipeline(
     };
     tracing::info!("Using run {} for task {}", run.id, task.id);
 
-    // NEW: store the original prompt as first user message
+    // Store the original prompt as user message (no run_id)
     if let Err(e) = app_state
         .database
-        .create_initial_user_message(task.id, run.id, description)
+        .create_message(CreateMessage {
+            task_id: task.id,
+            run_id: None, // User messages should not be attached to runs
+            mode: mode.to_string(),
+            body_md: description.into(),
+            role: "user".into(),
+            sha: None,
+            metadata: None,
+        })
         .await
     {
         tracing::error!(
@@ -52,6 +60,24 @@ pub async fn run_full_task_pipeline(
         let _ = app_state.database.update_run_status(run.id, "failed").await;
         return Err(anyhow::anyhow!(
             "Failed to create initial user message: {}",
+            e
+        ));
+    }
+
+    // Create placeholder assistant message for this run
+    if let Err(e) = app_state
+        .database
+        .upsert_message(task.id, run.id, mode, "", "", "assistant")
+        .await
+    {
+        tracing::error!(
+            "Failed to create placeholder assistant message for task {}: {}",
+            task.id,
+            e
+        );
+        let _ = app_state.database.update_run_status(run.id, "failed").await;
+        return Err(anyhow::anyhow!(
+            "Failed to create placeholder assistant message: {}",
             e
         ));
     }
