@@ -156,7 +156,7 @@ export class ApiService {
     token: string,
     taskId: number,
     body: { content: string; mode?: RunMode }
-  ): Promise<{ message: Message; run?: Run }> {
+  ): Promise<{ message: Message; run: Run }> {
     return request(`/api/tasks/${taskId}/messages`, {
       token,
       method: 'POST',

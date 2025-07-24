@@ -4,7 +4,8 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { TaskLogViewer } from "@/components/TaskLogViewer";
 import { statuses } from "@/data/data";
-import { useTaskDetailsQuery, useSendMessageMutation } from "@/services/queries";
+import { useTaskDetailsQuery } from "@/services/queries";
+import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { Bot } from 'lucide-react';
 import type { AgentTodo } from "@/types/generated/AgentTodo";
@@ -61,7 +62,7 @@ export function TaskChatPage() {
   
   // Use unified task details query
   const { data: taskDetails, isLoading } = useTaskDetailsQuery(taskId);
-  const sendMessage = useSendMessageMutation(taskId);
+  const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId);
   
   // Extract data from unified response
   const task = taskDetails?.task;
@@ -87,20 +88,19 @@ export function TaskChatPage() {
   const finished = ["done", "failed", "pr_opened"].includes(currentRunStatus || "");
   const status = statuses.find((s) => s.value === currentRunStatus);
   
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
     
-    sendMessage.mutate(
-      { content: inputValue, mode },
-      {
-        onSuccess: () => {
-          setInputValue("");
-        },
-        onError: (error) => {
-          console.error("Failed to send message:", error);
-        }
-      }
-    );
+    try {
+      await sendMessage({
+        content: inputValue.trim(),
+        mode,
+      });
+      setInputValue("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // The error will be handled by the hook's onError callback
+    }
   };
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -149,7 +149,7 @@ export function TaskChatPage() {
       
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 space-y-6">
-        {messages.length === 0 && !finished && !sendMessage.isPending ? (
+        {messages.length === 0 && !finished && !isSending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
               <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -164,6 +164,9 @@ export function TaskChatPage() {
               >
                 <div className="whitespace-pre-wrap break-words">
                   {message.content}
+                  {message.metadata?.pending && (
+                    <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                  )}
                 </div>
                 <div className="mt-2 text-xs opacity-70">
                   {formatTime(message.created_at || new Date().toISOString())}
@@ -182,7 +185,7 @@ export function TaskChatPage() {
           </div>
         )}
         
-        {sendMessage.isPending && (
+        {isSending && (
           <div className="flex justify-end">
             <ChatBubble variant="assistant">
               <div className="flex items-center space-x-2">
@@ -215,23 +218,23 @@ export function TaskChatPage() {
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder={finished ? "Task completed" : "Type your message..."}
+              placeholder="Type your message..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={finished || sendMessage.isPending}
+              disabled={isSending}
               className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
             
             {/* Send button inside input */}
             <button 
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || finished || sendMessage.isPending}
+              disabled={!inputValue.trim() || isSending}
               className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-sm bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center"
               title="Send message"
             >
               <span className="text-xs">
-                {sendMessage.isPending ? "..." : "→"}
+                {isSending ? "..." : "→"}
               </span>
             </button>
           </div>

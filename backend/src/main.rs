@@ -760,7 +760,7 @@ mod tests {
         let start_time = Instant::now();
 
         // Call create_task - this should return quickly even though sandbox ops are slow
-        let result = create_task(current_user, State(app_state), Json(payload)).await;
+        let _result = create_task(current_user, State(app_state), Json(payload)).await;
 
         let elapsed = start_time.elapsed();
 
@@ -1694,89 +1694,78 @@ async fn post_task_message(
         }
     };
 
-    // If mode is provided, start a run and attach it to the message
-    let run = if let Some(mode) = payload.mode.as_ref() {
-        if !["execute", "plan", "review"].contains(&mode.as_str()) {
-            return Err(StatusCode::BAD_REQUEST);
-        }
+    // Always create a run and spawn pipeline regardless of task status
+    let mode = payload
+        .mode
+        .clone()
+        .unwrap_or_else(|| "execute".to_string());
 
-        match app_state.database.create_run(task_id, mode).await {
-            Ok(run) => {
-                // Attach the run to the message
-                if let Err(e) = app_state
-                    .database
-                    .attach_run_to_message(message.id, run.id)
-                    .await
+    // Validate mode if provided
+    if !["execute", "plan", "review"].contains(&mode.as_str()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let run = match app_state.database.create_run(task_id, &mode).await {
+        Ok(run) => {
+            // Attach the run to the message
+            if let Err(e) = app_state
+                .database
+                .attach_run_to_message(message.id, run.id)
+                .await
+            {
+                tracing::error!(
+                    "Error attaching run {} to message {}: {}",
+                    run.id,
+                    message.id,
+                    e
+                );
+            }
+
+            // Spawn the task pipeline for this run
+            let pipeline_state = app_state.clone();
+            let task_clone = _task.clone();
+            let run_id = run.id;
+            let mode_clone = mode.clone();
+            let description = payload.content.clone();
+            tokio::spawn(async move {
+                if let Err(e) = task_pipeline::run_full_task_pipeline(
+                    pipeline_state,
+                    task_clone,
+                    &mode_clone,
+                    &description,
+                )
+                .await
                 {
-                    tracing::error!(
-                        "Error attaching run {} to message {}: {}",
-                        run.id,
-                        message.id,
-                        e
-                    );
+                    tracing::error!("Task {} run {} pipeline error: {}", task_id, run_id, e);
                 }
+            });
 
-                // Spawn the task pipeline for this run
-                let pipeline_state = app_state.clone();
-                let task_clone = _task.clone();
-                let run_id = run.id;
-                let mode = mode.clone();
-                let description = payload.content.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = task_pipeline::run_full_task_pipeline(
-                        pipeline_state,
-                        task_clone,
-                        &mode,
-                        &description,
-                    )
-                    .await
-                    {
-                        tracing::error!("Task {} run {} pipeline error: {}", task_id, run_id, e);
-                    }
-                });
-
-                Some(run)
-            }
-            Err(e) => {
-                tracing::error!("Error creating run for task {}: {}", task_id, e);
-                None
-            }
+            run
         }
-    } else {
-        None
+        Err(e) => {
+            tracing::error!("Error creating run for task {}: {}", task_id, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
-    let response = if let Some(run) = run {
-        json!({
-            "message": {
-                "id": message.id,
-                "task_id": message.task_id,
-                "role": message.role,
-                "content": message.body_md,
-                "created_at": message.created_at,
-                "metadata": message.metadata
-            },
-            "run": {
-                "id": run.id,
-                "task_id": run.task_id,
-                "message_id": run.message_id,
-                "status": run.status,
-                "mode": run.mode,
-                "created_at": run.created_at
-            }
-        })
-    } else {
-        json!({
-            "message": {
-                "id": message.id,
-                "task_id": message.task_id,
-                "role": message.role,
-                "content": message.body_md,
-                "created_at": message.created_at,
-                "metadata": message.metadata
-            }
-        })
-    };
+    let response = json!({
+        "message": {
+            "id": message.id,
+            "task_id": message.task_id,
+            "role": message.role,
+            "content": message.body_md,
+            "created_at": message.created_at,
+            "metadata": message.metadata
+        },
+        "run": {
+            "id": run.id,
+            "task_id": run.task_id,
+            "message_id": run.message_id,
+            "status": run.status,
+            "mode": run.mode,
+            "created_at": run.created_at
+        }
+    });
 
     Ok(Json(response))
 }
