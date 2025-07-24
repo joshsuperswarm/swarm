@@ -18,7 +18,7 @@ export function Router({ isSignedIn }: RouterProps) {
     <Routes>
       <Route path="/" element={<TasksPage />} />
       <Route path="/tasks/:id" element={<TaskPage />} />
-      <Route path="/mock/tasks/:id/chat" element={<TaskChatPage />} />
+      <Route path="/tasks/:id/chat" element={<TaskChatPage />} />
     </Routes>
   );
 }

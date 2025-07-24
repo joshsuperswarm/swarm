@@ -1,8 +1,8 @@
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
-    GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, Task, TaskLog,
-    TaskWithRun, TaskWithRunDB, User,
+    GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, Task, TaskDetails,
+    TaskLog, TaskLogsPaginated, TaskWithRun, TaskWithRunDB, User,
 };
 use sqlx::PgPool;
 
@@ -390,7 +390,7 @@ impl Database {
         let logs = rows
             .into_iter()
             .map(|row| TaskLog {
-                id: row.id,
+                id: row.id as i32,
                 task_id: row.task_id.expect("task_id should not be null"),
                 log_line: row.log_line,
                 created_at: row.created_at,
@@ -422,7 +422,7 @@ impl Database {
         let logs = rows
             .into_iter()
             .map(|row| TaskLog {
-                id: row.id,
+                id: row.id as i32,
                 task_id: row.task_id.expect("task_id should not be null"),
                 log_line: row.log_line,
                 created_at: row.created_at,
@@ -641,7 +641,8 @@ impl Database {
         run_id: i32,
         prompt: &str,
     ) -> AppResult<()> {
-        self.upsert_message(task_id, run_id, "execute", prompt, "", "user").await
+        self.upsert_message(task_id, run_id, "execute", prompt, "", "user")
+            .await
     }
 
     // Message operations for the new chat architecture
@@ -656,7 +657,7 @@ impl Database {
                 SELECT 
                     m.id, m.task_id, m.role, m.body_md as content, m.created_at, 
                     m.metadata as "metadata: serde_json::Value",
-                    r.id as run_id, r.task_id as run_task_id, r.message_id, r.sandbox_id, 
+                    r.id as "run_id?", r.task_id as "run_task_id?", r.message_id as "message_id?", r.sandbox_id, 
                     r.sandbox_hostname, r.session_id, r.command_id, r.branch, r.status, 
                     r.commit_title, r.commit_body, r.mode, r.created_at as run_created_at, 
                     r.updated_at as run_updated_at
@@ -692,7 +693,7 @@ impl Database {
                             status: row.status,
                             commit_title: row.commit_title,
                             commit_body: row.commit_body,
-                            mode: row.mode.unwrap_or_default(),
+                            mode: row.mode,
                             created_at: row.run_created_at,
                             updated_at: row.run_updated_at,
                         })
@@ -779,6 +780,91 @@ impl Database {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_task_details(&self, task_id: i32) -> AppResult<TaskDetails> {
+        // Get task
+        let task = self
+            .get_task_by_id(task_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Task {} not found", task_id)))?;
+
+        // Get current run (latest run for this task)
+        let current_run = sqlx::query_as!(
+            Run,
+            r#"SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, 
+                      command_id, branch, status, commit_title, commit_body, mode, 
+                      created_at, updated_at
+               FROM runs 
+               WHERE task_id = $1 
+               ORDER BY created_at DESC 
+               LIMIT 1"#,
+            task_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        // Get messages with runs
+        let messages = self.get_task_messages(task_id, true).await?;
+
+        // Get logs with pagination (last 100 entries)
+        let log_rows = sqlx::query!(
+            r#"
+            SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
+            FROM task_logs
+            WHERE task_id = $1
+            ORDER BY id DESC
+            LIMIT 100
+            "#,
+            task_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Get total log count
+        let total_count = sqlx::query!(
+            "SELECT COUNT(*) as count FROM task_logs WHERE task_id = $1",
+            task_id
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .count
+        .unwrap_or(0) as i32;
+
+        let logs_vec: Vec<TaskLog> = log_rows
+            .into_iter()
+            .map(|row| TaskLog {
+                id: row.id as i32,
+                task_id: row.task_id.unwrap_or(task_id),
+                log_line: row.log_line,
+                created_at: row.created_at,
+            })
+            .collect();
+
+        let has_more = total_count > 100;
+        let cursor = if has_more && !logs_vec.is_empty() {
+            Some(logs_vec.last().unwrap().id as i64)
+        } else {
+            None
+        };
+
+        let logs = TaskLogsPaginated {
+            entries: logs_vec,
+            total_count,
+            has_more,
+            cursor,
+        };
+
+        // Get todos
+        let todos = self.get_agent_todos(task_id).await?;
+
+        Ok(TaskDetails {
+            task,
+            current_run,
+            messages,
+            logs,
+            todos,
+        })
     }
 }
 

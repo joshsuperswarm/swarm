@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { TodoList } from '@/components/TodoList';
 import { statuses } from '@/data/data';
-import { useTasksQuery, useTaskQuery, useTaskTodosQuery } from '@/services/queries';
+import { useTasksQuery, useTaskDetailsQuery, useTaskTodosQuery } from '@/services/queries';
 import { Copy, ChevronDown, ChevronUp, Check } from 'lucide-react';
 
 // Key filter to ignore hotkeys when user is typing
@@ -47,15 +47,17 @@ export function TaskPage() {
   
   // list for j/k navigation
   const { data: rawAllTasks = [] } = useTasksQuery();
-  const { data: liveTask, isLoading: loading, error } = useTaskQuery(taskId, isValidTaskId);
+  const { data: taskDetails, isLoading: loading, error } = useTaskDetailsQuery(taskId, isValidTaskId);
+  const liveTask = taskDetails?.task;
   
   // Reverse the array to match TasksPage order
   const allTasks = useMemo(() => [...rawAllTasks].reverse(), [rawAllTasks]);
   
   // Get todos for this task
+  const currentRunStatus = taskDetails?.current_run?.status;
   const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
     taskId, 
-    liveTask?.status || undefined, 
+    currentRunStatus || undefined, 
     isValidTaskId && !!liveTask
   );
 
@@ -174,9 +176,9 @@ export function TaskPage() {
     );
   }
 
-  const status = statuses.find((s) => s.value === liveTask.status);
+  const status = statuses.find((s) => s.value === currentRunStatus);
   const showLogsEligible = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(
-    liveTask.status ?? ''
+    currentRunStatus ?? ''
   );
 
   return (
@@ -342,7 +344,7 @@ export function TaskPage() {
                   }`} />
                   <span className="text-xs text-muted-foreground">
                     {logsState.isLoading ? 'Loading...' : 
-                     logsState.taskCompleted || (liveTask.status && ['done', 'failed', 'pr_opened'].includes(liveTask.status)) ? `Task completed • ${logsState.logs.length} entries` :
+                     logsState.taskCompleted || (currentRunStatus && ['done', 'failed', 'pr_opened'].includes(currentRunStatus)) ? `Task completed • ${logsState.logs.length} entries` :
                      logsState.isPolling ? 'Checking for new logs...' :
                      `${logsState.logs.length} log entries • Polling every 3s`}
                   </span>
@@ -390,7 +392,7 @@ export function TaskPage() {
           {logsVisible && (
             <TaskLogViewer
               taskId={liveTask.task_id}
-              taskStatus={liveTask.status || undefined}
+              taskStatus={currentRunStatus || undefined}
               hideHeader={true}
               onLogsStateChange={setLogsState}
             />
@@ -399,7 +401,7 @@ export function TaskPage() {
             <div style={{ display: 'none' }}>
               <TaskLogViewer
                 taskId={liveTask.task_id}
-                taskStatus={liveTask.status || undefined}
+                taskStatus={currentRunStatus || undefined}
                 hideHeader={true}
                 onLogsStateChange={setLogsState}
               />

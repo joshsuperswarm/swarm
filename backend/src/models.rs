@@ -103,7 +103,6 @@ pub struct Task {
     pub repository_id: i32,
     pub title: String,
     /// Deprecated – will be removed after 2025-Q3
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub status: Option<String>,
     pub github_pr_url: Option<String>,
@@ -186,7 +185,6 @@ pub struct TaskWithRun {
     pub task_id: i32,
     pub title: String,
     /// Deprecated – will be removed after 2025-Q3
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub repository_id: i32,
     pub user_id: i32,
@@ -223,10 +221,12 @@ pub struct RepositoryWithTasks {
     pub last_fetched_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
 pub struct TaskLog {
-    pub id: i64,
+    pub id: i32,
     pub task_id: i32,
+    #[ts(type = "Record<string, any>")]
     pub log_line: serde_json::Value,
     pub created_at: Option<DateTime<Utc>>,
 }
@@ -282,13 +282,34 @@ pub struct CreateMessage {
     pub metadata: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MessageWithRun {
     pub id: i64,
     pub task_id: i32,
     pub role: String,
     pub content: String, // from body_md
     pub created_at: Option<DateTime<Utc>>,
+    #[ts(type = "Record<string, any> | null")]
     pub metadata: Option<serde_json::Value>,
     pub run: Option<Run>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TaskLogsPaginated {
+    pub entries: Vec<TaskLog>,
+    pub total_count: i32,
+    pub has_more: bool,
+    pub cursor: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TaskDetails {
+    pub task: Task,
+    pub current_run: Option<Run>,
+    pub messages: Vec<MessageWithRun>,
+    pub logs: TaskLogsPaginated,
+    pub todos: Vec<AgentTodo>,
 }

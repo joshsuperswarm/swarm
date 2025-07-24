@@ -120,6 +120,36 @@ export const useTaskMessagesQuery = (taskId: number, taskStatus?: string, enable
   })
 }
 
+/* TASK DETAILS (unified data) */
+export const useTaskDetailsQuery = (taskId: number, enabled: boolean = true) => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  
+  return useQuery({
+    queryKey: ['task-details', taskId],
+    enabled: enabled && taskId > 0 && isSuccess,
+    queryFn: async () => {
+      console.log('→ Fetching task details for taskId:', taskId);
+      const result = await ApiService.getTaskDetails(jwt!, taskId);
+      console.log('✓ Task details API response:', result);
+      console.log('  - Task:', result.task);
+      console.log('  - Current run:', result.current_run);
+      console.log('  - Messages count:', result.messages?.length || 0);
+      console.log('  - Logs count:', result.logs?.logs?.length || 0);
+      console.log('  - Todos count:', result.todos?.length || 0);
+      return result;
+    },
+    staleTime: 5 * 1000, // 5 seconds - allow frequent updates
+    refetchInterval: (query) => {
+      // Poll every 3 seconds while task is non-terminal
+      const data = query.state.data;
+      const taskStatus = data?.current_run?.status;
+      const isTerminal = ['done', 'failed', 'pr_opened'].includes(taskStatus || '');
+      return isTerminal ? false : 3 * 1000;
+    },
+    refetchIntervalInBackground: true,
+  })
+}
+
 /* CREATE */
 export const useCreateTaskMutation = () => {
   const qc = useQueryClient()

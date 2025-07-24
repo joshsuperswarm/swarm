@@ -33,8 +33,8 @@ use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use models::{
     AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
-    GitHubToken, MessageWithRun, RepositoryTS, RepositoryWithTasks, Run, Task, TaskWithRun, User,
-    UserWithDefaultRepo,
+    GitHubToken, MessageWithRun, RepositoryTS, RepositoryWithTasks, Run, Task, TaskDetails,
+    TaskLog, TaskLogsPaginated, TaskWithRun, User, UserWithDefaultRepo,
 };
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
@@ -433,6 +433,10 @@ async fn main() -> AppResult<()> {
     RepositoryWithTasks::export().unwrap();
     GitHubToken::export().unwrap();
     AgentTodo::export().unwrap();
+    MessageWithRun::export().unwrap();
+    TaskLog::export().unwrap();
+    TaskDetails::export().unwrap();
+    TaskLogsPaginated::export().unwrap();
 
     // Initialize tracing
     tracing_subscriber::fmt()
@@ -507,6 +511,7 @@ async fn main() -> AppResult<()> {
         .route("/api/user/default-repo", post(set_default_repo))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
+        .route("/api/tasks/:id/details", get(get_task_details))
         .route("/api/tasks/:id/logs", get(get_task_logs))
         .route("/api/tasks/:id/todos", get(get_task_todos))
         .route("/api/tasks/:id/messages", get(get_task_messages))
@@ -841,7 +846,7 @@ mod tests {
 
         // Create a test task in 'running' status
         let task_id = sqlx::query_scalar!(
-            "INSERT INTO tasks (user_id, repository_id, title, status, sandbox_id, session_id, command_id) 
+            "INSERT INTO tasks (user_id, repository_id, title, status, sandbox_id, session_id, command_id)
              VALUES (1, 1, 'Test Task', 'running', 'test-sandbox', 'test-session', 'test-command')
              RETURNING id"
         )
@@ -1444,6 +1449,37 @@ struct TasksQuery {
     include: Option<String>,
 }
 
+async fn get_task_details(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+) -> Result<Json<TaskDetails>, StatusCode> {
+    // Get or create database user from Clerk user
+    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Verify task exists and belongs to user
+    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
+        Ok(tasks) => tasks,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
+        Some(task) => task,
+        None => return Err(StatusCode::FORBIDDEN),
+    };
+
+    // Get task details
+    let details = match app_state.database.get_task_details(task_id).await {
+        Ok(details) => details,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    Ok(Json(details))
+}
+
 async fn get_task_logs(
     CurrentUser(user): CurrentUser,
     State(app_state): State<AppState>,
@@ -1622,7 +1658,10 @@ async fn post_task_message(
     let create_message = CreateMessage {
         task_id,
         run_id: None, // Will be set later if mode is provided
-        mode: payload.mode.clone().unwrap_or_else(|| "execute".to_string()),
+        mode: payload
+            .mode
+            .clone()
+            .unwrap_or_else(|| "execute".to_string()),
         body_md: payload.content.clone(),
         sha: None,
         role: "user".to_string(),

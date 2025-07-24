@@ -2,30 +2,63 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
-import { CollapsedLogViewer } from "@/components/CollapsedLogViewer";
 import { TaskLogViewer } from "@/components/TaskLogViewer";
 import { statuses } from "@/data/data";
-import { useTaskQuery, useTaskMessagesQuery, useSendMessageMutation } from "@/services/queries";
+import { useTaskDetailsQuery, useSendMessageMutation } from "@/services/queries";
 import { useRunMode } from "@/hooks/useRunMode";
-import type { RunMode } from "@/services/api";
+// import type { RunMode } from "@/services/api";
 
-function AgentDone({ taskId, prUrl }: { taskId: number; prUrl?: string }) {
+function AgentDone({ taskId, prUrl, logs, todos }: { 
+  taskId: number; 
+  prUrl?: string; 
+  logs?: { entries: any[]; total_count: bigint; has_more: boolean };
+  todos?: any[];
+}) {
   const [showLogs, setShowLogs] = useState(false);
+  const [showTodos, setShowTodos] = useState(true);
+  
+  const logCount = logs?.total_count ? Number(logs.total_count) : 0;
+  const todoCount = todos?.length || 0;
   
   return (
-    <div>
-      <p className="mb-2">
-        ✓ {prUrl ? "All done – PR opened!" : "Done."}
+    <div className="space-y-3">
+      <p className="font-medium">
+        ✓ {prUrl ? "All done – PR opened!" : "Task completed"}
       </p>
-      <button 
-        onClick={() => setShowLogs(x => !x)} 
-        className="text-xs underline"
-      >
-        {showLogs ? "Hide logs" : "Show logs"}
-      </button>
-      {showLogs && (
-        <div className="mt-2">
-          <TaskLogViewer taskId={taskId} hideHeader logs={[]} />
+      
+      {/* Todos Section */}
+      {todoCount > 0 && (
+        <div className="border border-linear-border rounded-md p-3">
+          <button 
+            onClick={() => setShowTodos(x => !x)} 
+            className="text-sm font-medium flex items-center gap-2 w-full"
+          >
+            <span>{showTodos ? "▼" : "▶"}</span>
+            Todos ({todoCount})
+          </button>
+          {showTodos && (
+            <div className="mt-2">
+              <CollapsedTodoList todos={todos || []} />
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Logs Section */}
+      {logCount > 0 && (
+        <div className="border border-linear-border rounded-md p-3">
+          <button 
+            onClick={() => setShowLogs(x => !x)} 
+            className="text-sm font-medium flex items-center gap-2 w-full"
+          >
+            <span>{showLogs ? "▼" : "▶"}</span>
+            Logs ({logCount})
+          </button>
+          {showLogs && logs?.entries && (
+            <div className="mt-2 max-h-96 overflow-y-auto">
+              <TaskLogViewer taskId={taskId} hideHeader logs={logs.entries} />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -36,16 +69,21 @@ export function TaskChatPage() {
   const { id } = useParams<{ id: string }>();
   const taskId = parseInt(id || "0", 10);
   
-  // Real hooks instead of mocks
-  const { data: task } = useTaskQuery(taskId);
-  const { data: messages = [] } = useTaskMessagesQuery(taskId, task?.status);
+  // Use unified task details query
+  const { data: taskDetails, isLoading } = useTaskDetailsQuery(taskId);
   const sendMessage = useSendMessageMutation(taskId);
+  
+  // Extract data from unified response
+  const task = taskDetails?.task;
+  const messages = taskDetails?.messages || [];
+  const logs = taskDetails?.logs;
+  const todos = taskDetails?.todos || [];
   const { mode, cycleRunMode, getModeConfig } = useRunMode("execute");
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
   
-  if (!task) {
+  if (isLoading || !task) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
@@ -55,8 +93,9 @@ export function TaskChatPage() {
     );
   }
   
-  const finished = ["done", "failed", "pr_opened"].includes(task.status || "");
-  const status = statuses.find((s) => s.value === task.status);
+  const currentRunStatus = taskDetails?.current_run?.status;
+  const finished = ["done", "failed", "pr_opened"].includes(currentRunStatus || "");
+  const status = statuses.find((s) => s.value === currentRunStatus);
   
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -87,30 +126,7 @@ export function TaskChatPage() {
   const messageElements = messages.map(msg => {
     const side = msg.role === 'user' ? 'left' : 'right';
     
-    let content;
-    if (side === "left") {
-      content = <p className="whitespace-pre-wrap">{msg.content}</p>;
-    } else {
-      // Assistant message - check metadata for logs and todos
-      const logs = msg.metadata?.logs ?? [];
-      const todos = msg.metadata?.todos ?? [];
-      
-      content = (
-        <div>
-          <p className="mb-2 whitespace-pre-wrap">{msg.content}</p>
-          {todos.length > 0 && (
-            <div className="mt-2">
-              <CollapsedTodoList todos={todos} />
-            </div>
-          )}
-          {logs.length > 0 && (
-            <div className="mt-2">
-              <CollapsedLogViewer taskId={taskId} logs={logs} />
-            </div>
-          )}
-        </div>
-      );
-    }
+    const content = <p className="whitespace-pre-wrap">{msg.content}</p>;
     
     return {
       id: msg.id.toString(),
@@ -124,7 +140,7 @@ export function TaskChatPage() {
     messageElements.push({
       id: "agent-finished",
       side: "right" as const,
-      node: <AgentDone taskId={taskId} prUrl={task.github_pr_url} />
+      node: <AgentDone taskId={taskId} prUrl={task.github_pr_url || undefined} logs={logs} todos={todos} />
     });
   }
   
@@ -135,7 +151,7 @@ export function TaskChatPage() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <span className="text-sm font-mono text-linear-text-muted bg-white border border-linear-border px-2 py-1 rounded">
-              #{task.task_id}
+              #{task.id}
             </span>
             <h1 className="text-xl font-semibold text-linear-text">{task.title}</h1>
           </div>

@@ -8,15 +8,24 @@ import { useQueryClient } from "@tanstack/react-query";
 interface TaskLog {
   id: number;
   task_id: number;
-  log_line: string;
+  log_line: any;
   created_at: string | null;
 }
+
+// Helper function to extract log content from mixed input
+const extractLogContent = (item: string | TaskLog): string => {
+  if (typeof item === 'string') return item;
+  if (item && typeof item.log_line === 'object') {
+    return JSON.stringify(item.log_line, null, 2);
+  }
+  return typeof item.log_line === 'string' ? item.log_line : String(item.log_line || '');
+};
 
 interface TaskLogViewerProps {
   taskId: number;
   taskStatus?: string;
   hideHeader?: boolean;
-  logs?: string[];
+  logs?: (string | TaskLog)[];
   onLogsStateChange?: (state: {
     isLoading: boolean;
     isPolling: boolean;
@@ -35,16 +44,16 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   /* pull any prefetched logs from React Query – instant render */
   const { data: prefetchedLogs = [], isLoading: prefetchLoading } = useTaskLogsQuery(taskId, !propLogs);
 
-  const initialLogs = propLogs || prefetchedLogs.map(l => l.log_line);
+  const initialLogs = propLogs ? propLogs.map(extractLogContent) : (Array.isArray(prefetchedLogs) ? prefetchedLogs.map(extractLogContent) : []);
   const [logs, setLogs] = useState<string[]>(initialLogs); // will be prettified below
-  const [isLoading, setIsLoading] = useState(!propLogs && prefetchLoading && prefetchedLogs.length === 0);
+  const [isLoading, setIsLoading] = useState(!propLogs && prefetchLoading && (!prefetchedLogs || prefetchedLogs.length === 0));
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [taskCompleted, setTaskCompleted] = useState(false);
   const [showPretty, setShowPretty] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLogIdRef = useRef<number | null>(null);
-  const rawLogsRef = useRef<TaskLog[]>(prefetchedLogs as unknown as TaskLog[]);
+  const rawLogsRef = useRef<TaskLog[]>(Array.isArray(prefetchedLogs) ? prefetchedLogs : []);
   const api = useBackendApi();
   const queryClient = useQueryClient();
 
@@ -65,13 +74,32 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   }, [logs]);
 
   const formatLogs = useCallback((rawLogs: TaskLog[]) => {
+    if (!Array.isArray(rawLogs)) {
+      console.warn('formatLogs received non-array data:', rawLogs);
+      return [];
+    }
+    
     if (showPretty) {
       return rawLogs.map(l => {
-        try { return JSON.stringify(JSON.parse(l.log_line), null, 2); }
-        catch { return l.log_line; }
+        if (!l || typeof l.log_line !== 'string') {
+          console.warn('Invalid log entry:', l);
+          return String(l);
+        }
+        try { 
+          return JSON.stringify(JSON.parse(l.log_line), null, 2); 
+        }
+        catch { 
+          return l.log_line; 
+        }
       });
     } else {
-      return rawLogs.map(l => l.log_line);
+      return rawLogs.map(l => {
+        if (!l || typeof l.log_line !== 'string') {
+          console.warn('Invalid log entry:', l);
+          return String(l);
+        }
+        return l.log_line;
+      });
     }
   }, [showPretty]);
 
@@ -182,13 +210,14 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   useEffect(() => {
     if (propLogs) {
       // When using propLogs, format them if they're JSON strings
+      const extractedLogs = propLogs.map(extractLogContent);
       if (showPretty) {
-        setLogs(propLogs.map(log => {
+        setLogs(extractedLogs.map(log => {
           try { return JSON.stringify(JSON.parse(log), null, 2); }
           catch { return log; }
         }));
       } else {
-        setLogs(propLogs);
+        setLogs(extractedLogs);
       }
     } else {
       setLogs(formatLogs(rawLogsRef.current));

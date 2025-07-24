@@ -4,6 +4,7 @@ import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks"
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo";
 import type { Run } from "@/types/generated/Run";
+import type { TaskDetails } from "@/types/generated/TaskDetails";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -145,6 +146,10 @@ export class ApiService {
   static async getTaskMessages(token: string, taskId: number, opts?: { include?: string }): Promise<Message[]> {
     const queryParams = opts?.include ? `?include=${opts.include}` : '';
     return request(`/api/tasks/${taskId}/messages${queryParams}`, { token });
+  }
+
+  static async getTaskDetails(token: string, taskId: number): Promise<TaskDetails> {
+    return request(`/api/tasks/${taskId}/details`, { token });
   }
 
   static async postTaskMessage(
