@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { TaskLogViewer } from "@/components/TaskLogViewer";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery, useSendMessageMutation } from "@/services/queries";
 import { useRunMode } from "@/hooks/useRunMode";
-import { User, Bot, Terminal, AlertCircle } from 'lucide-react';
-// import type { RunMode } from "@/services/api";
+import { Bot } from 'lucide-react';
+import type { AgentTodo } from "@/types/generated/AgentTodo";
+import type { TaskLog } from "@/types/generated/TaskLog";
 
 function AgentDone({ taskId, prUrl, logs, todos }: { 
   taskId: number; 
   prUrl?: string; 
-  logs?: { entries: unknown[]; total_count: number; has_more: boolean };
-  todos?: unknown[];
+  logs?: { entries: TaskLog[]; total_count: number; has_more: boolean };
+  todos?: AgentTodo[];
 }) {
   const [showLogs, setShowLogs] = useState(false);
   const [showTodos, setShowTodos] = useState(true);
@@ -123,36 +125,6 @@ export function TaskChatPage() {
     }
   };
   
-  const getMessageIcon = (role: string, type?: string) => {
-    if (role === 'user') return <User className="w-5 h-5" />;
-    if (type === 'error') return <AlertCircle className="w-5 h-5" />;
-    if (type === 'tool_use') return <Terminal className="w-5 h-5" />;
-    return <Bot className="w-5 h-5" />;
-  };
-
-  const getMessageBubbleClass = (role: string, type?: string) => {
-    if (role === 'user') {
-      return 'bg-blue-600 text-white ml-12';
-    }
-    if (type === 'error') {
-      return 'bg-red-50 text-red-900 border border-red-200 mr-12';
-    }
-    if (type === 'code') {
-      return 'bg-gray-900 text-gray-100 font-mono text-sm mr-12';
-    }
-    return 'bg-white text-gray-900 border border-gray-200 mr-12';
-  };
-
-  const getAvatarClass = (role: string, type?: string) => {
-    if (role === 'user') {
-      return 'bg-blue-600 text-white';
-    }
-    if (type === 'error') {
-      return 'bg-red-100 text-red-600';
-    }
-    return 'bg-gray-100 text-gray-600';
-  };
-
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
@@ -161,9 +133,9 @@ export function TaskChatPage() {
   };
   
   return (
-    <div className="flex flex-col h-full">
-      {/* Task Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white">
+    <div className="grid lg:grid-cols-[320px_minmax(0,1fr)] h-full">
+      {/* ─── Left rail ─── */}
+      <aside className="border-r bg-gray-50/60 p-6 space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
@@ -185,9 +157,9 @@ export function TaskChatPage() {
             </div>
           )}
         </div>
-      </div>
+      </aside>
       
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <main className="flex flex-col overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && !finished && !sendMessage.isPending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
@@ -197,61 +169,47 @@ export function TaskChatPage() {
           </div>
         ) : (
           messages.map((message) => (
-          <div key={message.id} className="flex items-start space-x-3">
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${getAvatarClass(message.role)}`}>
-              {getMessageIcon(message.role)}
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <div className={`rounded-lg p-4 ${getMessageBubbleClass(message.role)}`}>
+            <div key={message.id} className={message.role === 'user' ? 'flex justify-start' : 'flex justify-end'}>
+              <ChatBubble
+                variant={message.role === 'user' ? 'user' : 'assistant'}
+              >
                 <div className="whitespace-pre-wrap break-words">
                   {message.content}
                 </div>
-              </div>
-              <div className="mt-1 text-xs text-gray-500">
-                {formatTime(message.created_at || new Date().toISOString())}
-              </div>
+                <div className="mt-2 text-xs opacity-70">
+                  {formatTime(message.created_at || new Date().toISOString())}
+                </div>
+              </ChatBubble>
             </div>
-          </div>
           ))
         )}
         
         {/* Add final message if task is finished */}
         {finished && (
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-gray-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="bg-white text-gray-900 border border-gray-200 rounded-lg p-4 mr-12">
-                <AgentDone taskId={taskId} prUrl={task.github_pr_url || undefined} logs={logs} todos={todos} />
-              </div>
-            </div>
+          <div className="flex justify-end">
+            <ChatBubble variant="assistant">
+              <AgentDone taskId={taskId} prUrl={task.github_pr_url || undefined} logs={logs} todos={todos} />
+            </ChatBubble>
           </div>
         )}
         
         {sendMessage.isPending && (
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-gray-600" />
-            </div>
-            <div className="flex-1">
-              <div className="bg-white border border-gray-200 rounded-lg p-4 mr-12">
-                <div className="flex items-center space-x-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  </div>
-                  <span className="text-gray-500 text-sm">Claude is thinking...</span>
+          <div className="flex justify-end">
+            <ChatBubble variant="assistant">
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
+                <span className="text-gray-300 text-sm">Claude is thinking...</span>
               </div>
-            </div>
+            </ChatBubble>
           </div>
         )}
-      </div>
+      </main>
       
-      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
+      <footer className="col-span-full p-4 border-t border-gray-200 bg-white">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
           {/* Mode indicator */}
           <button
@@ -288,7 +246,7 @@ export function TaskChatPage() {
             </button>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
