@@ -173,7 +173,7 @@ export function TaskChatPage() {
         </div>
       </div>
       
-      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
+      <div className="flex-shrink-0 p-4 bg-white">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
           {/* Mode indicator */}
           <button
