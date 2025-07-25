@@ -5,55 +5,65 @@ import {
   interpolate,
   AbsoluteFill,
   Img,
-  staticFile
+  staticFile,
+  spring
 } from 'remotion';
 import { sleekGradient } from '../theme';
 
 export const OutroScene: React.FC = () => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height, durationInFrames } = useVideoConfig();
 
-  // Logo animation - faster for 15s video
-  const logoScale = interpolate(frame, [0, 20], [0, 1], {
+  // Floating container animation
+  const containerScale = spring({
+    fps,
+    frame,
+    config: { damping: 120, stiffness: 180 },
+    from: 0.9,
+    to: 1,
+  });
+
+  const containerOpacity = interpolate(frame, [0, 15], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
 
-  const logoOpacity = interpolate(frame, [0, 20], [0, 1], {
+  // Logo animation with enhanced spring
+  const logoSpring = spring({
+    fps,
+    frame: frame - 5,
+    config: { damping: 120, stiffness: 180 },
+  });
+
+  // Main text animation with spring
+  const mainTextSpring = spring({
+    fps,
+    frame: frame - 10,
+    config: { damping: 120, stiffness: 180 },
+  });
+
+  // Features staggered spring animations
+  const getFeatureSpring = (index: number) =>
+    spring({
+      fps,
+      frame: frame - 20 - index * 5,
+      config: { damping: 120, stiffness: 180 },
+    });
+
+  // CTA animation with bounce effect
+  const ctaSpring = spring({
+    fps,
+    frame: frame - 40,
+    config: { damping: 100, stiffness: 200 },
+  });
+
+  const ctaPulse = interpolate(frame, [50, 60, 70, 80], [1, 1.02, 1, 1.02], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
 
-  // Main text animation - faster for 15s video
-  const mainTextOpacity = interpolate(frame, [20, 40], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const mainTextTranslateY = interpolate(frame, [20, 40], [30, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // Features animation - faster for 15s video
-  const featuresOpacity = interpolate(frame, [40, 60], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // CTA animation - faster for 15s video
-  const ctaOpacity = interpolate(frame, [60, 80], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const ctaScale = interpolate(frame, [80, 90], [1, 1.05], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // Background animation - faster for 15s video
-  const bgRotation = interpolate(frame, [0, 90], [0, 180], {
+  // Enhanced background animation - full 540° rotation
+  const bgRotation = interpolate(frame, [0, durationInFrames], [0, 540], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -79,15 +89,42 @@ export const OutroScene: React.FC = () => {
           backgroundSize: '400% 400%',
         }}
       />
-      
-      {/* Content container */}
+
+      {/* Floating background glow */}
       <div
         style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: 1200,
+          height: 800,
+          transform: 'translate(-50%, -50%)',
+          background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.08), transparent)',
+          borderRadius: '50%',
+          filter: 'blur(120px)',
+        }}
+      />
+      
+      {/* Main floating card */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: `translate(-50%, -50%) scale(${containerScale})`,
+          width: width * 0.85,
+          height: height * 0.85,
+          borderRadius: 20,
+          boxShadow: '0 40px 100px rgba(0,0,0,0.3)',
+          overflow: 'hidden',
+          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          opacity: containerOpacity,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          height: '100%',
           textAlign: 'center',
           color: 'white',
           padding: 60,
@@ -97,9 +134,10 @@ export const OutroScene: React.FC = () => {
         <div
           style={{
             marginBottom: 40,
-            transform: `scale(${logoScale})`,
-            opacity: logoOpacity,
-            filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.3))',
+            opacity: logoSpring,
+            transform: `scale(${logoSpring}) translateY(${(1 - logoSpring) * 30}px)`,
+            filter: 'drop-shadow(0 8px 40px rgba(0,0,0,0.4))',
+            transition: 'all 0.3s ease-out',
           }}
         >
           <Img 
@@ -114,9 +152,10 @@ export const OutroScene: React.FC = () => {
         {/* Main text */}
         <div
           style={{
-            opacity: mainTextOpacity,
-            transform: `translateY(${mainTextTranslateY}px)`,
+            opacity: mainTextSpring,
+            transform: `translateY(${(1 - mainTextSpring) * 30}px)`,
             marginBottom: 60,
+            transition: 'all 0.3s ease-out',
           }}
         >
           <h1
@@ -125,8 +164,8 @@ export const OutroScene: React.FC = () => {
               fontWeight: 'bold',
               margin: 0,
               marginBottom: 20,
-              textShadow: '0 4px 20px rgba(0,0,0,0.3)',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              textShadow: '0 8px 40px rgba(0,0,0,0.5)',
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
             }}
           >
             SWARM
@@ -136,8 +175,8 @@ export const OutroScene: React.FC = () => {
               fontSize: 24,
               margin: 0,
               opacity: 0.9,
-              textShadow: '0 2px 10px rgba(0,0,0,0.2)',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              textShadow: '0 4px 20px rgba(0,0,0,0.3)',
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
               maxWidth: 600,
               lineHeight: 1.4,
             }}
@@ -153,44 +192,63 @@ export const OutroScene: React.FC = () => {
             gridTemplateColumns: 'repeat(2, 1fr)',
             gap: 30,
             marginBottom: 60,
-            opacity: featuresOpacity,
           }}
         >
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '16px 24px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: 12,
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                minWidth: 280,
-              }}
-            >
-              <span
+          {features.map((feature, index) => {
+            const featureSpring = getFeatureSpring(index);
+            return (
+              <div
+                key={index}
                 style={{
-                  fontSize: 16,
-                  fontWeight: '500',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '16px 24px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 12,
+                  backdropFilter: 'blur(15px)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  minWidth: 280,
+                  opacity: featureSpring,
+                  transform: `scale(${featureSpring}) translateY(${(1 - featureSpring) * 20}px)`,
+                  transition: 'all 0.3s ease-out',
                 }}
               >
-                {feature.text}
-              </span>
-            </div>
-          ))}
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: '500',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                  }}
+                >
+                  {feature.text}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         {/* Call to action */}
         <div
           style={{
-            opacity: ctaOpacity,
-            transform: `scale(${ctaScale})`,
+            opacity: ctaSpring,
+            transform: `scale(${ctaSpring * ctaPulse}) translateY(${(1 - ctaSpring) * 30}px)`,
+            transition: 'all 0.3s ease-out',
           }}
         >
+          {/* Glowing orb behind CTA */}
+          <div
+            style={{
+              position: 'absolute',
+              width: 200,
+              height: 200,
+              background: 'radial-gradient(circle, rgba(255,255,255,0.1), transparent)',
+              borderRadius: '50%',
+              filter: 'blur(60px)',
+              zIndex: -1,
+            }}
+          />
+          
           <div
             style={{
               display: 'inline-flex',
@@ -202,8 +260,8 @@ export const OutroScene: React.FC = () => {
               borderRadius: 50,
               fontSize: 20,
               fontWeight: 'bold',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              boxShadow: '0 12px 48px rgba(0,0,0,0.4)',
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
             }}
           >
             <span>Get Started Today</span>
@@ -215,7 +273,7 @@ export const OutroScene: React.FC = () => {
               marginTop: 20,
               fontSize: 16,
               opacity: 0.8,
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
             }}
           >
             github.com/your-org/swarm

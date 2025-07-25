@@ -12,46 +12,45 @@ import { sleekGradient } from '../theme';
 
 export const IntroScene: React.FC = () => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height, durationInFrames } = useVideoConfig();
 
-  // Logo animation
-  const logoScale = spring({
+  // Floating container animation
+  const containerScale = spring({
     fps,
     frame,
-    config: {
-      damping: 200,
-    },
+    config: { damping: 120, stiffness: 180 },
+    from: 0.9,
+    to: 1,
   });
 
-  const logoOpacity = interpolate(frame, [0, 30], [0, 1], {
+  const containerOpacity = interpolate(frame, [0, 15], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
 
-  // Title animation - faster for 15s video
-  const titleTranslateY = interpolate(frame, [30, 60], [50, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // Logo animation with enhanced spring
+  const logoSpring = spring({
+    fps,
+    frame: frame - 5,
+    config: { damping: 120, stiffness: 180 },
   });
 
-  const titleOpacity = interpolate(frame, [30, 60], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // Title animation with spring
+  const titleSpring = spring({
+    fps,
+    frame: frame - 10,
+    config: { damping: 120, stiffness: 180 },
   });
 
-  // Subtitle animation - faster for 15s video
-  const subtitleTranslateY = interpolate(frame, [60, 90], [30, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  // Subtitle animation with spring
+  const subtitleSpring = spring({
+    fps,
+    frame: frame - 20,
+    config: { damping: 120, stiffness: 180 },
   });
 
-  const subtitleOpacity = interpolate(frame, [60, 90], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // Background gradient animation - adjusted for 15s video
-  const gradientRotation = interpolate(frame, [0, 90], [0, 180], {
+  // Background gradient animation - full 360° rotation
+  const gradientRotation = interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -70,15 +69,42 @@ export const IntroScene: React.FC = () => {
           backgroundSize: '400% 400%',
         }}
       />
-      
-      {/* Content container */}
+
+      {/* Floating background glow */}
       <div
         style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: 800,
+          height: 800,
+          transform: 'translate(-50%, -50%)',
+          background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.1), transparent)',
+          borderRadius: '50%',
+          filter: 'blur(100px)',
+        }}
+      />
+      
+      {/* Main floating card */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: `translate(-50%, -50%) scale(${containerScale})`,
+          width: width * 0.85,
+          height: height * 0.85,
+          borderRadius: 20,
+          boxShadow: '0 40px 80px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          opacity: containerOpacity,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          height: '100%',
           textAlign: 'center',
           color: 'white',
         }}
@@ -87,9 +113,10 @@ export const IntroScene: React.FC = () => {
         <div
           style={{
             marginBottom: 40,
-            transform: `scale(${logoScale})`,
-            opacity: logoOpacity,
-            filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.3))',
+            opacity: logoSpring,
+            transform: `scale(${logoSpring}) translateY(${(1 - logoSpring) * 30}px)`,
+            filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.4))',
+            transition: 'all 0.3s ease-out',
           }}
         >
           <Img 
@@ -108,10 +135,11 @@ export const IntroScene: React.FC = () => {
             fontWeight: 'bold',
             margin: 0,
             marginBottom: 20,
-            transform: `translateY(${titleTranslateY}px)`,
-            opacity: titleOpacity,
-            textShadow: '0 4px 20px rgba(0,0,0,0.3)',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
+            opacity: titleSpring,
+            transform: `translateY(${(1 - titleSpring) * 30}px)`,
+            textShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+            transition: 'all 0.3s ease-out',
           }}
         >
           SWARM
@@ -122,12 +150,13 @@ export const IntroScene: React.FC = () => {
           style={{
             fontSize: 28,
             margin: 0,
-            opacity: subtitleOpacity * 0.9,
-            transform: `translateY(${subtitleTranslateY}px)`,
-            textShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
+            opacity: subtitleSpring * 0.9,
+            transform: `translateY(${(1 - subtitleSpring) * 30}px)`,
+            textShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
             maxWidth: 800,
             lineHeight: 1.4,
+            transition: 'all 0.3s ease-out',
           }}
         >
           AI-Powered Task Management

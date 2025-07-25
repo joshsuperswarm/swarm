@@ -146,10 +146,25 @@ const getStatusConfig = (status: string) => {
 export function SimpleTaskTableForVideo() {
   const frame = useCurrentFrame();
   
-  // Fade in animation
-  const opacity = interpolate(frame, [0, 30], [0, 1], {
-    extrapolateRight: "clamp",
+  // Table container animation
+  const tableOpacity = interpolate(frame, [20, 40], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
   });
+
+  // Row animation function
+  const getRowAnimation = (index: number) => {
+    const startFrame = 40 + (index * 3);
+    const opacity = interpolate(frame, [startFrame, startFrame + 15], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    const translateX = interpolate(frame, [startFrame, startFrame + 15], [40, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    return { opacity, translateX };
+  };
 
   return (
     <div 
@@ -160,11 +175,10 @@ export function SimpleTaskTableForVideo() {
         flex: 1,
         minWidth: 0,
         overflow: "hidden",
-        padding: "16px",
-        opacity,
-        background: "#ffffff",
+        opacity: tableOpacity,
+        background: "transparent",
         color: "#000000",
-        minHeight: "100vh",
+        height: "100%",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       }}
     >
@@ -242,12 +256,16 @@ export function SimpleTaskTableForVideo() {
               const ModeIcon = modeConfig.icon;
               const StatusIcon = statusConfig.icon;
               
+              const rowAnimation = getRowAnimation(index);
+              
               return (
                 <tr 
                   key={task.task_id} 
                   style={{ 
                     borderBottom: index < mockTasks.length - 1 ? "1px solid #e5e7eb" : "none",
                     background: isHighlighted ? "#f3f4f6" : "#ffffff",
+                    opacity: rowAnimation.opacity,
+                    transform: `translateX(${rowAnimation.translateX}px)`,
                     transition: "background-color 0.15s ease"
                   }}
                 >

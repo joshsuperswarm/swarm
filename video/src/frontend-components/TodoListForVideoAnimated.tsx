@@ -4,6 +4,7 @@ import type { AgentTodo } from "../types/AgentTodo";
 interface TodoListProps {
   todos: AgentTodo[];
   loading?: boolean;
+  getTodoSpring?: (index: number) => number;
 }
 
 // Status dot styles - matching real TodoList component
@@ -32,7 +33,7 @@ const getStatusDotStyle = (status: string) => {
   }
 };
 
-export function TodoListForVideoAnimated({ todos, loading }: TodoListProps) {
+export function TodoListForVideoAnimated({ todos, loading, getTodoSpring }: TodoListProps) {
   const frame = useCurrentFrame();
   
   // Animation timing: each todo completes every 30 frames (1 second at 30fps)
@@ -112,6 +113,10 @@ export function TodoListForVideoAnimated({ todos, loading }: TodoListProps) {
               const isCompleting = completionProgress > 0 && completionProgress < 1;
               const justCompleted = completionProgress === 1 && frame <= 30 + (index * 30) + 30; // Highlight for 1 second after completion
               
+              // Enhanced spring animation
+              const s = getTodoSpring ? getTodoSpring(index) : 1;
+              const flash = isCompleting ? (1 - completionProgress) : 0;
+              
               return (
                 <div
                   key={todo.todo_id}
@@ -124,8 +129,17 @@ export function TodoListForVideoAnimated({ todos, loading }: TodoListProps) {
                     color: animatedStatus === "completed" ? '#6B7280' : 'hsl(240, 5%, 10%)',
                     fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
                     backgroundColor: justCompleted ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-                    transform: isCompleting ? `scale(${1 + completionProgress * 0.05})` : 'scale(1)',
-                    position: 'relative'
+                    opacity: s,
+                    transform: `
+                      translateX(${(1 - s) * 50}px)
+                      scale(${0.96 + s * 0.04})
+                    `,
+                    filter: `drop-shadow(0 2px 6px rgba(0,0,0,${0.15 * s}))`,
+                    transition: 'all 0.2s',
+                    position: 'relative',
+                    boxShadow: animatedStatus === 'completed' && flash > 0 
+                      ? `0 0 0 3px rgba(34,197,94,${flash})` 
+                      : undefined
                   }}
                 >
                   <div style={{ flexShrink: 0 }}>

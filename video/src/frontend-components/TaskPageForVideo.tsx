@@ -5,7 +5,18 @@ import { Copy, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { mockQueries, mockData } from '../mocks/mockProviders';
 
 // Simplified TaskPage for video - remove hooks that don't work in Remotion
-export function TaskPageForVideo({ taskId = 56 }: { taskId?: number }) {
+export function TaskPageForVideo({ 
+  taskId = 56, 
+  animationProps 
+}: { 
+  taskId?: number;
+  animationProps?: {
+    headerSpring: number;
+    descriptionSpring: number;
+    getTodoSpring: (index: number) => number;
+    getLogSpring: (index: number) => number;
+  };
+}) {
   // Use mock data instead of real queries
   const { data: rawAllTasks = [] } = mockQueries.useTasksQuery();
   const { data: taskDetails, isLoading: loading, error } = mockQueries.useTaskDetailsQuery(taskId);
@@ -61,7 +72,13 @@ export function TaskPageForVideo({ taskId = 56 }: { taskId?: number }) {
       overflow: 'auto'
     }}>
       {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
+      <div 
+        style={{ 
+          marginBottom: '32px',
+          opacity: animationProps?.headerSpring ?? 1,
+          transform: `translateY(${animationProps?.headerSpring ? (1 - animationProps.headerSpring) * -30 : 0}px)`,
+        }}
+      >
         <div style={{ marginBottom: '16px' }}>
           <Button
             variant="ghost"
@@ -127,7 +144,13 @@ export function TaskPageForVideo({ taskId = 56 }: { taskId?: number }) {
       </div>
 
       {/* Task Description */}
-      <div style={{ marginBottom: '32px' }}>
+      <div 
+        style={{ 
+          marginBottom: '32px',
+          opacity: animationProps?.descriptionSpring ?? 1,
+          transform: `translateY(${animationProps?.descriptionSpring ? (1 - animationProps.descriptionSpring) * 30 : 0}px)`,
+        }}
+      >
         <div style={{ marginBottom: '12px' }}>
           <h3 style={{ 
             fontSize: '14px', 
@@ -152,7 +175,11 @@ export function TaskPageForVideo({ taskId = 56 }: { taskId?: number }) {
       </div>
 
       {/* Todos */}
-      <TodoList todos={todos} loading={isLoadingTodos} />
+      <TodoList 
+        todos={todos} 
+        loading={isLoadingTodos} 
+        getTodoSpring={animationProps?.getTodoSpring}
+      />
 
       {/* Logs Section */}
       {showLogsEligible && (
@@ -190,6 +217,42 @@ export function TaskPageForVideo({ taskId = 56 }: { taskId?: number }) {
                 Show logs
               </button>
             </div>
+          </div>
+          
+          {/* Sample log entries with typewriter animation */}
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderRadius: '6px',
+            padding: '12px',
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: '#e5e7eb',
+            maxHeight: '120px',
+            overflow: 'hidden'
+          }}>
+            {[
+              '[2025-07-25 15:42:11] Starting task execution...',
+              '[2025-07-25 15:42:12] Loading project dependencies',
+              '[2025-07-25 15:42:13] Analyzing codebase structure',
+              '[2025-07-25 15:42:14] Implementing requested changes',
+              '[2025-07-25 15:42:15] Running tests and validation',
+              '[2025-07-25 15:42:16] Task completed successfully ✓'
+            ].map((log, index) => {
+              const logSpring = animationProps?.getLogSpring ? animationProps.getLogSpring(index) : 1;
+              return (
+                <div
+                  key={index}
+                  style={{
+                    opacity: logSpring,
+                    transform: `translateX(${(1 - logSpring) * -16}px)`,
+                    marginBottom: '2px',
+                    color: log.includes('✓') ? '#22c55e' : '#e5e7eb'
+                  }}
+                >
+                  {log}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
