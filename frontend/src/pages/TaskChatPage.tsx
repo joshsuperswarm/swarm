@@ -2,25 +2,33 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
-import { TaskLogViewer } from "@/components/TaskLogViewer";
+import { CollapsedLogViewer } from "@/components/CollapsedLogViewer";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { Bot } from 'lucide-react';
-import type { AgentTodo } from "@/types/generated/AgentTodo";
+import type { RunWithMeta } from "@/types/generated/RunWithMeta";
 import type { TaskLog } from "@/types/generated/TaskLog";
+import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 
-function AgentDone({ taskId, prUrl, logs, todos }: { 
-  taskId: number; 
-  prUrl?: string; 
-  logs?: { entries: TaskLog[]; total_count: number; has_more: boolean };
-  todos?: AgentTodo[];
+/** ─────────────────────────────────────────────────────────────
+ * renders the final assistant "all-done" bubble using **run**-scoped
+ * meta information (todos / logs) that the backend now always includes
+ * ──────────────────────────────────────────────────────────── */
+function AgentDone({
+  taskId,
+  run,
+  prUrl,
+}: {
+  taskId: number;
+  run?: RunWithMeta | null;
+  prUrl?: string;
 }) {
   const [showLogs, setShowLogs] = useState(false);
-  
-  const logCount = logs?.total_count || 0;
-  const todoCount = todos?.length || 0;
+
+  const todoCount = run?.todos?.length ?? 0;
+  const logCount = run?.logs?.total_count ?? 0;
   
   return (
     <div className="space-y-3">
@@ -28,26 +36,34 @@ function AgentDone({ taskId, prUrl, logs, todos }: {
         ✓ {prUrl ? "All done – PR opened!" : "Task completed"}
       </p>
       
-      {/* Todos Section */}
-      {todoCount > 0 && (
+      {/* 📋 Todos */}
+      {todoCount > 0 && run?.todos && (
         <div className="rounded-md p-3">
-          <CollapsedTodoList todos={todos || []} />
+          <CollapsedTodoList todos={run.todos} />
         </div>
       )}
       
-      {/* Logs Section */}
-      {logCount > 0 && (
+      {/* 📜 Logs */}
+      {logCount > 0 && run?.logs?.entries && (
         <div className="rounded-md p-3">
-          <button 
-            onClick={() => setShowLogs(x => !x)} 
+          <button
+            onClick={() => setShowLogs((x) => !x)}
             className="text-sm font-medium flex items-center gap-2 w-full"
           >
             <span>{showLogs ? "−" : "+"}</span>
             Logs ({logCount})
           </button>
-          {showLogs && logs?.entries && (
+          {showLogs && (
             <div className="mt-2">
-              <TaskLogViewer taskId={taskId} hideHeader logs={logs.entries} />
+              {/* CollapsedLogViewer expects plain strings; convert TaskLog[] */}
+              <CollapsedLogViewer
+                taskId={taskId}
+                logs={run.logs.entries.map((l) =>
+                  typeof l.log_line === "string"
+                    ? l.log_line
+                    : JSON.stringify(l.log_line)
+                )}
+              />
             </div>
           )}
         </div>
@@ -67,8 +83,7 @@ export function TaskChatPage() {
   // Extract data from unified response
   const task = taskDetails?.task;
   const messages = taskDetails?.messages || [];
-  const logs = taskDetails?.logs;
-  const todos = taskDetails?.todos || [];
+  const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
   const { mode, cycleRunMode, getModeConfig } = useRunMode("execute");
   
   // Chat input state
@@ -84,8 +99,10 @@ export function TaskChatPage() {
     );
   }
   
-  const currentRunStatus = taskDetails?.current_run?.status;
-  const finished = ["done", "failed", "pr_opened"].includes(currentRunStatus || "");
+  const currentRunStatus = currentRun?.run?.status;
+  const finished = ["done", "failed", "pr_opened"].includes(
+    currentRunStatus || "",
+  );
   const status = statuses.find((s) => s.value === currentRunStatus);
   
   const handleSendMessage = async () => {
@@ -157,10 +174,15 @@ export function TaskChatPage() {
             </div>
           </div>
         ) : (
-          messages.map((message) => (
-            <div key={message.id} className={message.role === 'user' ? 'flex justify-start' : 'flex justify-end'}>
+          messages.map((message: MessageWithRun) => (
+            <div
+              key={message.id}
+              className={
+                message.role === "user" ? "flex justify-start" : "flex justify-end"
+              }
+            >
               <ChatBubble
-                variant={message.role === 'user' ? 'user' : 'assistant'}
+                variant={message.role === "user" ? "user" : "assistant"}
               >
                 <div className="whitespace-pre-wrap break-words">
                   {message.content}
@@ -171,6 +193,25 @@ export function TaskChatPage() {
                 <div className="mt-2 text-xs opacity-70">
                   {formatTime(message.created_at || new Date().toISOString())}
                 </div>
+
+                {/* ─── NEW: per-message run meta ─── */}
+                {message.role === "assistant" && message.run && (
+                  <div className="mt-3 space-y-3">
+                    {message.run.todos?.length > 0 && (
+                      <CollapsedTodoList todos={message.run.todos} />
+                    )}
+                    {message.run.logs?.entries?.length > 0 && (
+                      <CollapsedLogViewer
+                        taskId={taskId}
+                        logs={message.run.logs.entries.map((l: TaskLog) =>
+                          typeof l.log_line === "string"
+                            ? l.log_line
+                            : JSON.stringify(l.log_line),
+                        )}
+                      />
+                    )}
+                  </div>
+                )}
               </ChatBubble>
             </div>
           ))
@@ -180,7 +221,11 @@ export function TaskChatPage() {
         {finished && (
           <div className="flex justify-end">
             <ChatBubble variant="assistant" fullWidth>
-              <AgentDone taskId={taskId} prUrl={task.github_pr_url || undefined} logs={logs} todos={todos} />
+              <AgentDone
+                taskId={taskId}
+                run={currentRun}
+                prUrl={task.github_pr_url || undefined}
+              />
             </ChatBubble>
           </div>
         )}

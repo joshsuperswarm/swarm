@@ -4,7 +4,8 @@ import type { RepositoryWithTasks } from "@/types/generated/RepositoryWithTasks"
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { UserWithDefaultRepo } from "@/types/generated/UserWithDefaultRepo";
 import type { Run } from "@/types/generated/Run";
-import type { TaskDetails } from "@/types/generated/TaskDetails";
+import type { Task } from "@/types/generated/Task";
+import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -147,7 +148,7 @@ export class ApiService {
     return request(`/api/tasks/${taskId}/messages`, { token });
   }
 
-  static async getTaskDetails(token: string, taskId: number): Promise<TaskDetails> {
+  static async getTaskDetails(token: string, taskId: number): Promise<{ task: Task; messages: MessageWithRun[] }> {
     return request(`/api/tasks/${taskId}/details`, { token });
   }
 

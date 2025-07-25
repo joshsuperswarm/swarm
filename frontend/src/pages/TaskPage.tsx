@@ -54,7 +54,9 @@ export function TaskPage() {
   const allTasks = useMemo(() => [...rawAllTasks].reverse(), [rawAllTasks]);
   
   // Get todos for this task
-  const currentRunStatus = taskDetails?.current_run?.status;
+  const messages = taskDetails?.messages || [];
+  const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
+  const currentRunStatus = currentRun?.run?.status;
   const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
     taskId, 
     currentRunStatus || undefined, 

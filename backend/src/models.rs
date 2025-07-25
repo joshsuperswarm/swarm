@@ -318,8 +318,5 @@ pub struct TaskLogsPaginated {
 #[ts(export)]
 pub struct TaskDetails {
     pub task: Task,
-    pub current_run: Option<Run>,
     pub messages: Vec<MessageWithRun>,
-    pub logs: TaskLogsPaginated,
-    pub todos: Vec<AgentTodo>,
 }

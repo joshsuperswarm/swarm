@@ -827,83 +827,10 @@ impl Database {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Task {} not found", task_id)))?;
 
-        // Get current run (latest run for this task)
-        let current_run = sqlx::query_as!(
-            Run,
-            r#"SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, 
-                      command_id, branch, status, commit_title, commit_body, mode, 
-                      created_at, updated_at
-               FROM runs 
-               WHERE task_id = $1 
-               ORDER BY created_at DESC 
-               LIMIT 1"#,
-            task_id
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-
-        // Get messages with runs
+        // Get messages with runs (which now include embedded todos and logs)
         let messages = self.get_task_messages(task_id).await?;
 
-        // Get logs with pagination (last 100 entries)
-        let log_rows = sqlx::query!(
-            r#"
-            SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
-            FROM task_logs
-            WHERE task_id = $1
-            ORDER BY id DESC
-            LIMIT 100
-            "#,
-            task_id
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
-        // Get total log count
-        let total_count = sqlx::query!(
-            "SELECT COUNT(*) as count FROM task_logs WHERE task_id = $1",
-            task_id
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .count
-        .unwrap_or(0) as i32;
-
-        let logs_vec: Vec<TaskLog> = log_rows
-            .into_iter()
-            .map(|row| TaskLog {
-                id: row.id as i32,
-                task_id: row.task_id.unwrap_or(task_id),
-                run_id: row.run_id,
-                log_line: row.log_line,
-                created_at: row.created_at,
-            })
-            .collect();
-
-        let has_more = total_count > 100;
-        let cursor = if has_more && !logs_vec.is_empty() {
-            Some(logs_vec.last().unwrap().id as i64)
-        } else {
-            None
-        };
-
-        let logs = TaskLogsPaginated {
-            entries: logs_vec,
-            total_count,
-            has_more,
-            cursor,
-        };
-
-        // Get todos
-        let todos = self.get_agent_todos(task_id).await?;
-
-        Ok(TaskDetails {
-            task,
-            current_run,
-            messages,
-            logs,
-            todos,
-        })
+        Ok(TaskDetails { task, messages })
     }
 }
 
