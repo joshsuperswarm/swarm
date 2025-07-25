@@ -8,69 +8,8 @@ import { useTaskDetailsQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { Bot } from 'lucide-react';
-import type { RunWithMeta } from "@/types/generated/RunWithMeta";
 import type { TaskLog } from "@/types/generated/TaskLog";
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
-
-/** ─────────────────────────────────────────────────────────────
- * renders the final assistant "all-done" bubble using **run**-scoped
- * meta information (todos / logs) that the backend now always includes
- * ──────────────────────────────────────────────────────────── */
-function AgentDone({
-  taskId,
-  run,
-  prUrl,
-}: {
-  taskId: number;
-  run?: RunWithMeta | null;
-  prUrl?: string;
-}) {
-  const [showLogs, setShowLogs] = useState(false);
-
-  const todoCount = run?.todos?.length ?? 0;
-  const logCount = run?.logs?.total_count ?? 0;
-  
-  return (
-    <div className="space-y-3">
-      <p className="font-medium">
-        ✓ {prUrl ? "All done – PR opened!" : "Task completed"}
-      </p>
-      
-      {/* 📋 Todos */}
-      {todoCount > 0 && run?.todos && (
-        <div className="rounded-md p-3">
-          <CollapsedTodoList todos={run.todos} />
-        </div>
-      )}
-      
-      {/* 📜 Logs */}
-      {logCount > 0 && run?.logs?.entries && (
-        <div className="rounded-md p-3">
-          <button
-            onClick={() => setShowLogs((x) => !x)}
-            className="text-sm font-medium flex items-center gap-2 w-full"
-          >
-            <span>{showLogs ? "−" : "+"}</span>
-            Logs ({logCount})
-          </button>
-          {showLogs && (
-            <div className="mt-2">
-              {/* CollapsedLogViewer expects plain strings; convert TaskLog[] */}
-              <CollapsedLogViewer
-                taskId={taskId}
-                logs={run.logs.entries.map((l) =>
-                  typeof l.log_line === "string"
-                    ? l.log_line
-                    : JSON.stringify(l.log_line)
-                )}
-              />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function TaskChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -215,19 +154,6 @@ export function TaskChatPage() {
               </ChatBubble>
             </div>
           ))
-        )}
-        
-        {/* Add final message if task is finished */}
-        {finished && (
-          <div className="flex justify-end">
-            <ChatBubble variant="assistant" fullWidth>
-              <AgentDone
-                taskId={taskId}
-                run={currentRun}
-                prUrl={task.github_pr_url || undefined}
-              />
-            </ChatBubble>
-          </div>
         )}
         
         {isSending && (
