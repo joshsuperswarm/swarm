@@ -212,7 +212,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               value={formData.description}
               onChange={handleChange('description')}
               rows={3}
-              className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none border-b border-gray-200 focus:border-gray-400 resize-none"
+              className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none resize-none"
               placeholder="Describe the task..."
             />
           </div>
