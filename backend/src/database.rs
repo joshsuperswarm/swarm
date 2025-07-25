@@ -497,12 +497,7 @@ impl Database {
 
     pub async fn assemble_run_meta(&self, run: &Run) -> AppResult<RunWithMeta> {
         // Get todos for this task
-        let todos = self
-            .get_agent_todos(run.task_id)
-            .await?
-            .into_iter()
-            .filter(|t| t.status != "completed")
-            .collect();
+        let todos = self.get_agent_todos(run.task_id).await?;
 
         // Get last 100 log lines for this run
         let rows = sqlx::query!(
