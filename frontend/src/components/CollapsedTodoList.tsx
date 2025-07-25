@@ -16,7 +16,7 @@ export function CollapsedTodoList({ todos }: CollapsedTodoListProps) {
     <div>
       <button 
         onClick={() => setIsExpanded(!isExpanded)} 
-        className="text-sm font-medium flex items-center gap-2 w-full mb-2"
+        className="text-sm font-medium flex items-center gap-2 w-full"
       >
         <span>{isExpanded ? "−" : "+"}</span>
         Progress: {completedCount}/{totalCount} tasks completed
