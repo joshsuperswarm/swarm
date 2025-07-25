@@ -1,8 +1,8 @@
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
-    GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, Task, TaskDetails,
-    TaskLog, TaskLogsPaginated, TaskWithRun, TaskWithRunDB, User,
+    GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, RunWithMeta, Task,
+    TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, TaskWithRunDB, User,
 };
 use sqlx::PgPool;
 
@@ -311,10 +311,16 @@ impl Database {
     }
 
     // Task log operations
-    pub async fn insert_task_log(&self, task_id: i32, log_line: &str) -> AppResult<()> {
+    pub async fn insert_task_log(
+        &self,
+        task_id: i32,
+        run_id: i32,
+        log_line: &str,
+    ) -> AppResult<()> {
         tracing::debug!(
-            "→ Inserting log line for task {} (length: {} chars)",
+            "→ Inserting log line for task {} run {} (length: {} chars)",
             task_id,
+            run_id,
             log_line.len()
         );
 
@@ -323,8 +329,9 @@ impl Database {
             Ok(json) => json,
             Err(e) => {
                 tracing::warn!(
-                    "⚠ Failed to parse log line as JSON for task {}: {}",
+                    "⚠ Failed to parse log line as JSON for task {} run {}: {}",
                     task_id,
+                    run_id,
                     e
                 );
                 tracing::warn!(
@@ -340,8 +347,9 @@ impl Database {
         };
 
         match sqlx::query!(
-            "INSERT INTO task_logs (task_id, log_line) VALUES ($1, $2::jsonb)",
+            "INSERT INTO task_logs (task_id, run_id, log_line) VALUES ($1, $2, $3::jsonb)",
             task_id,
+            run_id,
             json_value
         )
         .execute(&self.pool)
@@ -349,16 +357,18 @@ impl Database {
         {
             Ok(result) => {
                 tracing::debug!(
-                    "✓ Successfully inserted log line for task {}, rows affected: {}",
+                    "✓ Successfully inserted log line for task {} run {}, rows affected: {}",
                     task_id,
+                    run_id,
                     result.rows_affected()
                 );
                 Ok(())
             }
             Err(e) => {
                 tracing::error!(
-                    "✗ Database error inserting log line for task {}: {}",
+                    "✗ Database error inserting log line for task {} run {}: {}",
                     task_id,
+                    run_id,
                     e
                 );
                 tracing::error!(
@@ -377,7 +387,7 @@ impl Database {
     pub async fn get_task_logs(&self, task_id: i32) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
-            SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
+            SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
             FROM task_logs
             WHERE task_id = $1
             ORDER BY id ASC
@@ -392,6 +402,7 @@ impl Database {
             .map(|row| TaskLog {
                 id: row.id as i32,
                 task_id: row.task_id.expect("task_id should not be null"),
+                run_id: row.run_id,
                 log_line: row.log_line,
                 created_at: row.created_at,
             })
@@ -407,7 +418,7 @@ impl Database {
     ) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
-            SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
+            SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
             FROM task_logs
             WHERE task_id = $1 AND ($2::BIGINT IS NULL OR id > $2)
             ORDER BY id ASC
@@ -424,6 +435,7 @@ impl Database {
             .map(|row| TaskLog {
                 id: row.id as i32,
                 task_id: row.task_id.expect("task_id should not be null"),
+                run_id: row.run_id,
                 log_line: row.log_line,
                 created_at: row.created_at,
             })
@@ -481,6 +493,60 @@ impl Database {
         .fetch_optional(&self.pool)
         .await?;
         Ok(row.map(|r| r.id))
+    }
+
+    pub async fn assemble_run_meta(&self, run: &Run) -> AppResult<RunWithMeta> {
+        // Get todos for this task
+        let todos = self
+            .get_agent_todos(run.task_id)
+            .await?
+            .into_iter()
+            .filter(|t| t.status != "completed")
+            .collect();
+
+        // Get last 100 log lines for this run
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
+            FROM task_logs
+            WHERE run_id = $1
+            ORDER BY id DESC
+            LIMIT 100
+            "#,
+            run.id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let entries = rows
+            .into_iter()
+            .map(|r| TaskLog {
+                id: r.id as i32,
+                task_id: r.task_id.expect("task_id should not be null"),
+                run_id: r.run_id,
+                log_line: r.log_line,
+                created_at: r.created_at,
+            })
+            .collect::<Vec<_>>();
+
+        let total_count: i32 =
+            sqlx::query_scalar!("SELECT COUNT(*) FROM task_logs WHERE run_id = $1", run.id)
+                .fetch_one(&self.pool)
+                .await?
+                .unwrap_or(0) as i32;
+
+        let cursor = entries.last().map(|l| l.id as i64);
+
+        Ok(RunWithMeta {
+            run: run.clone(),
+            todos,
+            logs: TaskLogsPaginated {
+                entries,
+                total_count,
+                has_more: total_count > 100,
+                cursor,
+            },
+        })
     }
 
     // Direct Run update methods (bypassing sync_run_from_task)
@@ -636,105 +702,75 @@ impl Database {
     }
 
     // Message operations for the new chat architecture
-    pub async fn get_task_messages(
-        &self,
-        task_id: i32,
-        include_runs: bool,
-    ) -> AppResult<Vec<MessageWithRun>> {
-        if include_runs {
-            let rows = sqlx::query!(
-                r#"
-                SELECT 
-                    m.id, m.task_id, m.role, m.body_md as content, m.created_at, 
-                    m.metadata as "metadata: serde_json::Value",
-                    r.id as "run_id?", r.task_id as "run_task_id?", r.message_id as "message_id?", 
-                    r.sandbox_id as "sandbox_id?", r.sandbox_hostname as "sandbox_hostname?", 
-                    r.session_id as "session_id?", r.command_id as "command_id?", 
-                    r.branch as "branch?", r.status as "status?", 
-                    r.commit_title as "commit_title?", r.commit_body as "commit_body?", 
-                    r.mode as "mode?", r.created_at as "run_created_at?", 
-                    r.updated_at as "run_updated_at?"
-                FROM messages m
-                LEFT JOIN runs r ON r.id = m.run_id
-                WHERE m.task_id = $1
-                ORDER BY m.created_at ASC
-                "#,
-                task_id
-            )
-            .fetch_all(&self.pool)
-            .await?;
+    pub async fn get_task_messages(&self, task_id: i32) -> AppResult<Vec<MessageWithRun>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                m.id, m.task_id, m.role, m.body_md as content, m.created_at, 
+                m.metadata as "metadata: serde_json::Value",
+                r.id as "run_id?", r.task_id as "run_task_id?", r.message_id as "message_id?", 
+                r.sandbox_id as "sandbox_id?", r.sandbox_hostname as "sandbox_hostname?", 
+                r.session_id as "session_id?", r.command_id as "command_id?", 
+                r.branch as "branch?", r.status as "status?", 
+                r.commit_title as "commit_title?", r.commit_body as "commit_body?", 
+                r.mode as "mode?", r.created_at as "run_created_at?", 
+                r.updated_at as "run_updated_at?"
+            FROM messages m
+            LEFT JOIN runs r ON r.id = m.run_id
+            WHERE m.task_id = $1
+            ORDER BY m.created_at ASC
+            "#,
+            task_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
 
-            let messages = rows
-                .into_iter()
-                .map(|row| MessageWithRun {
-                    id: row.id,
-                    task_id: row.task_id,
-                    role: row.role,
-                    content: row.content,
-                    created_at: row.created_at,
-                    metadata: Some(row.metadata),
-                    run: if let Some(run_id) = row.run_id {
-                        // Only create Run if we have the required non-nullable fields
-                        if let Some(mode) = row.mode {
-                            Some(Run {
-                                id: run_id,
-                                task_id: row.run_task_id.unwrap_or(task_id),
-                                message_id: row.message_id,
-                                sandbox_id: row.sandbox_id,
-                                sandbox_hostname: row.sandbox_hostname,
-                                session_id: row.session_id,
-                                command_id: row.command_id,
-                                branch: row.branch,
-                                status: row.status,
-                                commit_title: row.commit_title,
-                                commit_body: row.commit_body,
-                                mode: mode,
-                                created_at: row.run_created_at,
-                                updated_at: row.run_updated_at,
-                            })
-                        } else {
-                            tracing::warn!(
-                                "Run {} has NULL mode, skipping run attachment to message",
-                                run_id
-                            );
-                            None
-                        }
-                    } else {
-                        None
-                    },
-                })
-                .collect();
+        let mut messages = Vec::new();
 
-            Ok(messages)
-        } else {
-            let rows = sqlx::query!(
-                r#"
-                SELECT id, task_id, role, body_md as content, created_at, 
-                       metadata as "metadata: serde_json::Value"
-                FROM messages
-                WHERE task_id = $1
-                ORDER BY created_at ASC
-                "#,
-                task_id
-            )
-            .fetch_all(&self.pool)
-            .await?;
+        for row in rows {
+            let run = if let Some(run_id) = row.run_id {
+                // Only create RunWithMeta if we have the required non-nullable fields
+                if let Some(mode) = row.mode {
+                    let run = Run {
+                        id: run_id,
+                        task_id: row.run_task_id.unwrap_or(task_id),
+                        message_id: row.message_id,
+                        sandbox_id: row.sandbox_id,
+                        sandbox_hostname: row.sandbox_hostname,
+                        session_id: row.session_id,
+                        command_id: row.command_id,
+                        branch: row.branch,
+                        status: row.status,
+                        commit_title: row.commit_title,
+                        commit_body: row.commit_body,
+                        mode: mode,
+                        created_at: row.run_created_at,
+                        updated_at: row.run_updated_at,
+                    };
+                    Some(self.assemble_run_meta(&run).await?)
+                } else {
+                    tracing::warn!(
+                        "Run {} has NULL mode, skipping run attachment to message",
+                        run_id
+                    );
+                    None
+                }
+            } else {
+                None
+            };
 
-            let messages = rows
-                .into_iter()
-                .map(|row| MessageWithRun {
-                    id: row.id,
-                    task_id: row.task_id,
-                    role: row.role,
-                    content: row.content,
-                    created_at: row.created_at,
-                    metadata: Some(row.metadata),
-                    run: None,
-                })
-                .collect();
-
-            Ok(messages)
+            messages.push(MessageWithRun {
+                id: row.id,
+                task_id: row.task_id,
+                role: row.role,
+                content: row.content,
+                created_at: row.created_at,
+                metadata: Some(row.metadata),
+                run,
+            });
         }
+
+        Ok(messages)
     }
 
     pub async fn create_message(&self, message: CreateMessage) -> AppResult<Message> {
@@ -807,12 +843,12 @@ impl Database {
         .await?;
 
         // Get messages with runs
-        let messages = self.get_task_messages(task_id, true).await?;
+        let messages = self.get_task_messages(task_id).await?;
 
         // Get logs with pagination (last 100 entries)
         let log_rows = sqlx::query!(
             r#"
-            SELECT id, task_id, log_line as "log_line: serde_json::Value", created_at
+            SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
             FROM task_logs
             WHERE task_id = $1
             ORDER BY id DESC
@@ -838,6 +874,7 @@ impl Database {
             .map(|row| TaskLog {
                 id: row.id as i32,
                 task_id: row.task_id.unwrap_or(task_id),
+                run_id: row.run_id,
                 log_line: row.log_line,
                 created_at: row.created_at,
             })
@@ -1057,7 +1094,7 @@ mod tests {
         .unwrap();
 
         // Verify messages are separate
-        let msgs = db.get_task_messages(task.id, false).await.unwrap();
+        let msgs = db.get_task_messages(task.id).await.unwrap();
         assert_eq!(msgs.len(), 2);
 
         let user_message = msgs.iter().find(|m| m.role == "user").unwrap();
@@ -1067,7 +1104,7 @@ mod tests {
         assert_eq!(assistant_message.content, "Agent reply");
 
         // Verify run associations
-        let msgs_with_runs = db.get_task_messages(task.id, true).await.unwrap();
+        let msgs_with_runs = db.get_task_messages(task.id).await.unwrap();
         let user_msg_with_run = msgs_with_runs.iter().find(|m| m.role == "user").unwrap();
         let assistant_msg_with_run = msgs_with_runs
             .iter()

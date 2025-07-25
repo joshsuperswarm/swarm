@@ -90,6 +90,13 @@ export const useSendTaskMessage = (taskId: number) => {
             mode: run.mode,
             created_at: run.created_at,
             updated_at: null,
+            todos: [],
+            logs: {
+              entries: [],
+              total_count: 0,
+              has_more: false,
+              cursor: null,
+            },
           } : null,
         };
 

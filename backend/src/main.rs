@@ -33,8 +33,8 @@ use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use models::{
     AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
-    GitHubToken, MessageWithRun, RepositoryTS, RepositoryWithTasks, Run, Task, TaskDetails,
-    TaskLog, TaskLogsPaginated, TaskWithRun, User, UserWithDefaultRepo,
+    GitHubToken, MessageWithRun, RepositoryTS, RepositoryWithTasks, Run, RunWithMeta, Task,
+    TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, User, UserWithDefaultRepo,
 };
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
@@ -428,6 +428,7 @@ async fn main() -> AppResult<()> {
     UserWithDefaultRepo::export().unwrap();
     Task::export().unwrap();
     Run::export().unwrap();
+    RunWithMeta::export().unwrap();
     TaskWithRun::export().unwrap();
     RepositoryTS::export().unwrap();
     RepositoryWithTasks::export().unwrap();
@@ -1593,16 +1594,10 @@ async fn get_task_todos(
     })))
 }
 
-#[derive(Deserialize)]
-struct MessagesQuery {
-    include: Option<String>,
-}
-
 async fn get_task_messages(
     CurrentUser(user): CurrentUser,
     State(app_state): State<AppState>,
     Path(task_id): Path<i32>,
-    Query(query): Query<MessagesQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     let db_user = get_or_create_user(&app_state.database, &user.id)
         .await
@@ -1619,18 +1614,7 @@ async fn get_task_messages(
         None => return Err(StatusCode::FORBIDDEN),
     };
 
-    // Parse include parameter to check if runs should be included
-    let include_runs = query
-        .include
-        .as_deref()
-        .map(|s| s.contains("runs"))
-        .unwrap_or(false);
-
-    let messages = match app_state
-        .database
-        .get_task_messages(task_id, include_runs)
-        .await
-    {
+    let messages = match app_state.database.get_task_messages(task_id).await {
         Ok(messages) => messages,
         Err(e) => {
             tracing::error!("Error fetching messages for task {}: {}", task_id, e);

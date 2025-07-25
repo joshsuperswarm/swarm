@@ -498,6 +498,7 @@ impl ModalProvider {
         &self,
         db: &crate::database::Database,
         task_id: i32,
+        run_id: i32,
         sandbox_id: &str,
         proc_id: &str,
     ) -> SandboxResult<()> {
@@ -524,17 +525,22 @@ impl ModalProvider {
                 state.pr_body = task.pr_body;
             }
 
-            // Load commit artifacts from latest run
-            if let Ok(Some(run_id)) = db.get_latest_run_id_for_task(task_id).await {
-                if let Ok(Some(run)) = db.get_run_by_id(run_id).await {
-                    state.commit_title = run.commit_title;
-                    state.commit_body = run.commit_body;
-                }
+            // Load commit artifacts from current run
+            if let Ok(Some(run)) = db.get_run_by_id(run_id).await {
+                state.commit_title = run.commit_title;
+                state.commit_body = run.commit_body;
             }
 
             // Process the logs
             let _processed = self
-                .process_modal_log_stream(db, task_id, &combined_output, &mut buffer, &mut state)
+                .process_modal_log_stream(
+                    db,
+                    task_id,
+                    run_id,
+                    &combined_output,
+                    &mut buffer,
+                    &mut state,
+                )
                 .await?;
 
             // Save PR artifacts to task
@@ -564,6 +570,7 @@ impl ModalProvider {
         &self,
         db: &crate::database::Database,
         task_id: i32,
+        run_id: i32,
         raw_stream: &str,
         buffer: &mut String,
         state: &mut ArtifactParsingState,
@@ -588,7 +595,7 @@ impl ModalProvider {
                         ))
                     })?;
 
-                    if let Err(e) = db.insert_task_log(task_id, &json_str).await {
+                    if let Err(e) = db.insert_task_log(task_id, run_id, &json_str).await {
                         warn!("✗ Failed to store log line for task {}: {}", task_id, e);
                     } else {
                         lines_processed += 1;
@@ -1059,7 +1066,7 @@ mod tests {
 
         // Process first chunk (incomplete JSON)
         let result1 = provider
-            .process_modal_log_stream(&db, task_id, chunk1, &mut buffer, &mut state)
+            .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut state)
             .await;
         // Should not error and not process anything since JSON is incomplete
         assert!(result1.is_ok());
@@ -1068,7 +1075,7 @@ mod tests {
 
         // Process second chunk (completes first JSON)
         let result2 = provider
-            .process_modal_log_stream(&db, task_id, chunk2, &mut buffer, &mut state)
+            .process_modal_log_stream(&db, task_id, 1, chunk2, &mut buffer, &mut state)
             .await;
         // This will fail with database connection error in test, but parsing logic should work
         // The important thing is StreamDeserializer can handle JSON with embedded newlines
@@ -1076,7 +1083,7 @@ mod tests {
 
         // Process third chunk (complete second JSON)
         let result3 = provider
-            .process_modal_log_stream(&db, task_id, chunk3, &mut buffer, &mut state)
+            .process_modal_log_stream(&db, task_id, 1, chunk3, &mut buffer, &mut state)
             .await;
         // Again, will fail with DB error but parsing should work
         assert!(result3.is_err() || result3.unwrap() == 1);

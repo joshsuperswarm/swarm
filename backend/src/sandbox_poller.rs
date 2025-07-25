@@ -214,7 +214,13 @@ async fn handle_task(
                     app_state.config.modal_region.clone(),
                 );
                 let _ = modal
-                    .pull_logs_once(&app_state.database, task_id, &sandbox_id, &command_id)
+                    .pull_logs_once(
+                        &app_state.database,
+                        task_id,
+                        run_id,
+                        &sandbox_id,
+                        &command_id,
+                    )
                     .await;
             }
         }
@@ -258,7 +264,7 @@ async fn wait_for_artifacts(
                 app_state.config.modal_region.clone(),
             );
             let _ = modal
-                .pull_logs_once(&app_state.database, task_id, sandbox_id, command_id)
+                .pull_logs_once(&app_state.database, task_id, run_id, sandbox_id, command_id)
                 .await;
         }
 
@@ -317,7 +323,7 @@ async fn finalize_success(
             app_state.config.modal_region.clone(),
         );
         modal
-            .pull_logs_once(&app_state.database, task_id, sandbox_id, command_id)
+            .pull_logs_once(&app_state.database, task_id, run_id, sandbox_id, command_id)
             .await
             .ok();
     }

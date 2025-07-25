@@ -109,7 +109,7 @@ export const useTaskMessagesQuery = (taskId: number, taskStatus?: string, enable
   return useQuery({
     queryKey: ['task-messages', taskId],
     enabled: enabled && taskId > 0 && isSuccess,
-    queryFn: () => ApiService.getTaskMessages(jwt!, taskId, { include: 'runs' }),
+    queryFn: () => ApiService.getTaskMessages(jwt!, taskId),
     staleTime: 5 * 1000, // 5 seconds - allow frequent updates
     refetchInterval: () => {
       // Poll every 3 seconds while task is non-terminal

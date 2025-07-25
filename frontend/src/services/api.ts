@@ -143,9 +143,8 @@ export class ApiService {
     return response.todos;
   }
 
-  static async getTaskMessages(token: string, taskId: number, opts?: { include?: string }): Promise<Message[]> {
-    const queryParams = opts?.include ? `?include=${opts.include}` : '';
-    return request(`/api/tasks/${taskId}/messages${queryParams}`, { token });
+  static async getTaskMessages(token: string, taskId: number): Promise<Message[]> {
+    return request(`/api/tasks/${taskId}/messages`, { token });
   }
 
   static async getTaskDetails(token: string, taskId: number): Promise<TaskDetails> {

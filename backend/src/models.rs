@@ -226,6 +226,7 @@ pub struct RepositoryWithTasks {
 pub struct TaskLog {
     pub id: i32,
     pub task_id: i32,
+    pub run_id: Option<i32>,
     #[ts(type = "Record<string, any>")]
     pub log_line: serde_json::Value,
     pub created_at: Option<DateTime<Utc>>,
@@ -234,6 +235,7 @@ pub struct TaskLog {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTaskLog {
     pub task_id: i32,
+    pub run_id: i32,
     pub log_line: serde_json::Value,
 }
 
@@ -284,6 +286,14 @@ pub struct CreateMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
+pub struct RunWithMeta {
+    pub run: Run,
+    pub todos: Vec<AgentTodo>,
+    pub logs: TaskLogsPaginated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MessageWithRun {
     pub id: i64,
     pub task_id: i32,
@@ -292,7 +302,7 @@ pub struct MessageWithRun {
     pub created_at: Option<DateTime<Utc>>,
     #[ts(type = "Record<string, any> | null")]
     pub metadata: Option<serde_json::Value>,
-    pub run: Option<Run>,
+    pub run: Option<RunWithMeta>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
