@@ -23,7 +23,7 @@ export function CollapsedTodoList({ todos }: CollapsedTodoListProps) {
       </button>
       
       {isExpanded && (
-        <div>
+        <div className="mt-2">
           <TodoList todos={todos} />
         </div>
       )}
