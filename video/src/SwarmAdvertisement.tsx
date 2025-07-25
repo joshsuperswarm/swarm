@@ -8,7 +8,7 @@ import {
   spring
 } from 'remotion';
 import { IntroScene } from './scenes/IntroScene';
-import { TaskTableScene } from './scenes/TaskTableScene';
+import { RealTaskTableScene } from './scenes/RealTaskTableScene';
 import { RealTaskDetailScene } from './scenes/RealTaskDetailScene';
 import { OutroScene } from './scenes/OutroScene';
 
@@ -25,7 +25,7 @@ export const SwarmAdvertisement: React.FC = () => {
 
       {/* Task Table Scene: 90-180 frames (3 seconds) */}
       <Sequence from={90} durationInFrames={90}>
-        <TaskTableScene />
+        <RealTaskTableScene />
       </Sequence>
 
       {/* Task Detail Scene: 180-360 frames (6 seconds) */}
