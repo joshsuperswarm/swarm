@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
@@ -27,6 +27,21 @@ export function TaskChatPage() {
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
+  
+  // Auto-scroll functionality
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const prevLen = useRef(0);
+  
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (messages.length > prevLen.current && atBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
+    prevLen.current = messages.length;
+  }, [messages.length]);
   
   if (isLoading || !task) {
     return (
@@ -103,7 +118,7 @@ export function TaskChatPage() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="p-6 space-y-6">
         {messages.length === 0 && !finished && !isSending ? (
           <div className="flex-1 flex items-center justify-center p-8">
