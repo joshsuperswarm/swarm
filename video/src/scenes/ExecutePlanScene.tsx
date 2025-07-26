@@ -33,6 +33,17 @@ export const ExecutePlanScene: React.FC = () => {
     config: { damping: 140, stiffness: 200 },
   });
 
+  // Button press animation - starts at frame 60, peaks at 70, returns by 80
+  const buttonPressScale = interpolate(frame, [60, 70, 80], [1, 0.95, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  const buttonPressOpacity = interpolate(frame, [60, 70, 80], [1, 0.8, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
   // Status transition animation
   const statusTransition = interpolate(frame, [50, 65], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -196,6 +207,10 @@ export const ExecutePlanScene: React.FC = () => {
               padding: 16,
               position: 'relative',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+              transform: `scale(${buttonPressScale})`,
+              opacity: buttonPressOpacity,
+              transition: frame >= 60 && frame <= 80 ? 'none' : 'transform 0.1s ease-out',
+              cursor: 'pointer',
             }}
           >
             {/* Speech bubble tail */}

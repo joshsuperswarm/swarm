@@ -3,263 +3,205 @@ import {
   useCurrentFrame,
   useVideoConfig,
   interpolate,
-  AbsoluteFill
+  AbsoluteFill,
+  spring
 } from 'remotion';
-import { X, Zap, FileText } from 'lucide-react';
+import { Zap, FileText } from 'lucide-react';
 
+/**
+ * New CreateTaskScene
+ * -------------------------------------------------------------------
+ * Visual style & animation model now mirrors ExecutePlanScene so that
+ * both scenes share a unified dark aesthetic, spring‑based entrance,
+ * and accent palette (#7dd3fc / indigo / emerald).
+ *
+ * Animation timeline (frames):
+ *   0‑10   card scales & fades in (containerSpring)
+ *   10‑40  title auto‑types (typingProgress)
+ *   45‑65  mode chip cycles Execute → Plan (showPlan)
+ *   70‑85  submit button pulses (submitGlow)
+ */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps } = useVideoConfig();
 
-  // Animation phases (60 frames total):
-  // 0-10: Modal fade/scale in
-  // 10-35: Auto-type description  
-  // 35-45: Mode cycle (execute → plan)
-  // 45-60: Create button glow and completion
+  /** Card entrance */
+  const containerSpring = spring({ fps, frame, config: { damping: 120, stiffness: 180 } });
 
-  // Modal animation
-  const modalScale = interpolate(frame, [0, 10], [0.9, 1], {
+  /** Title typewriter */
+  const fullTitle = 'Implement JWT authentication system';
+  const typingProgress = interpolate(frame, [10, 40], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const currentTitle = fullTitle.substring(0, Math.floor(fullTitle.length * typingProgress));
+
+  /** Mode chip toggles Execute → Plan */
+  const showPlan = frame >= 45 && frame < 65;
+
+  /** CTA pulse */
+  const submitGlow = interpolate(frame, [70, 75, 80, 85], [0, 1, 1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
 
-  const modalOpacity = interpolate(frame, [0, 10], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // Text typing animation
-  const fullText = "Implement JWT authentication system";
-  const typingProgress = interpolate(frame, [10, 35], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const currentText = fullText.substring(0, Math.floor(fullText.length * typingProgress));
-
-  // Mode cycling animation (execute → plan)
-  const showPlanMode = frame >= 35 && frame < 50;
-  
-  // Submit button animation
-  const submitGlow = interpolate(frame, [45, 50, 55, 60], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  /** Blinking cursor opacity */
+  const cursorOpacity = interpolate(frame % 30, [0, 15, 30], [1, 0, 1]);
 
   return (
     <AbsoluteFill>
-      {/* Modal backdrop overlay */}
+      {/* Background gradient (shared with ExecutePlanScene) */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          opacity: modalOpacity,
+          background:
+            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.1), transparent)',
+          filter: 'blur(100px)',
         }}
       />
 
-      {/* Modal container */}
+      {/* Center container */}
       <div
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
-          transform: `translate(-50%, -50%) scale(${modalScale})`,
-          opacity: modalOpacity,
+          transform: `translate(-50%, -50%) scale(${containerSpring})`,
+          width: '85%',
+          maxWidth: 900,
+          opacity: containerSpring,
         }}
       >
-        {/* Modal content - matching CreateTaskModal exactly */}
+        {/* Header */}
         <div
           style={{
-            backgroundColor: '#ffffff',
-            borderRadius: 12,
-            maxWidth: 640,
-            width: width * 0.6,
-            padding: 16,
-            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: 32,
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
           }}
         >
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 12,
-            }}
-          >
-            <h2
-              style={{
-                fontSize: 18,
-                fontWeight: '600',
-                color: '#111827',
-                margin: 0,
-              }}
-            >
-              Create New Task
-            </h2>
-            <div style={{ color: '#9ca3af' }}>
-              <X size={20} />
-            </div>
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#7dd3fc' }}>#63</div>
 
-          {/* Repository info */}
           <div
             style={{
-              width: '100%',
-              padding: '8px 12px',
-              border: '1px solid #d1d5db',
+              padding: '6px 16px',
+              backgroundColor: '#6366f1',
+              color: '#ffffff',
               borderRadius: 6,
-              backgroundColor: '#f9fafb',
-              marginBottom: 12,
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: 'uppercase',
             }}
           >
-            <p
-              style={{
-                color: '#374151',
-                fontSize: 14,
-                margin: 0,
-              }}
-            >
-              <strong>company/swarm</strong> (Private)
-            </p>
+            Create
           </div>
 
-          {/* Mode selector */}
-          <div
+          <h2
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 12,
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 600,
+              color: 'rgba(255, 255, 255, 0.95)',
+              maxWidth: '80%',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 14,
-                  fontWeight: '500',
-                  color: '#374151',
-                }}
-              >
-                Mode:
-              </span>
-              <button
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: '500',
-                  border: '1px solid',
-                  backgroundColor: showPlanMode ? '#eff6ff' : '#f0fdf4',
-                  borderColor: showPlanMode ? '#bfdbfe' : '#bbf7d0',
-                  color: showPlanMode ? '#1d4ed8' : '#166534',
-                  cursor: 'pointer',
-                }}
-              >
-                {showPlanMode ? (
-                  <>
-                    <FileText size={14} />
-                    Plan
-                  </>
-                ) : (
-                  <>
-                    <Zap size={14} />
-                    Execute
-                  </>
-                )}
-              </button>
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#6b7280',
-                opacity: showPlanMode ? 1 : 0,
-              }}
-            >
-              Shift+Tab to cycle
-            </div>
-          </div>
-
-          {/* Description textarea */}
-          <div style={{ marginBottom: 12 }}>
-            <textarea
-              value={currentText}
-              readOnly
-              rows={3}
-              style={{
-                width: '100%',
-                padding: '4px 0',
-                fontSize: 16,
-                border: 'none',
-                outline: 'none',
-                resize: 'none',
-                fontFamily: 'inherit',
-                color: '#111827',
-                backgroundColor: 'transparent',
-              }}
-              placeholder="Describe the task..."
-            />
-            {/* Typing cursor */}
+            {currentTitle}
             {typingProgress < 1 && (
               <span
                 style={{
                   display: 'inline-block',
                   width: 2,
-                  height: 20,
-                  backgroundColor: '#111827',
-                  opacity: interpolate(frame % 30, [0, 15, 30], [1, 0, 1]),
+                  height: '1em',
+                  backgroundColor: '#ffffff',
+                  marginLeft: 2,
+                  opacity: cursorOpacity,
                 }}
               />
             )}
-          </div>
+          </h2>
+        </div>
 
-          {/* Submit button */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              paddingTop: 4,
-            }}
-          >
-            <button
+        {/* Card */}
+        <div
+          style={{
+            backgroundColor: '#111315',
+            borderRadius: 12,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: 24,
+            marginBottom: 24,
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+          }}
+        >
+          {/* Mode selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.9)' }}>Mode:</span>
+            <div
               style={{
-                padding: '8px 16px',
-                fontSize: 14,
-                color: '#ffffff',
-                backgroundColor: '#111827',
-                border: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px',
                 borderRadius: 6,
-                cursor: 'pointer',
-                boxShadow: submitGlow > 0 ? `0 0 20px rgba(16, 185, 129, ${submitGlow})` : 'none',
-                transform: submitGlow > 0 ? `scale(${1 + submitGlow * 0.03})` : 'scale(1)',
-                transition: 'all 0.2s ease',
+                fontSize: 14,
+                fontWeight: 500,
+                backgroundColor: showPlan ? 'rgba(96,165,250,0.1)' : 'rgba(16,185,129,0.1)',
+                color: showPlan ? '#60a5fa' : '#10b981',
+                transition: 'all 0.3s ease',
               }}
             >
-              Create Task
-            </button>
+              {showPlan ? <FileText size={14} /> : <Zap size={14} />}
+              {showPlan ? 'Plan' : 'Execute'}
+            </div>
+          </div>
+
+          {/* Description textarea placeholder */}
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 8,
+              padding: 16,
+              minHeight: 120,
+            }}
+          >
+            {/* Show placeholder once typing finished */}
+            {typingProgress >= 1 && (
+              <p style={{ margin: 0, fontSize: 16, color: 'rgba(255, 255, 255, 0.9)' }}>
+                Describe the task in detail...
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Submit button */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#7dd3fc',
+              color: '#0e0e10',
+              borderRadius: 8,
+              fontSize: 16,
+              fontWeight: 600,
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+              boxShadow: submitGlow > 0 ? `0 0 20px rgba(125, 211, 252, ${submitGlow})` : 'none',
+              transform: submitGlow > 0 ? `scale(${1 + submitGlow * 0.05})` : 'scale(1)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Create Task
           </div>
         </div>
       </div>
-
-      {/* Subtle background gradient */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          width: 800,
-          height: 600,
-          transform: 'translate(-50%, -50%)',
-          background: 'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.05), transparent)',
-          borderRadius: '50%',
-          filter: 'blur(100px)',
-          zIndex: -1,
-        }}
-      />
     </AbsoluteFill>
   );
 };
