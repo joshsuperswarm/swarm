@@ -9,17 +9,15 @@ import {
 import { Zap, FileText } from 'lucide-react';
 
 /**
- * New CreateTaskScene
+ * CreateTaskScene - Sequential Animations
  * -------------------------------------------------------------------
- * Visual style & animation model now mirrors ExecutePlanScene so that
- * both scenes share a unified dark aesthetic, spring‑based entrance,
- * and accent palette (#7dd3fc / indigo / emerald).
+ * Sequential micro-animations for better visual flow:
  *
- * Animation timeline (frames):
- *   0‑10   card scales & fades in (containerSpring)
- *   10‑40  title auto‑types (typingProgress)
- *   45‑65  mode chip cycles Execute → Plan (showPlan)
- *   70‑85  submit button pulses (submitGlow)
+ * Animation timeline (frames @ 30fps):
+ *   0-35     → Title typewriter (cursor blinks)
+ *   36-95    → Description text typewriter (cursor blinks)
+ *   96-115   → Mode chip cross-fades Execute → Plan
+ *   116-130  → "Create Task" button glow / scale pulse
  */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -28,25 +26,34 @@ export const CreateTaskScene: React.FC = () => {
   /** Card entrance */
   const containerSpring = spring({ fps, frame, config: { damping: 120, stiffness: 180 } });
 
+  /** Timing helpers */
+  const titleProg = interpolate(frame, [0, 35], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const descProg = interpolate(frame, [36, 95], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const modeProg = spring({ frame: frame - 96, fps, config: { damping: 120, stiffness: 180 } });
+  const buttonPulse = interpolate(frame, [116, 121, 125, 130], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
   /** Title typewriter */
-  const fullTitle = 'Implement JWT authentication system';
-  const typingProgress = interpolate(frame, [10, 40], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const currentTitle = fullTitle.substring(0, Math.floor(fullTitle.length * typingProgress));
+  const fullTitle = 'Create a Remotion video for Swarm';
+  const typedTitle = fullTitle.slice(0, Math.floor(fullTitle.length * titleProg));
 
-  /** Mode chip toggles Execute → Plan */
-  const showPlan = frame >= 45 && frame < 65;
-
-  /** CTA pulse */
-  const submitGlow = interpolate(frame, [70, 75, 80, 85], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  /** Blinking cursor opacity */
-  const cursorOpacity = interpolate(frame % 30, [0, 15, 30], [1, 0, 1]);
+  /** Description typewriter with bullets */
+  const bulletLines = [
+    'Storyboard key scenes (intro, create task, plan, outro)',
+    'Build React components for each scene',
+    'Animate with Remotion interpolate & spring',
+    'Add gradients, typography, and on-brand colors',
+  ];
+  const fullDesc = bulletLines.map(l => `• ${l}`).join('\n');
+  const typedDesc = fullDesc.slice(0, Math.floor(fullDesc.length * descProg));
 
   return (
     <AbsoluteFill>
@@ -112,8 +119,8 @@ export const CreateTaskScene: React.FC = () => {
               textOverflow: 'ellipsis',
             }}
           >
-            {currentTitle}
-            {typingProgress < 1 && (
+            {typedTitle}
+            {titleProg < 1 && (
               <span
                 style={{
                   display: 'inline-block',
@@ -121,7 +128,7 @@ export const CreateTaskScene: React.FC = () => {
                   height: '1em',
                   backgroundColor: '#ffffff',
                   marginLeft: 2,
-                  opacity: cursorOpacity,
+                  opacity: interpolate(frame % 30, [0, 15, 30], [1, 0, 1]),
                 }}
               />
             )}
@@ -152,32 +159,53 @@ export const CreateTaskScene: React.FC = () => {
                 borderRadius: 6,
                 fontSize: 14,
                 fontWeight: 500,
-                backgroundColor: showPlan ? 'rgba(96,165,250,0.1)' : 'rgba(16,185,129,0.1)',
-                color: showPlan ? '#60a5fa' : '#10b981',
+                backgroundColor: frame >= 96 && frame <= 115 
+                  ? `rgba(${interpolate(modeProg, [0, 1], [16, 96])}, ${interpolate(modeProg, [0, 1], [185, 165])}, ${interpolate(modeProg, [0, 1], [129, 250])}, 0.1)`
+                  : 'rgba(16,185,129,0.1)',
+                color: frame >= 96 && frame <= 115 
+                  ? `rgb(${interpolate(modeProg, [0, 1], [16, 96])}, ${interpolate(modeProg, [0, 1], [185, 165])}, ${interpolate(modeProg, [0, 1], [129, 250])})`
+                  : '#10b981',
                 transition: 'all 0.3s ease',
               }}
             >
-              {showPlan ? <FileText size={14} /> : <Zap size={14} />}
-              {showPlan ? 'Plan' : 'Execute'}
+              {frame >= 96 && frame <= 115 && modeProg > 0.5 ? <FileText size={14} /> : <Zap size={14} />}
+              {frame >= 96 && frame <= 115 && modeProg > 0.5 ? 'Plan' : 'Execute'}
             </div>
           </div>
 
-          {/* Description textarea placeholder */}
+          {/* Description textarea with typewriter animation */}
           <div
             style={{
               backgroundColor: '#1f2937',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: 8,
               padding: 16,
-              minHeight: 120,
+              minHeight: 130,
+              height: 130,
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
             }}
           >
-            {/* Show placeholder once typing finished */}
-            {typingProgress >= 1 && (
-              <p style={{ margin: 0, fontSize: 16, color: 'rgba(255, 255, 255, 0.9)' }}>
-                Describe the task in detail...
-              </p>
-            )}
+            <pre style={{
+              margin: 0,
+              fontSize: 16,
+              color: 'rgba(255,255,255,0.9)',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.4,
+            }}>
+              {typedDesc}
+              {descProg < 1 && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 2,
+                    height: '1em',
+                    background: '#fff',
+                    marginLeft: 2,
+                    opacity: interpolate(frame % 30, [0, 15, 30], [1, 0, 1]),
+                  }}
+                />
+              )}
+            </pre>
           </div>
         </div>
 
@@ -193,8 +221,8 @@ export const CreateTaskScene: React.FC = () => {
               fontWeight: 600,
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-              boxShadow: submitGlow > 0 ? `0 0 20px rgba(125, 211, 252, ${submitGlow})` : 'none',
-              transform: submitGlow > 0 ? `scale(${1 + submitGlow * 0.05})` : 'scale(1)',
+              boxShadow: buttonPulse ? `0 0 20px rgba(125,211,252,${buttonPulse})` : 'none',
+              transform: `scale(${1 + buttonPulse * 0.05})`,
               transition: 'all 0.2s ease',
             }}
           >

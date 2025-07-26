@@ -8,11 +8,10 @@ import {
 } from 'remotion';
 
 const planItems = [
-  'Set up JWT token generation and validation',
-  'Create secure authentication middleware',
-  'Implement user session management',
-  'Add refresh token rotation',
-  'Build password reset functionality'
+  'Storyboard key scenes (intro, create task, plan, outro)',
+  'Build React components for each scene',
+  'Animate with Remotion interpolate & spring',
+  'Add gradients, typography, and on-brand colors'
 ];
 
 export const ExecutePlanScene: React.FC = () => {
@@ -124,7 +123,7 @@ export const ExecutePlanScene: React.FC = () => {
               color: 'rgba(255, 255, 255, 0.95)',
             }}
           >
-            JWT Authentication System
+            Remotion Video for Swarm
           </h2>
         </div>
 
