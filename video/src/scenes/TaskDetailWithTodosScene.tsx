@@ -6,6 +6,7 @@ import {
   AbsoluteFill,
   spring
 } from 'remotion';
+import { Circle } from 'lucide-react';
 import { realTodos } from '../mocks/mockData';
 
 // Mock tasks for the detail view
@@ -222,33 +223,21 @@ export const TaskDetailWithTodosScene: React.FC = () => {
                   />
                 )}
 
-                {/* Checkbox */}
+                {/* Circle icon */}
                 <div
                   style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 4,
-                    border: animation.isCompleted ? '2px solid #22c55e' : '2px solid #6b7280',
-                    backgroundColor: animation.isCompleted ? '#22c55e' : 'transparent',
                     marginRight: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     flexShrink: 0,
-                    transition: 'all 0.2s ease',
                   }}
                 >
-                  {animation.isCompleted && (
-                    <div
-                      style={{
-                        color: '#ffffff',
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      DONE
-                    </div>
-                  )}
+                  <Circle
+                    size={22}
+                    strokeWidth={2}
+                    style={{ 
+                      fill: animation.isCompleted ? '#6B7280' : 'none',
+                      color: animation.isCompleted ? '#6B7280' : '#9CA3AF'
+                    }}
+                  />
                 </div>
 
                 {/* Todo text */}
