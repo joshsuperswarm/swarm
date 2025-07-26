@@ -49,7 +49,7 @@ export const TaskKickoffScene: React.FC = () => {
   const runningDots = Math.floor((frame / 10) % 4);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill>
       {/* Subtle background gradient */}
       <div
         style={{

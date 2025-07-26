@@ -175,7 +175,7 @@ export const TaskSwitchScene: React.FC = () => {
   );
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill>
       {/* Subtle background gradient */}
       <div
         style={{

@@ -43,7 +43,7 @@ export const RealTaskDetailScene: React.FC = () => {
     spring({ frame: frame - 90 - index * 2, fps, config: { damping: 120 } });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill>
       {/* Subtle background gradient */}
       <div
         style={{

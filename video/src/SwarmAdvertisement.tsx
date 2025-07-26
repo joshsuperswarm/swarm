@@ -7,6 +7,7 @@ import {
   AbsoluteFill,
   spring,
 } from 'remotion';
+import { sleekGradient } from './theme';
 import { IntroScene } from './scenes/IntroScene';
 import { CreateTaskScene } from './scenes/CreateTaskScene';
 import { TaskKickoffScene } from './scenes/TaskKickoffScene';
@@ -19,7 +20,7 @@ export const SwarmAdvertisement: React.FC = () => {
   const { fps } = useVideoConfig();
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill style={{ background: sleekGradient(135) }}>
       {/* Intro Scene: 0-30 frames (1 second) */}
       <Sequence from={0} durationInFrames={30}>
         <IntroScene />

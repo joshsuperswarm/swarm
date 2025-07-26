@@ -69,7 +69,7 @@ export const VimNavigationScene: React.FC = () => {
   const cursorBlink = interpolate(frame % 30, [0, 15, 30], [1, 0, 1]);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill>
       {/* Terminal keypress overlay */}
       {showKeyPress && (
         <div

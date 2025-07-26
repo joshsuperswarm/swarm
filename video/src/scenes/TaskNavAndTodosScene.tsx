@@ -53,7 +53,7 @@ export const TaskNavAndTodosScene: React.FC = () => {
   const completedTodos = Math.floor(todoFrame / 10); // One todo every 10 frames
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill>
       {/* Keypress overlay */}
       {showKeyPress && (
         <div

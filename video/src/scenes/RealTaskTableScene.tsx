@@ -30,7 +30,7 @@ export const RealTaskTableScene: React.FC = () => {
   const bgScale = interpolate(frame, [0, durationInFrames], [1.02, 1]);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10', transform: `scale(${bgScale})` }}>
+    <AbsoluteFill style={{ transform: `scale(${bgScale})` }}>
       {/* Subtle background gradient */}
       <div
         style={{

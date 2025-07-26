@@ -89,7 +89,7 @@ export const TaskDetailSwitchScene: React.FC = () => {
   const currentTask = showingTask3 ? taskDetails[3] : taskDetails[1];
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+    <AbsoluteFill>
       {/* Command bar overlay */}
       {(typingCommand || executing) && (
         <div
