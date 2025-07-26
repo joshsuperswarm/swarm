@@ -17,5 +17,7 @@ export const TodoStatusIcon: React.FC<Props> = ({
     className={completed ? 'text-gray-500' : 'text-gray-400'}
     style={{ fill: completed ? 'currentColor' : 'none' }}
     aria-label={completed ? 'completed todo' : 'open todo'}
+    tabIndex={-1}
+    focusable="false"
   />
 );
