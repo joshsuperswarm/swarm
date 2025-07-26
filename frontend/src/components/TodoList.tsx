@@ -1,17 +1,12 @@
 import type { AgentTodo } from "@/types/generated/AgentTodo";
 import { cn } from "@/lib/utils";
+import { TodoStatusIcon } from "./TodoStatusIcon";
 
 interface TodoListProps {
   todos: AgentTodo[];
   loading?: boolean;
 }
 
-// Status dot colors - outline circles for reduced visual weight
-const statusDots = {
-  pending: "border border-gray-300 bg-transparent",
-  in_progress: "border border-linear-accent bg-transparent",
-  completed: "border border-gray-400 bg-gray-400",
-} as const;
 
 export function TodoList({ todos, loading }: TodoListProps) {
   if (loading) {
@@ -47,10 +42,7 @@ export function TodoList({ todos, loading }: TodoListProps) {
                 )}
               >
                 <div className="flex-shrink-0">
-                  <div className={cn(
-                    "w-3 h-3 rounded-full",
-                    statusDots[todo.status as keyof typeof statusDots]
-                  )} />
+                  <TodoStatusIcon completed={todo.status === 'completed'} />
                 </div>
                 
                 <div className="flex-1 min-w-0">
