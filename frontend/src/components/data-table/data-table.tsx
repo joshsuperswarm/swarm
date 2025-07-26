@@ -10,6 +10,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { useNavigate } from "react-router-dom"
+import { AnimatePresence, motion } from "framer-motion"
 
 import {
   Table,
@@ -108,30 +109,54 @@ export function DataTable<TData, TValue>({
                   </TableRow>
                 ))
               ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className={cn(
-                      "cursor-pointer",
-                      highlightedRow === row.id && "bg-blue-50"
-                    )}
-                    onClick={() => {
-                      const task = row.original as { task_id: number }
-                      if (task?.task_id) {
-                        navigate(`/tasks/${task.task_id}`)
-                      }
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
+                <AnimatePresence initial={false}>
+                  {table.getRowModel().rows.map((row, index) => {
+                    const isSelected = highlightedRow === row.id
+                    const selectedIndex = table.getRowModel().rows.findIndex(r => r.id === highlightedRow)
+                    
+                    return (
+                      <motion.tr
+                        key={row.id}
+                        layout
+                        initial={{ 
+                          y: index > selectedIndex ? 50 : -50, 
+                          opacity: 0 
+                        }}
+                        animate={{ 
+                          y: 0, 
+                          opacity: 1 
+                        }}
+                        exit={{ 
+                          y: index > selectedIndex ? -50 : 50, 
+                          opacity: 0 
+                        }}
+                        transition={{ 
+                          type: 'tween', 
+                          duration: 0.15 
+                        }}
+                        className={cn(
+                          "cursor-pointer border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+                          isSelected && "ring-2 ring-indigo-500 bg-blue-50"
                         )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+                        onClick={() => {
+                          const task = row.original as { task_id: number }
+                          if (task?.task_id) {
+                            navigate(`/tasks/${task.task_id}`)
+                          }
+                        }}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </TableCell>
+                        ))}
+                      </motion.tr>
+                    )
+                  })}
+                </AnimatePresence>
               ) : !loading ? (
                 <TableRow>
                   <TableCell

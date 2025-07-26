@@ -3,7 +3,6 @@ import React, {
   useMemo,
   useEffect,
 } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBackendJwtQuery } from "@/services/auth";
 import { useNavigate } from "react-router-dom";
@@ -12,18 +11,12 @@ import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
 import { useTasksQuery } from "@/services/queries";
 import { ApiService } from "@/services/api";
+import { useTaskHotkeys } from "@/hooks/useTaskHotkeys";
 
 
 // Memoize DataTable outside component to ensure stable reference
 const MemoizedDataTable = React.memo(DataTable<TaskWithRun, unknown>); // default shallow compare
 
-// Key filter to ignore hotkeys when user is typing or interacting with UI elements
-const keyFilter = (keyboardEvent: KeyboardEvent) => {
-  const target = keyboardEvent.target as HTMLElement;
-  const tagName = target.tagName.toLowerCase();
-  const isContentEditable = target.contentEditable === "true";
-  return !(tagName === "input" || tagName === "textarea" || tagName === "button" || isContentEditable);
-};
 
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
@@ -74,29 +67,23 @@ export function TasksPage() {
     return tasks.length > 0 ? tasks[selectedIndex] : null;
   }, [tasks, selectedIndex]);
 
-  // Keyboard navigation hotkeys for table
-  useHotkeys('j', () => {
-    setSelectedIndex(i => Math.min(i + 1, tasks.length - 1));
-  }, {
-    ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: tasks.length > 0
-  });
+  // Use custom hotkeys hook for j/k navigation
+  useTaskHotkeys(tasks.length, selectedIndex, setSelectedIndex);
 
-  useHotkeys('k', () => {
-    setSelectedIndex(i => Math.max(i - 1, 0));
-  }, {
-    ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: tasks.length > 0
-  });
+  // Handle Enter key to navigate to task detail
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      if ((e.key === 'o' || e.key === 'Enter') && currentSelectedTask) {
+        e.preventDefault();
+        navigate(`/tasks/${currentSelectedTask.task_id}`);
+      }
+    };
 
-  useHotkeys(['o', 'enter'], () => {
-    if (currentSelectedTask) {
-      navigate(`/tasks/${currentSelectedTask.task_id}`);
-    }
-  }, {
-    ignoreEventWhen: (e) => !keyFilter(e),
-    enabled: tasks.length > 0
-  });
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentSelectedTask, navigate]);
 
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {
