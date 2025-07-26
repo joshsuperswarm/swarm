@@ -25,14 +25,6 @@ export const IntroScene: React.FC = () => {
     extrapolateRight: 'clamp',
   });
 
-  // Fade out animation for the last few frames
-  const fadeOut = interpolate(frame, [20, 30], [1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const finalOpacity = Math.min(textOpacity, fadeOut);
-
   // Logo stroke dash animation
   const dash = interpolate(frame, [0, 30], [200, 0], {
     extrapolateLeft: 'clamp',
@@ -59,7 +51,7 @@ export const IntroScene: React.FC = () => {
           top: '50%',
           left: '50%',
           transform: `translate(-50%, -50%) scale(${textSpring})`,
-          opacity: finalOpacity,
+          opacity: textOpacity,
           textAlign: 'center',
         }}
       >
@@ -68,7 +60,7 @@ export const IntroScene: React.FC = () => {
           <Img
             src={staticFile('swarm-logo.svg')}
             style={{
-              width: 300,
+              width: 400,
               height: 'auto',
               strokeDasharray: dash,
             }}

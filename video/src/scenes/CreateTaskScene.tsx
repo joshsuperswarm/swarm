@@ -17,7 +17,7 @@ import { Zap, FileText } from 'lucide-react';
  *   0-35     → Title typewriter (cursor blinks)
  *   36-95    → Description text typewriter (cursor blinks)
  *   96-115   → Mode chip cross-fades Execute → Plan
- *   116-130  → "Create Task" button glow / scale pulse
+ *   116-140  → "Create Task" button slam & bounce animation
  */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -35,11 +35,33 @@ export const CreateTaskScene: React.FC = () => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const modeProg = spring({ frame: frame - 96, fps, config: { damping: 120, stiffness: 180 } });
-  const buttonPulse = interpolate(frame, [116, 121, 125, 130], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  const modeProg = spring({
+    frame: Math.max(frame - 96, 0), // ensures 0 at start
+    fps,
+    config: { damping: 120, stiffness: 180 }
   });
+  // ─── Button slam animation ───
+  /**
+   * Starts at frame 116 (button appears) and ends at ~frame 140.
+   * Overshoots downwards & shrinks, then bounces back.
+   */
+  const pressSpring = spring({
+    fps,
+    frame: frame - 116,      // begin at appearance
+    config: { damping: 12, stiffness: 280, mass: 1.2 },
+  });
+  /* Scale goes from 1  →  0.88  →  1.02  →  1
+     TranslateY goes from 0px →  8px  → -4px → 0px */
+  const pressScale = interpolate(
+    pressSpring,
+    [0, 0.5, 0.8, 1],
+    [1, 0.88, 1.02, 1],
+  );
+  const pressTranslate = interpolate(
+    pressSpring,
+    [0, 0.5, 0.8, 1],
+    [0, 8, -4, 0],
+  );
 
   /** Title typewriter */
   const fullTitle = 'Create a Remotion video for Swarm';
@@ -159,17 +181,17 @@ export const CreateTaskScene: React.FC = () => {
                 borderRadius: 6,
                 fontSize: 14,
                 fontWeight: 500,
-                backgroundColor: frame >= 96 && frame <= 115 
-                  ? `rgba(${interpolate(modeProg, [0, 1], [16, 96])}, ${interpolate(modeProg, [0, 1], [185, 165])}, ${interpolate(modeProg, [0, 1], [129, 250])}, 0.1)`
-                  : 'rgba(16,185,129,0.1)',
-                color: frame >= 96 && frame <= 115 
-                  ? `rgb(${interpolate(modeProg, [0, 1], [16, 96])}, ${interpolate(modeProg, [0, 1], [185, 165])}, ${interpolate(modeProg, [0, 1], [129, 250])})`
-                  : '#10b981',
+                backgroundColor: modeProg < 0.5 
+                  ? 'rgba(16,185,129,0.1)'
+                  : `rgba(${interpolate(modeProg, [0, 1], [16, 96])}, ${interpolate(modeProg, [0, 1], [185, 165])}, ${interpolate(modeProg, [0, 1], [129, 250])}, 0.1)`,
+                color: modeProg < 0.5 
+                  ? '#10b981'
+                  : `rgb(${interpolate(modeProg, [0, 1], [16, 96])}, ${interpolate(modeProg, [0, 1], [185, 165])}, ${interpolate(modeProg, [0, 1], [129, 250])})`,
                 transition: 'all 0.3s ease',
               }}
             >
-              {frame >= 96 && frame <= 115 && modeProg > 0.5 ? <FileText size={14} /> : <Zap size={14} />}
-              {frame >= 96 && frame <= 115 && modeProg > 0.5 ? 'Plan' : 'Execute'}
+              {modeProg < 0.5 ? <Zap size={14} /> : <FileText size={14} />}
+              {modeProg < 0.5 ? 'Execute' : 'Plan'}
             </div>
           </div>
 
@@ -221,9 +243,11 @@ export const CreateTaskScene: React.FC = () => {
               fontWeight: 600,
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-              boxShadow: buttonPulse ? `0 0 20px rgba(125,211,252,${buttonPulse})` : 'none',
-              transform: `scale(${1 + buttonPulse * 0.05})`,
-              transition: 'all 0.2s ease',
+              transform: `translateY(${pressTranslate}px) scale(${pressScale})`,
+              boxShadow: `0 ${4 + pressSpring * 8}px 24px rgba(0,0,0,${
+                0.25 + pressSpring * 0.15
+              })`,
+              transition: 'none', // driven purely by Remotion
             }}
           >
             Create Task

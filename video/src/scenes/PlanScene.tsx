@@ -14,7 +14,7 @@ const planItems = [
   'Add gradients, typography, and on-brand colors'
 ];
 
-export const ExecutePlanScene: React.FC = () => {
+export const PlanScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -34,12 +34,12 @@ export const ExecutePlanScene: React.FC = () => {
 
   // ─── Button slam animation ───
   /**
-   * Starts at frame 60 (button appears) and ends at ~frame 80.
-   * Same complex animation as Create Task button.
+   * Starts at frame 71 (4 frames before scene ends) to match Create Task timing.
+   * PlanScene has 75 frames, so starts at 75-4=71.
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 60,      // begin at appearance
+    frame: frame - 71,      // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -55,11 +55,8 @@ export const ExecutePlanScene: React.FC = () => {
     [0, 8, -4, 0],
   );
 
-  // Status transition animation
-  const statusTransition = interpolate(frame, [50, 65], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  // Status is always "PLAN" in this scene
+  const statusTransition = 0; // Always shows PLAN
 
   // Plan item animations
   const getPlanItemSpring = (index: number) =>
@@ -116,7 +113,7 @@ export const ExecutePlanScene: React.FC = () => {
           <div
             style={{
               padding: '6px 16px',
-              backgroundColor: statusTransition > 0.5 ? '#22c55e' : '#6366f1',
+              backgroundColor: '#6366f1',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 12,
@@ -125,7 +122,7 @@ export const ExecutePlanScene: React.FC = () => {
               transition: 'background-color 0.3s ease',
             }}
           >
-            {statusTransition > 0.5 ? 'EXECUTING' : 'PLAN'}
+            PLAN
           </div>
           <h2
             style={{

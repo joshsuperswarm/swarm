@@ -32,6 +32,29 @@ export const OutroScene: React.FC = () => {
     config: { damping: 120, stiffness: 180 },
   });
 
+  // ─── Button slam animation ───
+  /**
+   * Starts at frame 56 (4 frames before scene ends) to match other button timing.
+   * OutroScene has 60 frames, so starts at 60-4=56.
+   */
+  const pressSpring = spring({
+    fps,
+    frame: frame - 56,      // begin at appearance
+    config: { damping: 12, stiffness: 280, mass: 1.2 },
+  });
+  /* Scale goes from 1  →  0.88  →  1.02  →  1
+     TranslateY goes from 0px →  8px  → -4px → 0px */
+  const pressScale = interpolate(
+    pressSpring,
+    [0, 0.5, 0.8, 1],
+    [1, 0.88, 1.02, 1],
+  );
+  const pressTranslate = interpolate(
+    pressSpring,
+    [0, 0.5, 0.8, 1],
+    [0, 8, -4, 0],
+  );
+
   // Logo stroke dash animation
   const dash = interpolate(frame, [0, 30], [200, 0], {
     extrapolateLeft: 'clamp',
@@ -73,7 +96,7 @@ export const OutroScene: React.FC = () => {
           <Img
             src={staticFile('swarm-logo.svg')}
             style={{
-              width: 300,
+              width: 400,
               height: 'auto',
               strokeDasharray: dash,
             }}
@@ -119,8 +142,10 @@ export const OutroScene: React.FC = () => {
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
               letterSpacing: '0.01em',
               marginBottom: 24,
-              boxShadow: '0 4px 16px rgba(125, 211, 252, 0.4)',
+              boxShadow: `0 ${4 + pressSpring * 8}px 24px rgba(125, 211, 252, ${0.4 + pressSpring * 0.15})`,
               cursor: 'pointer',
+              transform: `translateY(${pressTranslate}px) scale(${pressScale})`,
+              transition: 'none', // driven purely by Remotion
             }}
           >
             Get Started Today
