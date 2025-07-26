@@ -1,4 +1,5 @@
 import { useCurrentFrame } from 'remotion';
+import { Circle } from 'lucide-react';
 import type { AgentTodo } from "../types/AgentTodo";
 
 interface TodoListProps {
@@ -7,31 +8,6 @@ interface TodoListProps {
   getTodoSpring?: (index: number) => number;
 }
 
-// Status dot styles - matching real TodoList component
-const getStatusDotStyle = (status: string) => {
-  switch (status) {
-    case 'completed': 
-      return { 
-        border: '1px solid #6B7280', 
-        backgroundColor: '#6B7280' 
-      };
-    case 'in_progress': 
-      return { 
-        border: '1px solid hsl(222, 90%, 55%)', 
-        backgroundColor: 'transparent' 
-      };
-    case 'pending': 
-      return { 
-        border: '1px solid #D1D5DB', 
-        backgroundColor: 'transparent' 
-      };
-    default: 
-      return { 
-        border: '1px solid #D1D5DB', 
-        backgroundColor: 'transparent' 
-      };
-  }
-};
 
 export function TodoListForVideoAnimated({ todos, loading, getTodoSpring }: TodoListProps) {
   const frame = useCurrentFrame();
@@ -143,13 +119,14 @@ export function TodoListForVideoAnimated({ todos, loading, getTodoSpring }: Todo
                   }}
                 >
                   <div style={{ flexShrink: 0 }}>
-                    <div style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      ...getStatusDotStyle(animatedStatus),
-                      transform: isCompleting ? `scale(${1 + completionProgress * 0.3})` : 'scale(1)'
-                    }} />
+                    <Circle
+                      size={22}
+                      strokeWidth={2}
+                      style={{ 
+                        fill: animatedStatus === 'completed' ? '#6B7280' : 'none',
+                        transform: isCompleting ? `scale(${1 + completionProgress * 0.3})` : 'scale(1)'
+                      }}
+                    />
                   </div>
                   
                   <div style={{ flex: 1, minWidth: 0 }}>

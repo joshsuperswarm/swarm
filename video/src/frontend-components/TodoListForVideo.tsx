@@ -1,4 +1,5 @@
 import { useCurrentFrame } from 'remotion';
+import { Circle } from 'lucide-react';
 import type { AgentTodo } from "../types/AgentTodo";
 
 interface TodoListProps {
@@ -6,31 +7,6 @@ interface TodoListProps {
   loading?: boolean;
 }
 
-// Status dot styles - matching real TodoList component
-const getStatusDotStyle = (status: string) => {
-  switch (status) {
-    case 'completed': 
-      return { 
-        border: '1px solid #6B7280', 
-        backgroundColor: '#6B7280' 
-      };
-    case 'in_progress': 
-      return { 
-        border: '1px solid hsl(222, 90%, 55%)', 
-        backgroundColor: 'transparent' 
-      };
-    case 'pending': 
-      return { 
-        border: '1px solid #D1D5DB', 
-        backgroundColor: 'transparent' 
-      };
-    default: 
-      return { 
-        border: '1px solid #D1D5DB', 
-        backgroundColor: 'transparent' 
-      };
-  }
-};
 
 export function TodoListForVideo({ todos, loading }: TodoListProps) {
   const frame = useCurrentFrame();
@@ -120,12 +96,11 @@ export function TodoListForVideo({ todos, loading }: TodoListProps) {
                 }}
               >
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    ...getStatusDotStyle(todo.status)
-                  }} />
+                  <Circle
+                    size={22}
+                    strokeWidth={2}
+                    style={{ fill: todo.status === 'completed' ? '#6B7280' : 'none' }}
+                  />
                 </div>
                 
                 <div style={{ flex: 1, minWidth: 0 }}>
