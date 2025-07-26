@@ -4,6 +4,8 @@ import {
   useVideoConfig, 
   interpolate, 
   AbsoluteFill,
+  Img,
+  staticFile,
   spring
 } from 'remotion';
 
@@ -31,6 +33,12 @@ export const IntroScene: React.FC = () => {
 
   const finalOpacity = Math.min(textOpacity, fadeOut);
 
+  // Logo stroke dash animation
+  const dash = interpolate(frame, [0, 30], [200, 0], { 
+    extrapolateLeft: 'clamp', 
+    extrapolateRight: 'clamp' 
+  });
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
       {/* Subtle background gradient */}
@@ -43,7 +51,7 @@ export const IntroScene: React.FC = () => {
         }}
       />
       
-      {/* Main text */}
+      {/* Main content */}
       <div
         style={{
           position: 'absolute',
@@ -54,6 +62,19 @@ export const IntroScene: React.FC = () => {
           textAlign: 'center',
         }}
       >
+        {/* Logo */}
+        <div style={{ marginBottom: 32 }}>
+          <Img 
+            src={staticFile('swarm-logo.svg')} 
+            style={{ 
+              width: 120, 
+              height: 120, 
+              strokeDasharray: dash 
+            }} 
+          />
+        </div>
+        
+        {/* Text */}
         <h1
           style={{
             fontSize: 64,

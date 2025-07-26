@@ -1,0 +1,38 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hexagon background -->
+  <path d="M30 21.547L60 5.773L90 21.547V52.453L60 68.227L30 52.453V21.547Z" 
+        stroke="white" 
+        stroke-width="3" 
+        fill="rgba(255,255,255,0.1)" 
+        stroke-dasharray="200" 
+        stroke-dashoffset="200">
+    <animate attributeName="stroke-dashoffset" values="200;0" dur="2s" fill="freeze"/>
+  </path>
+  
+  <!-- Inner hexagon -->  
+  <path d="M42 31.155L60 21.547L78 31.155V50.371L60 59.979L42 50.371V31.155Z" 
+        stroke="white" 
+        stroke-width="2" 
+        fill="rgba(255,255,255,0.05)"
+        stroke-dasharray="120" 
+        stroke-dashoffset="120">
+    <animate attributeName="stroke-dashoffset" values="120;0" dur="2s" begin="0.5s" fill="freeze"/>
+  </path>
+  
+  <!-- Central dot pattern -->
+  <circle cx="60" cy="37" r="2" fill="white" opacity="0">
+    <animate attributeName="opacity" values="0;1" dur="0.3s" begin="1.5s" fill="freeze"/>
+  </circle>
+  <circle cx="60" cy="44" r="2" fill="white" opacity="0">
+    <animate attributeName="opacity" values="0;1" dur="0.3s" begin="1.7s" fill="freeze"/>
+  </circle>
+  <circle cx="60" cy="51" r="2" fill="white" opacity="0">
+    <animate attributeName="opacity" values="0;1" dur="0.3s" begin="1.9s" fill="freeze"/>
+  </circle>
+  
+  <!-- Text -->
+  <text x="60" y="85" text-anchor="middle" fill="white" font-family="system-ui, sans-serif" font-size="14" font-weight="600" opacity="0">
+    SWARM
+    <animate attributeName="opacity" values="0;1" dur="0.5s" begin="2.2s" fill="freeze"/>
+  </text>
+</svg>

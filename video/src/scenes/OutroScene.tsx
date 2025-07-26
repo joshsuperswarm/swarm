@@ -4,6 +4,8 @@ import {
   useVideoConfig, 
   interpolate,
   AbsoluteFill,
+  Img,
+  staticFile,
   spring
 } from 'remotion';
 
@@ -30,6 +32,12 @@ export const OutroScene: React.FC = () => {
     config: { damping: 120, stiffness: 180 },
   });
 
+  // Logo stroke dash animation
+  const dash = interpolate(frame, [0, 30], [200, 0], { 
+    extrapolateLeft: 'clamp', 
+    extrapolateRight: 'clamp' 
+  });
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
       {/* Subtle background gradient */}
@@ -53,6 +61,24 @@ export const OutroScene: React.FC = () => {
           fontFamily: 'system-ui, sans-serif',
         }}
       >
+        {/* Logo */}
+        <div 
+          style={{ 
+            marginBottom: 32,
+            opacity: titleSpring,
+            transform: `scale(${titleSpring}) translateY(${(1 - titleSpring) * 20}px)`,
+          }}
+        >
+          <Img 
+            src={staticFile('swarm-logo.svg')} 
+            style={{ 
+              width: 120, 
+              height: 120, 
+              strokeDasharray: dash 
+            }} 
+          />
+        </div>
+
         {/* Title */}
         <h1
           style={{
