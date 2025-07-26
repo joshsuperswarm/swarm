@@ -49,11 +49,11 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const getModeConfig = (mode: RunMode) => {
     switch (mode) {
       case 'execute':
-        return { icon: Zap, label: 'Execute', color: 'text-green-600 bg-green-50 border-green-200', description: 'Execute changes immediately' };
+        return { icon: Zap, label: 'Execute', color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700', description: 'Execute changes immediately' };
       case 'plan':
-        return { icon: FileText, label: 'Plan', color: 'text-blue-600 bg-blue-50 border-blue-200', description: 'Create a plan only' };
+        return { icon: FileText, label: 'Plan', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', description: 'Create a plan only' };
       case 'review':
-        return { icon: Search, label: 'Review', color: 'text-purple-600 bg-purple-50 border-purple-200', description: 'Review and analyze code' };
+        return { icon: Search, label: 'Review', color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700', description: 'Review and analyze code' };
     }
   };
   
@@ -156,13 +156,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div ref={modalRef} className="bg-white rounded-lg max-w-2xl w-full p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
+      <div ref={modalRef} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg max-w-2xl w-full p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Create New Task</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Task</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <X size={20} />
           </button>
@@ -170,18 +170,18 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {userLoading ? (
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-              <p className="text-gray-500 text-sm">Loading default repository...</p>
+            <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading default repository...</p>
             </div>
           ) : user?.default_repo ? (
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-              <p className="text-gray-700 text-sm">
+            <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
+              <p className="text-gray-700 dark:text-gray-300 text-sm">
                 <strong>{user.default_repo.full_name}</strong> {user.default_repo.is_private ? '(Private)' : '(Public)'}
               </p>
             </div>
           ) : (
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-              <p className="text-gray-500 text-sm">
+            <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
                 No default repository set. Please set a default repository in your settings.
               </p>
             </div>
@@ -190,7 +190,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           {/* Run Mode Button */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Mode:</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mode:</span>
               <button
                 type="button"
                 onClick={cycleRunMode}
@@ -201,7 +201,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                 {getModeConfig(formData.mode).label}
               </button>
             </div>
-            <div className="text-xs text-gray-500">Shift+Tab to cycle</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Shift+Tab to cycle</div>
           </div>
 
           <div className="space-y-1">
@@ -212,7 +212,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               value={formData.description}
               onChange={handleChange('description')}
               rows={3}
-              className="w-full px-0 py-1 text-base placeholder:text-muted-foreground field focus:outline-none resize-none"
+              className="w-full px-0 py-1 text-base text-gray-900 dark:text-gray-100 bg-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 field focus:outline-none resize-none"
               placeholder="Describe the task..."
             />
           </div>
@@ -222,7 +222,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <button
               type="submit"
               disabled={loading || !user?.default_repo || !formData.description.trim()}
-              className="px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
+              className="px-4 py-2 text-sm text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-400 dark:disabled:bg-gray-600 rounded-md transition-colors"
             >
               {loading ? 'Creating...' : 'Create Task'}
             </button>
