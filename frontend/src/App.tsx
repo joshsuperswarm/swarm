@@ -9,7 +9,7 @@ import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useCreateTaskMutation } from '@/services/queries'
 import { Edit } from 'lucide-react'
-import swarmLogo from './assets/swarm-logo.svg'
+import swarmLogo from './assets/swarm-logo.png'
 import './App.css'
 
 function App() {
