@@ -19,23 +19,23 @@ export const SwarmAdvertisement: React.FC = () => {
 
   return (
     <AbsoluteFill style={{ background: sleekGradient(135) }}>
-      {/* Intro Scene: 0-30 frames (1 second) */}
-      <Sequence from={0} durationInFrames={30}>
+      {/* Intro Scene: 0-60 frames (2 seconds) */}
+      <Sequence from={0} durationInFrames={60}>
         <IntroScene />
       </Sequence>
 
-      {/* Create Task Scene: 30-90 frames (2 seconds) */}
-      <Sequence from={30} durationInFrames={60}>
+      {/* Create Task Scene: 60-180 frames (4 seconds) */}
+      <Sequence from={60} durationInFrames={120}>
         <CreateTaskScene />
       </Sequence>
 
-      {/* Execute Plan: 90-170 frames (2.7 seconds) */}
-      <Sequence from={90} durationInFrames={80}>
+      {/* Execute Plan: 180-330 frames (5 seconds) */}
+      <Sequence from={180} durationInFrames={150}>
         <ExecutePlanScene />
       </Sequence>
 
-      {/* Outro Scene: 170-260 frames (3 seconds) */}
-      <Sequence from={170} durationInFrames={90}>
+      {/* Outro Scene: 330-450 frames (4 seconds) */}
+      <Sequence from={330} durationInFrames={120}>
         <OutroScene />
       </Sequence>
     </AbsoluteFill>
