@@ -9,7 +9,7 @@ import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useCreateTaskMutation } from '@/services/queries'
 import { Edit } from 'lucide-react'
-import swarmLogo from './assets/swarm-logo.png'
+import swarmLogo from './assets/superswarm-logo.svg'
 import './App.css'
 
 function App() {
@@ -140,10 +140,9 @@ function App() {
             <div className="flex items-center">
               <img 
                 src={swarmLogo} 
-                alt="Swarm" 
-                className="h-5 w-auto mr-3"
+                alt="Superswarm" 
+                className="h-6 w-auto"
               />
-              <h1 className="text-xl font-bold text-gray-900">Swarm</h1>
             </div>
             <div className="flex items-center gap-3">
               <button
