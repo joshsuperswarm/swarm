@@ -1,11 +1,11 @@
 import React from 'react';
-import { 
-  useCurrentFrame, 
-  useVideoConfig, 
-  interpolate, 
-  Sequence, 
+import {
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
+  Sequence,
   AbsoluteFill,
-  spring
+  spring,
 } from 'remotion';
 import { IntroScene } from './scenes/IntroScene';
 import { CreateTaskScene } from './scenes/CreateTaskScene';
@@ -32,11 +32,6 @@ export const SwarmAdvertisement: React.FC = () => {
       {/* Task Detail With Todos: 90-360 frames (9 seconds) */}
       <Sequence from={90} durationInFrames={270}>
         <TaskDetailWithTodosScene />
-      </Sequence>
-
-      {/* Task Jump Scene: 360-420 frames (2 seconds) */}
-      <Sequence from={360} durationInFrames={60}>
-        <TaskJumpScene />
       </Sequence>
 
       {/* Outro Scene: 420-510 frames (3 seconds) */}

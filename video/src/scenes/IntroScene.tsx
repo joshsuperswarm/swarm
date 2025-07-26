@@ -1,12 +1,12 @@
 import React from 'react';
-import { 
-  useCurrentFrame, 
-  useVideoConfig, 
-  interpolate, 
+import {
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
   AbsoluteFill,
   Img,
   staticFile,
-  spring
+  spring,
 } from 'remotion';
 
 export const IntroScene: React.FC = () => {
@@ -34,9 +34,9 @@ export const IntroScene: React.FC = () => {
   const finalOpacity = Math.min(textOpacity, fadeOut);
 
   // Logo stroke dash animation
-  const dash = interpolate(frame, [0, 30], [200, 0], { 
-    extrapolateLeft: 'clamp', 
-    extrapolateRight: 'clamp' 
+  const dash = interpolate(frame, [0, 30], [200, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
   });
 
   return (
@@ -46,11 +46,12 @@ export const IntroScene: React.FC = () => {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.1), transparent)',
+          background:
+            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.1), transparent)',
           filter: 'blur(100px)',
         }}
       />
-      
+
       {/* Main content */}
       <div
         style={{
@@ -64,29 +65,29 @@ export const IntroScene: React.FC = () => {
       >
         {/* Logo */}
         <div style={{ marginBottom: 32 }}>
-          <Img 
-            src={staticFile('swarm-logo.svg')} 
-            style={{ 
-              width: 120, 
-              height: 120, 
-              strokeDasharray: dash 
-            }} 
+          <Img
+            src={staticFile('swarm-logo.svg')}
+            style={{
+              width: 300,
+              height: 'auto',
+              strokeDasharray: dash,
+            }}
           />
         </div>
-        
+
         {/* Text */}
         <h1
           style={{
             fontSize: 64,
-            fontWeight: 600,
+            fontWeight: 400,
             margin: 0,
             color: 'rgba(255, 255, 255, 0.9)',
-            fontFamily: 'system-ui, sans-serif',
-            letterSpacing: '-0.02em',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+            letterSpacing: '0.02em',
             textShadow: '0 4px 16px rgba(0,0,0,0.4)',
           }}
         >
-          swarm, vim agent ide
+          agent ide
         </h1>
       </div>
     </AbsoluteFill>
