@@ -75,20 +75,6 @@ export const IntroScene: React.FC = () => {
           />
         </div>
 
-        {/* Text */}
-        <h1
-          style={{
-            fontSize: 64,
-            fontWeight: 400,
-            margin: 0,
-            color: 'rgba(255, 255, 255, 0.9)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-            letterSpacing: '0.02em',
-            textShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          }}
-        >
-          agent ide
-        </h1>
       </div>
     </AbsoluteFill>
   );
