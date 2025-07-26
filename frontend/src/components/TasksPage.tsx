@@ -34,7 +34,7 @@ export function TasksPage() {
   // Reverse the array so newest appears at top but j/k navigation works correctly
   const tasks = useMemo(() => [...rawTasks].reverse(), [rawTasks]);
 
-  /* ✨ warm the cache for the first N tasks so detail pages feel instant */
+  /* warm the cache for the first N tasks so detail pages feel instant */
   const qc = useQueryClient();
   const { data: jwt } = useBackendJwtQuery();
 

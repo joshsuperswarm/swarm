@@ -130,7 +130,7 @@ export const useTaskDetailsQuery = (taskId: number, enabled: boolean = true) => 
     queryFn: async () => {
       console.log('→ Fetching task details for taskId:', taskId);
       const result = await ApiService.getTaskDetails(jwt!, taskId);
-      console.log('✓ Task details API response:', result);
+      console.log('Task details API response:', result);
       console.log('  - Task:', result.task);
       console.log('  - Messages count:', result.messages?.length || 0);
       return result;

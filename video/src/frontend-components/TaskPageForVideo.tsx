@@ -236,7 +236,7 @@ export function TaskPageForVideo({
               '[2025-07-25 15:42:13] Analyzing codebase structure',
               '[2025-07-25 15:42:14] Implementing requested changes',
               '[2025-07-25 15:42:15] Running tests and validation',
-              '[2025-07-25 15:42:16] Task completed successfully ✓'
+              '[2025-07-25 15:42:16] Task completed successfully'
             ].map((log, index) => {
               const logSpring = animationProps?.getLogSpring ? animationProps.getLogSpring(index) : 1;
               return (
@@ -246,7 +246,7 @@ export function TaskPageForVideo({
                     opacity: logSpring,
                     transform: `translateX(${(1 - logSpring) * -16}px)`,
                     marginBottom: '2px',
-                    color: log.includes('✓') ? '#22c55e' : '#e5e7eb'
+                    color: log.includes('successfully') ? '#22c55e' : '#e5e7eb'
                   }}
                 >
                   {log}

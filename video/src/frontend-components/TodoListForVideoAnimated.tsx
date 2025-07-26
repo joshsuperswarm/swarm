@@ -197,7 +197,7 @@ export function TodoListForVideoAnimated({ todos, loading, getTodoSpring }: Todo
                       transform: `scale(${completionProgress})`,
                       pointerEvents: 'none'
                     }}>
-                      ✓
+                      DONE
                     </div>
                   )}
                 </div>

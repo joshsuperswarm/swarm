@@ -51,9 +51,9 @@ function App() {
     const testConnection = async () => {
       try {
         const health = await ApiService.healthCheck()
-        console.log('✅ Backend connection successful:', health)
+        console.log('Backend connection successful:', health)
       } catch (error) {
-        console.error('❌ Backend connection failed:', error)
+        console.error('Backend connection failed:', error)
       }
     }
     
@@ -78,13 +78,13 @@ function App() {
           if (githubAccount) {
             console.log('→ Connecting GitHub via backend...')
             await api(token => ApiService.connectGitHub(token))
-            console.log('✓ GitHub token retrieved and cached successfully')
+            console.log('GitHub token retrieved and cached successfully')
 
             // Fetch user repositories from GitHub and cache them
             console.log('→ Fetching user repositories...')
             try {
               const repoResponse = await api(token => ApiService.getUserRepositories(token))
-              console.log(`✓ Fetched ${repoResponse.count} repositories from GitHub`)
+              console.log(`Fetched ${repoResponse.count} repositories from GitHub`)
             } catch (repoError) {
               console.log('⚠ Could not fetch repositories:', repoError)
             }
@@ -99,7 +99,7 @@ function App() {
         // Load user profile data for global access
         console.log('→ Loading user profile...')
         await api(token => loadUserProfile(token))
-        console.log('✓ User profile loaded and cached')
+        console.log('User profile loaded and cached')
       } catch (error) {
         console.error('✗ Failed to handle authentication:', error)
       }

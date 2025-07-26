@@ -8,8 +8,9 @@ import {
   spring
 } from 'remotion';
 import { IntroScene } from './scenes/IntroScene';
-import { RealTaskTableScene } from './scenes/RealTaskTableScene';
-import { RealTaskDetailScene } from './scenes/RealTaskDetailScene';
+import { CreateTaskScene } from './scenes/CreateTaskScene';
+import { TaskDetailWithTodosScene } from './scenes/TaskDetailWithTodosScene';
+import { TaskJumpScene } from './scenes/TaskJumpScene';
 import { OutroScene } from './scenes/OutroScene';
 
 export const SwarmAdvertisement: React.FC = () => {
@@ -17,24 +18,29 @@ export const SwarmAdvertisement: React.FC = () => {
   const { fps } = useVideoConfig();
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#ffffff' }}>
-      {/* Intro Scene: 0-90 frames (3 seconds) */}
-      <Sequence from={0} durationInFrames={90}>
+    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+      {/* Intro Scene: 0-30 frames (1 second) */}
+      <Sequence from={0} durationInFrames={30}>
         <IntroScene />
       </Sequence>
 
-      {/* Task Table Scene: 90-180 frames (3 seconds) */}
-      <Sequence from={90} durationInFrames={90}>
-        <RealTaskTableScene />
+      {/* Create Task Scene: 30-90 frames (2 seconds) */}
+      <Sequence from={30} durationInFrames={60}>
+        <CreateTaskScene />
       </Sequence>
 
-      {/* Task Detail Scene: 180-360 frames (6 seconds) */}
-      <Sequence from={180} durationInFrames={180}>
-        <RealTaskDetailScene />
+      {/* Task Detail With Todos: 90-360 frames (9 seconds) */}
+      <Sequence from={90} durationInFrames={270}>
+        <TaskDetailWithTodosScene />
       </Sequence>
 
-      {/* Outro Scene: 360-450 frames (3 seconds) */}
-      <Sequence from={360} durationInFrames={90}>
+      {/* Task Jump Scene: 360-420 frames (2 seconds) */}
+      <Sequence from={360} durationInFrames={60}>
+        <TaskJumpScene />
+      </Sequence>
+
+      {/* Outro Scene: 420-510 frames (3 seconds) */}
+      <Sequence from={420} durationInFrames={90}>
         <OutroScene />
       </Sequence>
     </AbsoluteFill>

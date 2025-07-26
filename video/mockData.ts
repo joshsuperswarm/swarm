@@ -97,20 +97,20 @@ export const mockTodos = [
 
 export const mockLogs = [
   "[09:45:23] 🔧 Starting authentication system implementation...",
-  "[09:45:24] 📦 Installing required dependencies: jsonwebtoken, bcryptjs",
-  "[09:45:28] ✅ Dependencies installed successfully",
-  "[09:45:30] 🏗️  Creating auth middleware in src/middleware/auth.ts",
-  "[09:45:35] ✅ JWT middleware created with token validation",
-  "[09:45:40] 🔐 Setting up password hashing utilities",
-  "[09:45:45] ✅ Bcrypt integration complete",
-  "[09:45:50] 🌐 Creating user registration endpoint",
-  "[09:46:15] ✅ Registration endpoint with email validation ready",
-  "[09:46:20] 🔑 Implementing login endpoint with JWT generation",
-  "[09:46:45] ⚠️  Warning: Rate limiting not yet implemented",
-  "[09:46:50] 🧪 Running authentication flow tests...",
-  "[09:47:10] ✅ All authentication tests passing",
-  "[09:47:15] 📝 Updating API documentation...",
-  "[09:47:25] 🚀 Authentication system implementation in progress..."
+  "[09:45:24] Installing required dependencies: jsonwebtoken, bcryptjs",
+  "[09:45:28] Dependencies installed successfully",
+  "[09:45:30] Creating auth middleware in src/middleware/auth.ts",
+  "[09:45:35] JWT middleware created with token validation",
+  "[09:45:40] Setting up password hashing utilities",
+  "[09:45:45] Bcrypt integration complete",
+  "[09:45:50] Creating user registration endpoint",
+  "[09:46:15] Registration endpoint with email validation ready",
+  "[09:46:20] Implementing login endpoint with JWT generation",
+  "[09:46:45] Warning: Rate limiting not yet implemented",
+  "[09:46:50] Running authentication flow tests...",
+  "[09:47:10] All authentication tests passing",
+  "[09:47:15] Updating API documentation...",
+  "[09:47:25] Authentication system implementation in progress..."
 ];
 
 export const taskDetail = {
