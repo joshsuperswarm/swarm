@@ -51,7 +51,7 @@ export const TodosFlythroughScene: React.FC = () => {
   };
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0f172a' }}>
+    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
       {/* Main container */}
       <div
         style={{

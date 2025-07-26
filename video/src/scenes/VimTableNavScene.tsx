@@ -38,7 +38,7 @@ export const VimTableNavScene: React.FC = () => {
   });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0f172a', color: '#e2e8f0' }}>
+    <AbsoluteFill style={{ backgroundColor: '#0e0e10', color: '#e2e8f0' }}>
       {/* Terminal-style container */}
       <div
         style={{

@@ -43,7 +43,17 @@ export const RealTaskDetailScene: React.FC = () => {
     spring({ frame: frame - 90 - index * 2, fps, config: { damping: 120 } });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#f9fafb' }}>
+    <AbsoluteFill style={{ backgroundColor: '#0e0e10' }}>
+      {/* Subtle background gradient */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.1), transparent)',
+          filter: 'blur(100px)',
+        }}
+      />
       {/* Main floating card */}
       <div
         style={{
