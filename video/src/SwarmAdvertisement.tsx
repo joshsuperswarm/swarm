@@ -9,8 +9,9 @@ import {
 } from 'remotion';
 import { IntroScene } from './scenes/IntroScene';
 import { CreateTaskScene } from './scenes/CreateTaskScene';
-import { TaskDetailWithTodosScene } from './scenes/TaskDetailWithTodosScene';
-import { TaskJumpScene } from './scenes/TaskJumpScene';
+import { TaskKickoffScene } from './scenes/TaskKickoffScene';
+import { ExecutePlanScene } from './scenes/ExecutePlanScene';
+import { TaskSwitchScene } from './scenes/TaskSwitchScene';
 import { OutroScene } from './scenes/OutroScene';
 
 export const SwarmAdvertisement: React.FC = () => {
@@ -29,13 +30,23 @@ export const SwarmAdvertisement: React.FC = () => {
         <CreateTaskScene />
       </Sequence>
 
-      {/* Task Detail With Todos: 90-360 frames (9 seconds) */}
-      <Sequence from={90} durationInFrames={270}>
-        <TaskDetailWithTodosScene />
+      {/* Task Kick-off: 90-160 frames (2.3 seconds) */}
+      <Sequence from={90} durationInFrames={70}>
+        <TaskKickoffScene />
       </Sequence>
 
-      {/* Outro Scene: 420-510 frames (3 seconds) */}
-      <Sequence from={420} durationInFrames={90}>
+      {/* Execute Plan: 160-240 frames (2.7 seconds) */}
+      <Sequence from={160} durationInFrames={80}>
+        <ExecutePlanScene />
+      </Sequence>
+
+      {/* Task Switch ("j j"): 240-360 frames (4 seconds) */}
+      <Sequence from={240} durationInFrames={120}>
+        <TaskSwitchScene />
+      </Sequence>
+
+      {/* Outro Scene: 360-450 frames (3 seconds) */}
+      <Sequence from={360} durationInFrames={90}>
         <OutroScene />
       </Sequence>
     </AbsoluteFill>
