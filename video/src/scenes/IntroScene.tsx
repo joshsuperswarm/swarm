@@ -4,10 +4,9 @@ import {
   useVideoConfig,
   interpolate,
   AbsoluteFill,
-  Img,
-  staticFile,
   spring,
 } from 'remotion';
+import { SwarmLogoPop } from '../components/SwarmLogoPop';
 
 export const IntroScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -20,13 +19,7 @@ export const IntroScene: React.FC = () => {
     config: { damping: 120, stiffness: 180 },
   });
 
-  const textOpacity = interpolate(frame, [0, 10], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // Logo stroke dash animation
-  const dash = interpolate(frame, [0, 30], [200, 0], {
+  const textOpacity = interpolate(frame, [0, 17], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -56,15 +49,8 @@ export const IntroScene: React.FC = () => {
         }}
       >
         {/* Logo */}
-        <div style={{ marginBottom: 32 }}>
-          <Img
-            src={staticFile('swarm-logo.svg')}
-            style={{
-              width: 400,
-              height: 'auto',
-              strokeDasharray: dash,
-            }}
-          />
+        <div style={{ marginBottom: 42 }}>
+          <SwarmLogoPop size={900} />
         </div>
 
       </div>

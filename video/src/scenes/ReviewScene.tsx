@@ -28,18 +28,18 @@ export const ReviewScene: React.FC = () => {
   // User prompt animation
   const promptSpring = spring({
     fps,
-    frame: frame - 30,
+    frame: frame - 50,
     config: { damping: 140, stiffness: 200 },
   });
 
   // ─── Button slam animation ───
   /**
-   * Starts at frame 71 (4 frames before scene ends) to match other button timing.
-   * ReviewScene has 75 frames, so starts at 75-4=71.
+   * Starts at frame 121 (4 frames before scene ends) to match other button timing.
+   * ReviewScene has 125 frames, so starts at 125-4=121.
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 71,      // begin at appearance
+    frame: frame - 121,      // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -62,7 +62,7 @@ export const ReviewScene: React.FC = () => {
   const getPlanItemSpring = (index: number) =>
     spring({
       fps,
-      frame: frame - 10 - index * 5,
+      frame: frame - 17 - index * 8,
       config: { damping: 140, stiffness: 200 },
     });
 
@@ -86,8 +86,8 @@ export const ReviewScene: React.FC = () => {
           top: '50%',
           left: '50%',
           transform: `translate(-50%, -50%) scale(${planSpring})`,
-          width: '85%',
-          maxWidth: 900,
+          width: '90%',
+          maxWidth: 1200,
           opacity: planSpring,
         }}
       >
@@ -96,14 +96,14 @@ export const ReviewScene: React.FC = () => {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 16,
-            marginBottom: 32,
+            gap: 21,
+            marginBottom: 42,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
           }}
         >
           <div
             style={{
-              fontSize: 18,
+              fontSize: 29,
               fontWeight: 600,
               color: '#7dd3fc',
             }}
@@ -112,11 +112,11 @@ export const ReviewScene: React.FC = () => {
           </div>
           <div
             style={{
-              padding: '6px 16px',
+              padding: '8px 21px',
               backgroundColor: '#f59e0b',
               color: '#ffffff',
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 19,
               fontWeight: 600,
               textTransform: 'uppercase',
               transition: 'background-color 0.3s ease',
@@ -127,7 +127,7 @@ export const ReviewScene: React.FC = () => {
           <h2
             style={{
               margin: 0,
-              fontSize: 24,
+              fontSize: 38,
               fontWeight: 600,
               color: 'rgba(255, 255, 255, 0.95)',
             }}
@@ -142,15 +142,15 @@ export const ReviewScene: React.FC = () => {
             backgroundColor: '#111315',
             borderRadius: 12,
             border: '1px solid rgba(255, 255, 255, 0.1)',
-            padding: 24,
-            marginBottom: 24,
+            padding: 31,
+            marginBottom: 31,
           }}
         >
           <h3
             style={{
               margin: 0,
-              marginBottom: 16,
-              fontSize: 16,
+              marginBottom: 21,
+              fontSize: 26,
               fontWeight: 600,
               color: 'rgba(255, 255, 255, 0.9)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
@@ -168,8 +168,8 @@ export const ReviewScene: React.FC = () => {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 16px',
+                    gap: 16,
+                    padding: '16px 21px',
                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                     borderRadius: 8,
                     opacity: itemSpring,
@@ -188,7 +188,7 @@ export const ReviewScene: React.FC = () => {
                   />
                   <span
                     style={{
-                      fontSize: 14,
+                      fontSize: 22,
                       color: 'rgba(255, 255, 255, 0.85)',
                     }}
                   >
@@ -211,17 +211,17 @@ export const ReviewScene: React.FC = () => {
         >
           <div
             style={{
-              padding: '12px 24px',
+              padding: '16px 31px',
               backgroundColor: '#7dd3fc',
               color: '#0e0e10',
               borderRadius: 8,
-              fontSize: 16,
+              fontSize: 26,
               fontWeight: 600,
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
               transform: `translateY(${pressTranslate}px) scale(${pressScale})`,
-              boxShadow: `0 ${4 + pressSpring * 8}px 24px rgba(0,0,0,${
-                0.25 + pressSpring * 0.15
+              boxShadow: `0 ${4 + pressSpring * 8}px 24px rgba(125, 211, 252, ${
+                0.4 + pressSpring * 0.15
               })`,
               transition: 'none', // driven purely by Remotion
             }}
