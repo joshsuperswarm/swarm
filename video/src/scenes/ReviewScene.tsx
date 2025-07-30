@@ -177,19 +177,6 @@ export const ReviewScene: React.FC = () => {
             marginBottom: 31,
           }}
         >
-          <h3
-            style={{
-              margin: 0,
-              marginBottom: 21,
-              fontSize: 26,
-              fontWeight: 600,
-              color: 'rgba(255, 255, 255, 0.9)',
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-            }}
-          >
-            Review Plan
-          </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {reviewItems.map((item, index) => {

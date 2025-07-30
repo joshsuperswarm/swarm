@@ -149,18 +149,6 @@ export const ExecutePlanScene: React.FC = () => {
             marginBottom: 24,
           }}
         >
-          <h3
-            style={{
-              margin: 0,
-              marginBottom: 16,
-              fontSize: 16,
-              fontWeight: 600,
-              color: 'rgba(255, 255, 255, 0.9)',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-            }}
-          >
-            Execution Plan
-          </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {planItems.map((item, index) => {
