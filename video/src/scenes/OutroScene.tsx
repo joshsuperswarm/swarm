@@ -6,28 +6,38 @@ import {
   AbsoluteFill,
   spring,
 } from 'remotion';
+import { Img, staticFile } from 'remotion';
 import { SwarmLogoPop } from '../components/SwarmLogoPop';
 
 export const OutroScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Animation springs
-  const titleSpring = spring({
+  const pulse = (Math.sin((frame / fps) * Math.PI) + 1) / 2; // 0→1→0 every 2 s
+  const glow = interpolate(pulse, [0, 1], [0.3, 0.7]); // External glow intensity
+
+  // Animation springs - staggered entry
+  const logoSpring = spring({
     fps,
     frame,
     config: { damping: 120, stiffness: 180 },
   });
 
-  const subtitleSpring = spring({
+  const taglineSpring = spring({
     fps,
-    frame: Math.max(frame - 17, 0),
+    frame: Math.max(frame - 15, 0),
     config: { damping: 120, stiffness: 180 },
   });
 
-  const ctaSpring = spring({
+  const buttonSpring = spring({
     fps,
-    frame: Math.max(frame - 33, 0),
+    frame: Math.max(frame - 30, 0),
+    config: { damping: 120, stiffness: 180 },
+  });
+
+  const domainSpring = spring({
+    fps,
+    frame: Math.max(frame - 45, 0),
     config: { damping: 120, stiffness: 180 },
   });
 
@@ -42,7 +52,7 @@ export const OutroScene: React.FC = () => {
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
-     TranslateY goes from 0px →  8px  → -4px → 0px */
+     TranslateY goes from 0px → 8px  → -4px → 0px */
   const pressScale = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
@@ -55,8 +65,9 @@ export const OutroScene: React.FC = () => {
   );
 
 
+
   return (
-    <AbsoluteFill style={{ paddingBottom: 48 }}>
+    <AbsoluteFill>
       {/* Subtle background gradient */}
       <div
         style={{
@@ -74,35 +85,34 @@ export const OutroScene: React.FC = () => {
           position: 'absolute',
           top: '50%',
           left: '50%',
-          transform: 'translate(-50%, -45%)',
+          transform: 'translate(-50%, -50%)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          gap: 48,
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
         }}
       >
         <div
           style={{
-            marginBottom: 80,
-            opacity: titleSpring,
-            transform: `scale(${titleSpring}) translateY(${(1 - titleSpring) * 20}px)`,
+            opacity: logoSpring,
+            transform: `translateY(${(1 - logoSpring) * 20}px)`,
           }}
         >
-          <SwarmLogoPop size={400} />
+          <Img src={staticFile('swarm-logo.svg')} style={{ width: 320 }} />
         </div>
 
         <p
           style={{
             fontSize: 51,
             margin: 0,
-            marginBottom: 72,
             color: 'rgba(255, 255, 255, 0.7)',
             fontWeight: 400,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             letterSpacing: '0.01em',
-            opacity: subtitleSpring,
-            transform: `translateY(${(1 - subtitleSpring) * 20}px)`,
+            opacity: taglineSpring,
+            transform: `translateY(${(1 - taglineSpring) * 20}px)`,
             textAlign: 'center',
           }}
         >
@@ -111,9 +121,8 @@ export const OutroScene: React.FC = () => {
 
         <div
           style={{
-            marginBottom: 80,
-            opacity: ctaSpring,
-            transform: `scale(${ctaSpring}) translateY(${(1 - ctaSpring) * 20}px)`,
+            opacity: buttonSpring,
+            transform: `scale(${buttonSpring}) translateY(${(1 - buttonSpring) * 20}px)`,
           }}
         >
           <div
@@ -129,9 +138,9 @@ export const OutroScene: React.FC = () => {
               fontWeight: 500,
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
               letterSpacing: '0.01em',
-              boxShadow: `0 ${4 + pressSpring * 8}px 24px rgba(125, 211, 252, ${0.4 + pressSpring * 0.15})`,
+              boxShadow: `0 4px 24px rgba(56, 189, 248, ${glow})`,
               cursor: 'pointer',
-              transform: `translateY(${pressTranslate}px) scale(${pressScale})`,
+              transform: `translateY(${pressTranslate}px) scale(${(1 + pulse * 0.03) * pressScale})`,
               transition: 'none', // driven purely by Remotion
             }}
           >
@@ -144,6 +153,8 @@ export const OutroScene: React.FC = () => {
             fontSize: 26,
             margin: 0,
             color: 'rgba(255, 255, 255, 0.6)',
+            opacity: domainSpring,
+            transform: `translateY(${(1 - domainSpring) * 20}px)`,
           }}
         >
           superswarm.dev
