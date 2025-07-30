@@ -4,7 +4,10 @@ import {
   useVideoConfig,
   interpolate,
   AbsoluteFill,
-  spring
+  spring,
+  Sequence,
+  Audio,
+  staticFile,
 } from 'remotion';
 
 const planItems = [
@@ -54,6 +57,10 @@ export const ExecutePlanScene: React.FC = () => {
     [0, 0.5, 0.8, 1],
     [0, 8, -4, 0],
   );
+
+  // ─── Mouse-click SFX ───
+  const slamFrame = 60;
+  const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
 
   // Status transition animation
   const statusTransition = interpolate(frame, [50, 65], [0, 1], {
@@ -221,6 +228,19 @@ export const ExecutePlanScene: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Mouse-button click */}
+      <Sequence from={slamFrame} durationInFrames={clickLen}>
+        <Audio
+          src={staticFile('Mouse Click Sound.wav')}
+          trimAfter={clickLen}             // stop after ≈0.33 s
+          volume={f =>
+            interpolate(f, [0, 4], [1, 0.8], {
+              extrapolateRight: 'clamp',
+            })
+          }                                // tiny ease-out fade
+        />
+      </Sequence>
     </AbsoluteFill>
   );
 };

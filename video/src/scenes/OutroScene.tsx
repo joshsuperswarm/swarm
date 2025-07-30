@@ -5,8 +5,11 @@ import {
   interpolate,
   AbsoluteFill,
   spring,
+  Sequence,
+  Audio,
+  staticFile,
 } from 'remotion';
-import { Img, staticFile } from 'remotion';
+import { Img } from 'remotion';
 import { SwarmLogoPop } from '../components/SwarmLogoPop';
 
 export const OutroScene: React.FC = () => {
@@ -63,6 +66,10 @@ export const OutroScene: React.FC = () => {
     [0, 0.5, 0.8, 1],
     [0, 4, -2, 0],   // stays within ±4 px
   );
+
+  // ─── Mouse-click SFX ───
+  const slamFrame = 96;
+  const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
 
 
 
@@ -160,6 +167,19 @@ export const OutroScene: React.FC = () => {
           superswarm.dev
         </p>
       </div>
+
+      {/* Mouse-button click */}
+      <Sequence from={slamFrame} durationInFrames={clickLen}>
+        <Audio
+          src={staticFile('Mouse Click Sound.wav')}
+          trimAfter={clickLen}             // stop after ≈0.33 s
+          volume={f =>
+            interpolate(f, [0, 4], [1, 0.8], {
+              extrapolateRight: 'clamp',
+            })
+          }                                // tiny ease-out fade
+        />
+      </Sequence>
     </AbsoluteFill>
   );
 };

@@ -5,6 +5,9 @@ import {
   interpolate,
   AbsoluteFill,
   spring,
+  Sequence,
+  Audio,
+  staticFile,
 } from 'remotion';
 
 const planItems = [
@@ -63,6 +66,10 @@ export const PlanScene: React.FC = () => {
     [0, 0.5, 0.8, 1],
     [0, 8, -4, 0]
   );
+
+  // ─── Mouse-click SFX ───
+  const slamFrame = 166;
+  const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
 
   // Status is always "PLAN" in this scene
   const statusTransition = 0; // Always shows PLAN
@@ -354,6 +361,19 @@ export const PlanScene: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Mouse-button click */}
+      <Sequence from={slamFrame} durationInFrames={clickLen}>
+        <Audio
+          src={staticFile('Mouse Click Sound.wav')}
+          trimAfter={clickLen}             // stop after ≈0.33 s
+          volume={f =>
+            interpolate(f, [0, 4], [1, 0.8], {
+              extrapolateRight: 'clamp',
+            })
+          }                                // tiny ease-out fade
+        />
+      </Sequence>
     </AbsoluteFill>
   );
 };
