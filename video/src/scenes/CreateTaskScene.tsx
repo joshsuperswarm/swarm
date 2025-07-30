@@ -4,7 +4,7 @@ import {
   useVideoConfig,
   interpolate,
   AbsoluteFill,
-  spring
+  spring,
 } from 'remotion';
 import { Zap, FileText } from 'lucide-react';
 
@@ -24,7 +24,11 @@ export const CreateTaskScene: React.FC = () => {
   const { fps } = useVideoConfig();
 
   /** Card entrance */
-  const containerSpring = spring({ fps, frame, config: { damping: 120, stiffness: 180 } });
+  const containerSpring = spring({
+    fps,
+    frame,
+    config: { damping: 120, stiffness: 180 },
+  });
 
   /** Timing helpers */
   const titleProg = interpolate(frame, [0, 58], [0, 1], {
@@ -38,26 +42,41 @@ export const CreateTaskScene: React.FC = () => {
   const modeProg = spring({
     frame: Math.max(frame - 159, 0), // ensures 0 at start
     fps,
-    config: { damping: 120, stiffness: 180 }
+    config: { damping: 120, stiffness: 180 },
   });
 
   // Enhanced mode transition animations
-  const modeTransition = interpolate(modeProg, [0, 0.3, 0.5, 0.7, 1], [0, 0, 0.5, 1, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const modeTransition = interpolate(
+    modeProg,
+    [0, 0.3, 0.5, 0.7, 1],
+    [0, 0, 0.5, 1, 1],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
 
   // Scale animation for mode switch - creates a "pop" effect
-  const modeScale = interpolate(modeProg, [0, 0.3, 0.5, 0.7, 1], [1, 1, 1.15, 1.05, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const modeScale = interpolate(
+    modeProg,
+    [0, 0.3, 0.5, 0.7, 1],
+    [1, 1, 1.15, 1.05, 1],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
 
   // Flash effect during transition
-  const modeFlash = interpolate(modeProg, [0, 0.4, 0.5, 0.6, 1], [0, 0, 1, 0, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const modeFlash = interpolate(
+    modeProg,
+    [0, 0.4, 0.5, 0.6, 1],
+    [0, 0, 1, 0, 0],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
   // ─── Button slam animation ───
   /**
    * Starts at frame 196 (4 frames before scene ends) to match other scenes.
@@ -65,7 +84,7 @@ export const CreateTaskScene: React.FC = () => {
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 196,      // begin at appearance
+    frame: Math.max(frame - 196, 0), // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -73,17 +92,20 @@ export const CreateTaskScene: React.FC = () => {
   const pressScale = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [1, 0.88, 1.02, 1],
+    [1, 0.88, 1.02, 1]
   );
   const pressTranslate = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [0, 8, -4, 0],
+    [0, 8, -4, 0]
   );
 
   /** Title typewriter */
   const fullTitle = 'Create a Remotion video for Swarm';
-  const typedTitle = fullTitle.slice(0, Math.floor(fullTitle.length * titleProg));
+  const typedTitle = fullTitle.slice(
+    0,
+    Math.floor(fullTitle.length * titleProg)
+  );
 
   /** Description typewriter with bullets */
   const bulletLines = [
@@ -92,8 +114,9 @@ export const CreateTaskScene: React.FC = () => {
     'Animate with Remotion interpolate & spring',
     'Add gradients, typography, and on-brand colors',
   ];
-  const fullDesc = bulletLines.map(l => `• ${l}`).join('\n');
+  const fullDesc = bulletLines.map((l) => `• ${l}`).join('\n');
   const typedDesc = fullDesc.slice(0, Math.floor(fullDesc.length * descProg));
+  const trimmedDesc = typedDesc.trimEnd();
 
   return (
     <AbsoluteFill>
@@ -131,7 +154,9 @@ export const CreateTaskScene: React.FC = () => {
               '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
           }}
         >
-          <div style={{ fontSize: 29, fontWeight: 600, color: '#7dd3fc' }}>#63</div>
+          <div style={{ fontSize: 29, fontWeight: 600, color: '#7dd3fc' }}>
+            #63
+          </div>
 
           <div
             style={{
@@ -188,8 +213,23 @@ export const CreateTaskScene: React.FC = () => {
           }}
         >
           {/* Mode selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 31 }}>
-            <span style={{ fontSize: 22, fontWeight: 500, color: 'rgba(255,255,255,0.9)' }}>Mode:</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              marginBottom: 31,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 22,
+                fontWeight: 500,
+                color: 'rgba(255,255,255,0.9)',
+              }}
+            >
+              Mode:
+            </span>
             <div
               style={{
                 display: 'inline-flex',
@@ -200,18 +240,24 @@ export const CreateTaskScene: React.FC = () => {
                 fontSize: 22,
                 fontWeight: 500,
                 transform: `scale(${modeScale})`,
-                backgroundColor: modeTransition < 0.5 
-                  ? 'rgba(16,185,129,0.1)'
-                  : `rgba(${interpolate(modeTransition, [0, 1], [16, 96])}, ${interpolate(modeTransition, [0, 1], [185, 165])}, ${interpolate(modeTransition, [0, 1], [129, 250])}, 0.1)`,
-                color: modeTransition < 0.5 
-                  ? '#10b981'
-                  : `rgb(${interpolate(modeTransition, [0, 1], [16, 96])}, ${interpolate(modeTransition, [0, 1], [185, 165])}, ${interpolate(modeTransition, [0, 1], [129, 250])})`,
+                backgroundColor:
+                  modeTransition < 0.5
+                    ? 'rgba(16,185,129,0.1)'
+                    : `rgba(${interpolate(modeTransition, [0, 1], [16, 96])}, ${interpolate(modeTransition, [0, 1], [185, 165])}, ${interpolate(modeTransition, [0, 1], [129, 250])}, 0.1)`,
+                color:
+                  modeTransition < 0.5
+                    ? '#10b981'
+                    : `rgb(${interpolate(modeTransition, [0, 1], [16, 96])}, ${interpolate(modeTransition, [0, 1], [185, 165])}, ${interpolate(modeTransition, [0, 1], [129, 250])})`,
                 boxShadow: `0 0 ${modeFlash * 20}px rgba(125, 211, 252, ${modeFlash * 0.8})`,
                 border: `1px solid rgba(125, 211, 252, ${modeFlash * 0.5})`,
                 transition: 'none', // driven purely by Remotion
               }}
             >
-              {modeTransition < 0.5 ? <Zap size={22} /> : <FileText size={22} />}
+              {modeTransition < 0.5 ? (
+                <Zap size={22} />
+              ) : (
+                <FileText size={22} />
+              )}
               {modeTransition < 0.5 ? 'Execute' : 'Plan'}
             </div>
           </div>
@@ -222,20 +268,27 @@ export const CreateTaskScene: React.FC = () => {
               backgroundColor: '#1f2937',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: 8,
-              padding: 21,
-              minHeight: 170,
-              height: 170,
-              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+              paddingTop: 28,
+              paddingLeft: 21,
+              paddingRight: 21,
+              paddingBottom: 35,
+              minHeight: 190,
+              height: 190,
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             }}
           >
-            <pre style={{
-              margin: 0,
-              fontSize: 26,
-              color: 'rgba(255,255,255,0.9)',
-              whiteSpace: 'pre-wrap',
-              lineHeight: 1.4,
-            }}>
-              {typedDesc}
+            <pre
+              style={{
+                margin: 0,
+                fontSize: 26,
+                color: 'rgba(255,255,255,0.9)',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.3,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+              }}
+            >
+              {trimmedDesc}
               {descProg < 1 && (
                 <span
                   style={{

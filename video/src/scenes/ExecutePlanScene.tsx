@@ -28,7 +28,7 @@ export const ExecutePlanScene: React.FC = () => {
   // User prompt animation
   const promptSpring = spring({
     fps,
-    frame: frame - 30,
+    frame: Math.max(frame - 30, 0),
     config: { damping: 140, stiffness: 200 },
   });
 
@@ -39,7 +39,7 @@ export const ExecutePlanScene: React.FC = () => {
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 60,      // begin at appearance
+    frame: Math.max(frame - 60, 0),      // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -65,7 +65,7 @@ export const ExecutePlanScene: React.FC = () => {
   const getPlanItemSpring = (index: number) =>
     spring({
       fps,
-      frame: frame - 10 - index * 5,
+      frame: Math.max(frame - 10 - index * 5, 0),
       config: { damping: 140, stiffness: 200 },
     });
 

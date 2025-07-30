@@ -21,13 +21,13 @@ export const OutroScene: React.FC = () => {
 
   const subtitleSpring = spring({
     fps,
-    frame: frame - 17,
+    frame: Math.max(frame - 17, 0),
     config: { damping: 120, stiffness: 180 },
   });
 
   const ctaSpring = spring({
     fps,
-    frame: frame - 33,
+    frame: Math.max(frame - 33, 0),
     config: { damping: 120, stiffness: 180 },
   });
 
@@ -38,7 +38,7 @@ export const OutroScene: React.FC = () => {
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 96,      // begin at appearance
+    frame: Math.max(frame - 96, 0),      // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -51,12 +51,12 @@ export const OutroScene: React.FC = () => {
   const pressTranslate = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [0, 8, -4, 0],
+    [0, 4, -2, 0],   // stays within ±4 px
   );
 
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{ paddingBottom: 48 }}>
       {/* Subtle background gradient */}
       <div
         style={{
@@ -74,15 +74,17 @@ export const OutroScene: React.FC = () => {
           position: 'absolute',
           top: '50%',
           left: '50%',
-          transform: 'translate(-50%, -50%)',
-          textAlign: 'center',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+          transform: 'translate(-50%, -45%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
         }}
       >
-        {/* Logo */}
         <div
           style={{
-            marginBottom: 42,
+            marginBottom: 80,
             opacity: titleSpring,
             transform: `scale(${titleSpring}) translateY(${(1 - titleSpring) * 20}px)`,
           }}
@@ -90,31 +92,30 @@ export const OutroScene: React.FC = () => {
           <SwarmLogoPop size={400} />
         </div>
 
-        {/* Subtitle */}
         <p
           style={{
             fontSize: 51,
             margin: 0,
-            marginBottom: 62,
+            marginBottom: 72,
             color: 'rgba(255, 255, 255, 0.7)',
             fontWeight: 400,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             letterSpacing: '0.01em',
             opacity: subtitleSpring,
             transform: `translateY(${(1 - subtitleSpring) * 20}px)`,
+            textAlign: 'center',
           }}
         >
           vibing at the speed of thought
         </p>
 
-        {/* CTA Section */}
         <div
           style={{
+            marginBottom: 80,
             opacity: ctaSpring,
             transform: `scale(${ctaSpring}) translateY(${(1 - ctaSpring) * 20}px)`,
           }}
         >
-          {/* Get Started Button */}
           <div
             style={{
               display: 'inline-flex',
@@ -128,30 +129,25 @@ export const OutroScene: React.FC = () => {
               fontWeight: 500,
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
               letterSpacing: '0.01em',
-              marginBottom: 31,
               boxShadow: `0 ${4 + pressSpring * 8}px 24px rgba(125, 211, 252, ${0.4 + pressSpring * 0.15})`,
               cursor: 'pointer',
               transform: `translateY(${pressTranslate}px) scale(${pressScale})`,
               transition: 'none', // driven purely by Remotion
             }}
           >
-            Get Started Today
+            Coming Soon
           </div>
-
-          {/* GitHub link */}
-          <p
-            style={{
-              fontSize: 26,
-              margin: 0,
-              color: 'rgba(255, 255, 255, 0.6)',
-              fontWeight: 400,
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-              letterSpacing: '0.01em',
-            }}
-          >
-            github.com/your-org/swarm
-          </p>
         </div>
+
+        <p
+          style={{
+            fontSize: 26,
+            margin: 0,
+            color: 'rgba(255, 255, 255, 0.6)',
+          }}
+        >
+          superswarm.dev
+        </p>
       </div>
     </AbsoluteFill>
   );

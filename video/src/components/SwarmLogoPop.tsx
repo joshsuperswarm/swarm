@@ -12,7 +12,7 @@ import {
  * SwarmLogoPop
  * -------------
  * • Frames 0-18  : spring-overshoot (0.6 → 1.15 → 1)
- * • Every 40 f   : 5-frame scale ping + glow
+ * • Frames 0-120 : continuous slow scale-up to 1.11×
  *
  * Accepts optional `size` so you can reuse it elsewhere.
  */
@@ -27,14 +27,15 @@ export const SwarmLogoPop: React.FC<{ size?: number }> = ({ size = 420 }) => {
     config: { mass: 0.8, damping: 18, stiffness: 240 },
   });
 
-  // Looping ping (starts once pop finished)
-  const local = frame % 40; // 0-39
-  const ping = interpolate(local, [0, 5, 20], [1, 1.05, 1], {
-    extrapolateRight: 'clamp',
-  });
+  // Slow, linear expansion after entry (runs for the first 120 frames)
+  const slowGrow = interpolate(
+    frame,
+    [0, 120],          // adjust if Intro scene length changes
+    [1, 1.11],         // ~11% larger by frame 120
+    { extrapolateRight: 'clamp' }
+  );
 
-  const scale = pop * ping;
-  const glow = (ping - 1) * 8; // 0 → ~0.4 → 0
+  const scale = pop * slowGrow;
 
   return (
     <AbsoluteFill
@@ -45,7 +46,6 @@ export const SwarmLogoPop: React.FC<{ size?: number }> = ({ size = 420 }) => {
         style={{
           width: size,
           transform: `scale(${scale})`,
-          filter: `drop-shadow(0 0 ${glow}px rgba(125,211,252,0.55))`,
         }}
       />
     </AbsoluteFill>

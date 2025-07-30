@@ -4,14 +4,15 @@ import {
   useVideoConfig,
   interpolate,
   AbsoluteFill,
-  spring
+  spring,
 } from 'remotion';
 
-const planItems = [
-  'Storyboard key scenes (intro, create task, plan, outro)',
-  'Build React components for each scene',
-  'Animate with Remotion interpolate & spring',
-  'Add gradients, typography, and on-brand colors'
+const reviewItems = [
+  'Check for proper error handling and edge cases',
+  'Verify all functions have descriptive names and comments',
+  'Ensure code follows project style guidelines',
+  'Confirm no hardcoded values or magic numbers',
+  'Test all user input validation and sanitization',
 ];
 
 export const ReviewScene: React.FC = () => {
@@ -28,7 +29,7 @@ export const ReviewScene: React.FC = () => {
   // User prompt animation
   const promptSpring = spring({
     fps,
-    frame: frame - 50,
+    frame: Math.max(frame - 50, 0),
     config: { damping: 140, stiffness: 200 },
   });
 
@@ -39,7 +40,7 @@ export const ReviewScene: React.FC = () => {
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 121,      // begin at appearance
+    frame: Math.max(frame - 121, 0), // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -47,12 +48,12 @@ export const ReviewScene: React.FC = () => {
   const pressScale = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [1, 0.88, 1.02, 1],
+    [1, 0.88, 1.02, 1]
   );
   const pressTranslate = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [0, 8, -4, 0],
+    [0, 8, -4, 0]
   );
 
   // Status is always "REVIEWING" in this scene
@@ -62,9 +63,38 @@ export const ReviewScene: React.FC = () => {
   const getPlanItemSpring = (index: number) =>
     spring({
       fps,
-      frame: frame - 17 - index * 8,
+      frame: Math.max(frame - 17 - index * 8, 0),
       config: { damping: 140, stiffness: 200 },
     });
+
+  // Floating animation for each item
+  const getFloatingAnimation = (index: number) => {
+    const offset = index * 0.5; // Stagger the floating motion
+    return interpolate(frame + offset * 10, [0, 60, 120], [0, -3, 0], {
+      extrapolateLeft: 'extend',
+      extrapolateRight: 'extend',
+    });
+  };
+
+  // Pulse animation for completed items (simulate completion for demo)
+  const getPulseAnimation = (index: number) => {
+    const completionFrame = 60 + index * 15; // Items complete at different times
+    const strikeEndFrame = completionFrame + 30; // Strike animation takes 30 frames
+    const isCompleted = frame > completionFrame;
+    const strikeCompleted = frame > strikeEndFrame;
+
+    if (!isCompleted || strikeCompleted) return 0;
+
+    return interpolate(
+      (frame - completionFrame) % 60, // 2-second pulse cycle at 30fps
+      [0, 15, 30, 45, 60],
+      [0, 0.3, 0, 0.3, 0],
+      {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      }
+    );
+  };
 
   return (
     <AbsoluteFill>
@@ -98,7 +128,8 @@ export const ReviewScene: React.FC = () => {
             alignItems: 'center',
             gap: 21,
             marginBottom: 42,
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
           }}
         >
           <div
@@ -122,7 +153,7 @@ export const ReviewScene: React.FC = () => {
               transition: 'background-color 0.3s ease',
             }}
           >
-            REVIEWING
+            REVIEW
           </div>
           <h2
             style={{
@@ -153,15 +184,21 @@ export const ReviewScene: React.FC = () => {
               fontSize: 26,
               fontWeight: 600,
               color: 'rgba(255, 255, 255, 0.9)',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             }}
           >
-            Execution Plan
+            Review Plan
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {planItems.map((item, index) => {
+            {reviewItems.map((item, index) => {
               const itemSpring = getPlanItemSpring(index);
+              const floatingOffset = getFloatingAnimation(index);
+              const pulseIntensity = getPulseAnimation(index);
+              const completionFrame = 60 + index * 15;
+              const isCompleted = frame > completionFrame;
+              
               return (
                 <div
                   key={index}
@@ -170,11 +207,15 @@ export const ReviewScene: React.FC = () => {
                     alignItems: 'center',
                     gap: 16,
                     padding: '16px 21px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    backgroundColor: `rgba(255, 255, 255, ${0.05 + pulseIntensity * 0.1})`,
                     borderRadius: 8,
                     opacity: itemSpring,
-                    transform: `translateY(${(1 - itemSpring) * 20}px)`,
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+                    transform: `translateY(${(1 - itemSpring) * 20 + floatingOffset}px)`,
+                    fontFamily:
+                      '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+                    boxShadow: `0 0 ${20 + pulseIntensity * 10}px rgba(125, 211, 252, ${pulseIntensity * 0.4})`,
+                    border: `1px solid rgba(125, 211, 252, ${0.1 + pulseIntensity * 0.3})`,
+                    transition: 'none', // All animations handled by Remotion
                   }}
                 >
                   <div
@@ -182,14 +223,22 @@ export const ReviewScene: React.FC = () => {
                       width: 6,
                       height: 6,
                       borderRadius: '50%',
-                      backgroundColor: '#7dd3fc',
+                      backgroundColor: isCompleted ? '#4ade80' : '#7dd3fc',
                       flexShrink: 0,
+                      boxShadow: isCompleted ? `0 0 6px rgba(74, 222, 128, ${0.4 + pulseIntensity * 0.2})` : `0 0 4px rgba(125, 211, 252, 0.5)`,
+                      transform: 'scale(1)',
+                      opacity: isCompleted ? 0.7 : 1,
                     }}
                   />
                   <span
                     style={{
                       fontSize: 22,
-                      color: 'rgba(255, 255, 255, 0.85)',
+                      color: isCompleted 
+                        ? 'rgba(148, 163, 184, 0.75)' 
+                        : 'rgba(255, 255, 255, 0.85)',
+                      position: 'relative',
+                      textShadow: pulseIntensity > 0 ? `0 0 8px rgba(125, 211, 252, ${pulseIntensity * 0.5})` : 'none',
+                      transition: 'none',
                     }}
                   >
                     {item}

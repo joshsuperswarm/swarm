@@ -4,15 +4,24 @@ import {
   useVideoConfig,
   interpolate,
   AbsoluteFill,
-  spring
+  spring,
 } from 'remotion';
 
 const planItems = [
   'Storyboard key scenes (intro, create task, plan, outro)',
   'Build React components for each scene',
   'Animate with Remotion interpolate & spring',
-  'Add gradients, typography, and on-brand colors'
+  'Add gradients, typography, and on-brand colors',
 ];
+
+const thinkingSteps = ['Thinking', 'Analyzing', 'Planning'] as const;
+const stepDuration = 15; // frames per word @30 fps → 0.5 s
+const revealDelay = thinkingSteps.length * stepDuration; // 45 f
+
+const getThinkingText = (frame: number) =>
+  thinkingSteps[
+    Math.min(Math.floor(frame / stepDuration), thinkingSteps.length - 1)
+  ];
 
 export const PlanScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -21,14 +30,14 @@ export const PlanScene: React.FC = () => {
   // Plan display animation
   const planSpring = spring({
     fps,
-    frame,
+    frame: Math.max(frame - revealDelay, 0),
     config: { damping: 120, stiffness: 180 },
   });
 
   // User prompt animation
   const promptSpring = spring({
     fps,
-    frame: frame - 50,
+    frame: Math.max(frame - revealDelay - 50, 0),
     config: { damping: 140, stiffness: 200 },
   });
 
@@ -39,7 +48,7 @@ export const PlanScene: React.FC = () => {
    */
   const pressSpring = spring({
     fps,
-    frame: frame - 121,      // begin at appearance
+    frame: Math.max(frame - revealDelay - 121, 0), // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -47,37 +56,113 @@ export const PlanScene: React.FC = () => {
   const pressScale = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [1, 0.88, 1.02, 1],
+    [1, 0.88, 1.02, 1]
   );
   const pressTranslate = interpolate(
     pressSpring,
     [0, 0.5, 0.8, 1],
-    [0, 8, -4, 0],
+    [0, 8, -4, 0]
   );
 
   // Status is always "PLAN" in this scene
   const statusTransition = 0; // Always shows PLAN
 
-  // Plan item animations
+  // Plan item animations with staggered timing
   const getPlanItemSpring = (index: number) =>
     spring({
       fps,
-      frame: frame - 17 - index * 8,
+      frame: Math.max(frame - revealDelay - 17 - index * 8, 0),
       config: { damping: 140, stiffness: 200 },
     });
 
+  // Floating animation for each item
+  const getFloatingAnimation = (index: number) => {
+    const offset = index * 0.5; // Stagger the floating motion
+    return interpolate(frame + offset * 10, [0, 60, 120], [0, -3, 0], {
+      extrapolateLeft: 'extend',
+      extrapolateRight: 'extend',
+    });
+  };
+
+  // Pulse animation for completed items (simulate completion for demo)
+  const getPulseAnimation = (index: number) => {
+    const completionFrame = 60 + index * 15; // Items complete at different times
+    const strikeEndFrame = completionFrame + 30; // Strike animation takes 30 frames
+    const isCompleted = frame > completionFrame;
+    const strikeCompleted = frame > strikeEndFrame;
+
+    if (!isCompleted || strikeCompleted) return 0;
+
+    return interpolate(
+      (frame - completionFrame) % 60, // 2-second pulse cycle at 30fps
+      [0, 15, 30, 45, 60],
+      [0, 0.3, 0, 0.3, 0],
+      {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      }
+    );
+  };
+
   return (
     <AbsoluteFill>
-      {/* Subtle background gradient */}
+      {/* Enhanced background with motion gradient */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background:
-            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.1), transparent)',
-          filter: 'blur(100px)',
+            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.15), rgba(99, 102, 241, 0.08), transparent)',
+          filter: 'blur(120px)',
+          transform: `translateY(${interpolate(frame, [0, 300], [0, -20], {
+            extrapolateLeft: 'extend',
+            extrapolateRight: 'extend',
+          })}px)`,
         }}
       />
+
+      {/* Additional floating background elements */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '20%',
+          right: '10%',
+          width: 200,
+          height: 200,
+          background:
+            'radial-gradient(circle, rgba(99, 102, 241, 0.1), transparent)',
+          borderRadius: '50%',
+          filter: 'blur(60px)',
+          transform: `translateY(${interpolate(frame, [0, 200], [0, 15], {
+            extrapolateLeft: 'extend',
+            extrapolateRight: 'extend',
+          })}px)`,
+        }}
+      />
+
+      {/* LLM thinking overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: frame < revealDelay ? 'flex' : 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 42,
+          fontWeight: 600,
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+          color: '#7dd3fc',
+          opacity: interpolate(
+            frame % stepDuration,
+            [0, stepDuration / 2, stepDuration],
+            [0, 1, 0],
+            { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+          ),
+        }}
+      >
+        {getThinkingText(frame)}
+      </div>
 
       {/* Main container */}
       <div
@@ -98,7 +183,8 @@ export const PlanScene: React.FC = () => {
             alignItems: 'center',
             gap: 21,
             marginBottom: 42,
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
           }}
         >
           <div
@@ -113,13 +199,13 @@ export const PlanScene: React.FC = () => {
           <div
             style={{
               padding: '8px 21px',
-              backgroundColor: '#6366f1',
+              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 19,
               fontWeight: 600,
               textTransform: 'uppercase',
-              transition: 'background-color 0.3s ease',
+              boxShadow: '0 0 8px rgba(99, 102, 241, 0.3)',
             }}
           >
             PLAN
@@ -153,15 +239,21 @@ export const PlanScene: React.FC = () => {
               fontSize: 26,
               fontWeight: 600,
               color: 'rgba(255, 255, 255, 0.9)',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             }}
           >
-            Execution Plan
+            Implementation Plan
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {planItems.map((item, index) => {
               const itemSpring = getPlanItemSpring(index);
+              const floatingOffset = getFloatingAnimation(index);
+              const pulseIntensity = getPulseAnimation(index);
+              const completionFrame = 60 + index * 15;
+              const isCompleted = frame > completionFrame;
+
               return (
                 <div
                   key={index}
@@ -170,11 +262,15 @@ export const PlanScene: React.FC = () => {
                     alignItems: 'center',
                     gap: 16,
                     padding: '16px 21px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    backgroundColor: `rgba(255, 255, 255, ${0.05 + pulseIntensity * 0.1})`,
                     borderRadius: 8,
                     opacity: itemSpring,
-                    transform: `translateY(${(1 - itemSpring) * 20}px)`,
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+                    transform: `translateY(${(1 - itemSpring) * 20 + floatingOffset}px)`,
+                    fontFamily:
+                      '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+                    boxShadow: `0 0 ${20 + pulseIntensity * 10}px rgba(125, 211, 252, ${pulseIntensity * 0.4})`,
+                    border: `1px solid rgba(125, 211, 252, ${0.1 + pulseIntensity * 0.3})`,
+                    transition: 'none', // All animations handled by Remotion
                   }}
                 >
                   <div
@@ -182,17 +278,58 @@ export const PlanScene: React.FC = () => {
                       width: 6,
                       height: 6,
                       borderRadius: '50%',
-                      backgroundColor: '#7dd3fc',
+                      backgroundColor: isCompleted ? '#4ade80' : '#7dd3fc',
                       flexShrink: 0,
+                      boxShadow: isCompleted
+                        ? `0 0 6px rgba(74, 222, 128, ${0.4 + pulseIntensity * 0.2})`
+                        : `0 0 4px rgba(125, 211, 252, 0.5)`,
+                      transform: 'scale(1)',
+                      opacity: isCompleted ? 0.7 : 1,
                     }}
                   />
                   <span
                     style={{
                       fontSize: 22,
-                      color: 'rgba(255, 255, 255, 0.85)',
+                      color: isCompleted
+                        ? 'rgba(148, 163, 184, 0.75)'
+                        : 'rgba(255, 255, 255, 0.85)',
+                      position: 'relative',
+                      transition: 'none',
                     }}
                   >
                     {item}
+                    {isCompleted && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: 0,
+                          right: 0,
+                          height: 1,
+                          background:
+                            'linear-gradient(90deg, transparent, #94a3b8, transparent)',
+                          opacity: interpolate(
+                            frame - completionFrame,
+                            [0, 30],
+                            [0, 0.8],
+                            {
+                              extrapolateLeft: 'clamp',
+                              extrapolateRight: 'clamp',
+                            }
+                          ),
+                          transform: `scaleX(${interpolate(
+                            frame - completionFrame,
+                            [0, 30],
+                            [0, 1],
+                            {
+                              extrapolateLeft: 'clamp',
+                              extrapolateRight: 'clamp',
+                            }
+                          )})`,
+                          transformOrigin: 'left center',
+                        }}
+                      />
+                    )}
                   </span>
                 </div>
               );
