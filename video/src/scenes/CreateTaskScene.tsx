@@ -268,12 +268,11 @@ export const CreateTaskScene: React.FC = () => {
               backgroundColor: '#1f2937',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: 8,
-              paddingTop: 28,
-              paddingLeft: 21,
-              paddingRight: 21,
-              paddingBottom: 35,
+              padding: 28,            // even padding
               minHeight: 190,
-              height: 190,
+              height: 190,            // fixed box height
+              display: 'flex',        // NEW
+              flexDirection: 'column',// NEW
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             }}
