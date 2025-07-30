@@ -51,7 +51,7 @@ export const PlanScene: React.FC = () => {
    */
   const pressSpring = spring({
     fps,
-    frame: Math.max(frame - revealDelay - 121, 0), // begin at appearance
+    frame: Math.max(frame - 166, 0), // begin at frame 166 (revealDelay + 121 = 45 + 121 = 166)
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1

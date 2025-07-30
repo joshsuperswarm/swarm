@@ -107,12 +107,14 @@ export const CreateTaskScene: React.FC = () => {
   const slamFrame = 196;
   const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
 
-  /** Title typewriter */
+  // ─── Typing SFX ───
+  const titleTypingStart = 0;
+  const titleTypingDuration = 58;
+  const descTypingStart = 59;
+  const descTypingDuration = 99;
+
+  /** Title - no animation, appears immediately */
   const fullTitle = 'Create a Remotion video for Swarm';
-  const typedTitle = fullTitle.slice(
-    0,
-    Math.floor(fullTitle.length * titleProg)
-  );
 
   /** Description typewriter with bullets */
   const bulletLines = [
@@ -191,19 +193,7 @@ export const CreateTaskScene: React.FC = () => {
               textOverflow: 'ellipsis',
             }}
           >
-            {typedTitle}
-            {titleProg < 1 && (
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 2,
-                  height: '1em',
-                  backgroundColor: '#ffffff',
-                  marginLeft: 2,
-                  opacity: interpolate(frame % 50, [0, 25, 50], [1, 0, 1]),
-                }}
-              />
-            )}
+            {fullTitle}
           </h2>
         </div>
 
@@ -334,6 +324,14 @@ export const CreateTaskScene: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Description typing sound */}
+      <Sequence from={descTypingStart} durationInFrames={descTypingDuration}>
+        <Audio
+          src={staticFile('Mechanical Keyboard Typing Sound.mp3')}
+          volume={0.3}                     // lower volume for background typing
+        />
+      </Sequence>
 
       {/* Mouse-button click */}
       <Sequence from={slamFrame} durationInFrames={clickLen}>

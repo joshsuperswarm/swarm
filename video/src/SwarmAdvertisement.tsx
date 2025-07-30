@@ -21,33 +21,33 @@ export const SwarmAdvertisement: React.FC = () => {
 
   return (
     <AbsoluteFill style={{ background: sleekGradient(135) }}>
-      {/* Intro Scene: 0-120 frames (4 seconds) */}
-      <Sequence from={0} durationInFrames={120}>
+      {/* Intro Scene: 0-60 frames (2 seconds) */}
+      <Sequence from={0} durationInFrames={60}>
         <IntroScene />
       </Sequence>
 
-      {/* Create Task Scene: 120-320 frames (6.67 seconds) */}
-      <Sequence from={120} durationInFrames={200}>
+      {/* Create Task Scene: 60-260 frames (6.67 seconds) */}
+      <Sequence from={60} durationInFrames={200}>
         <CreateTaskScene />
       </Sequence>
 
-      {/* Plan Scene: 320-445 frames (4.17 seconds) */}
-      <Sequence from={320} durationInFrames={125}>
+      {/* Plan Scene: 260-385 frames (4.17 seconds) */}
+      <Sequence from={260} durationInFrames={125}>
         <PlanScene />
       </Sequence>
 
-      {/* Execute Scene: 445-570 frames (4.17 seconds) */}
-      <Sequence from={445} durationInFrames={125}>
+      {/* Execute Scene: 385-510 frames (4.17 seconds) */}
+      <Sequence from={385} durationInFrames={125}>
         <ExecuteScene />
       </Sequence>
 
-      {/* Review Scene: 570-695 frames (4.17 seconds) */}
-      <Sequence from={570} durationInFrames={125}>
+      {/* Review Scene: 510-635 frames (4.17 seconds) */}
+      <Sequence from={510} durationInFrames={125}>
         <ReviewScene />
       </Sequence>
 
-      {/* Outro Scene: 695-795 frames (3.33 seconds) */}
-      <Sequence from={695} durationInFrames={100}>
+      {/* Outro Scene: 635-735 frames (3.33 seconds) */}
+      <Sequence from={635} durationInFrames={100}>
         <OutroScene />
       </Sequence>
     </AbsoluteFill>
