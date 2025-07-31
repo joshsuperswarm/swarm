@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@formspree/react": "^3.0.0",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.11",
     "@tailwindcss/postcss": "4.0.0-alpha.13",
     "@typeform/embed": "^5.5.0",
     "@types/node": "20.11.17",
