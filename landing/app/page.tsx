@@ -62,7 +62,7 @@ export default function Page() {
 
               {/* Description */}
               <p className="text-lg text-gray-400 mb-8 leading-relaxed font-light">
-                Swarm is an Agent IDE designed for speed. It allows you to
+                Swarm is an Agent IDE designed for speed, allowing you to
                 acheive flow while managing multiple coding agents.{' '}
                 <a
                   href="https://twitter.com/jmvldz"
@@ -109,7 +109,7 @@ export default function Page() {
 
               {/* Description */}
               <p className="text-base text-gray-400 mb-8 leading-relaxed font-light">
-                Swarm is an Agent IDE designed for speed. It allows you to
+                Swarm is an Agent IDE designed for speed, allowing you to
                 acheive flow while managing multiple coding agents.{' '}
                 <a
                   href="https://twitter.com/jmvldz"
