@@ -20,7 +20,7 @@ import { Zap, FileText, Eye } from 'lucide-react';
  *   0-72     → Mode chip cycles Execute → Review → Plan (2 clicks)
  *   72-130   → Title typewriter (cursor blinks)
  *   82-181   → Description text typewriter (cursor blinks)
- *   201-205  → "Create Task" button slam & bounce animation
+ *   216-220  → "Create Task" button slam & bounce animation
  */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -42,8 +42,8 @@ export const CreateTaskScene: React.FC = () => {
   // Keep typing length the same
   const descTypingDuration   = 99;
 
-  // Button appears shortly after description finishes (≃ +20 f)
-  const slamFrame = descStart + descTypingDuration + 20; // 82+99+20 = 201 (was 268)
+  // Button appears 4 frames before scene ends (matches other scenes)
+  const slamFrame = 216; // 220-4 = 216 (4 frames before scene ends)
 
   /** Timing helpers */
   const titleProg = interpolate(frame, [titleStart, titleStart + 58], [0, 1], {
@@ -97,7 +97,8 @@ export const CreateTaskScene: React.FC = () => {
   });
   // ─── Button slam animation ───
   /**
-   * Starts at frame 201 - shortly after description typing finishes.
+   * Starts at frame 216 (4 frames before scene ends) to match other scenes.
+   * CreateTaskScene has 220 frames, so starts at 220-4=216.
    */
   const pressSpring = spring({
     fps,
