@@ -8,6 +8,7 @@
   "dependencies": {
     "@formspree/react": "^3.0.0",
     "@tailwindcss/postcss": "4.0.0-alpha.13",
+    "@typeform/embed": "^5.5.0",
     "@types/node": "20.11.17",
     "@types/react": "18.2.55",
     "@types/react-dom": "18.2.19",
