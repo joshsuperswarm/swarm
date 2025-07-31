@@ -9,6 +9,7 @@ import {
   Audio,
   staticFile,
 } from 'remotion';
+import { AnimatedTaskList } from '../components/AnimatedTaskList';
 
 const planItems = [
   'Storyboard key scenes (intro, create task, plan, outro)',
@@ -17,14 +18,10 @@ const planItems = [
   'Add gradients, typography, and on-brand colors',
 ];
 
-const thinkingSteps = ['Thinking', 'Analyzing', 'Planning'] as const;
-const stepDuration = 15; // frames per word @30 fps → 0.5 s
-const revealDelay = thinkingSteps.length * stepDuration; // 45 f
-
-const getThinkingText = (frame: number) =>
-  thinkingSteps[
-    Math.min(Math.floor(frame / stepDuration), thinkingSteps.length - 1)
-  ];
+// Words shown while the agent is still working out the plan
+const placeholderWords = ['Pondering', 'Analyzing', 'Perusing', 'Planning'] as const;
+// No dedicated overlay anymore – items will show these placeholders directly
+const revealDelay = 17; // keep slight staggering for AnimatedTaskList
 
 export const PlanScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -71,42 +68,7 @@ export const PlanScene: React.FC = () => {
   // Status is always "PLAN" in this scene
   const statusTransition = 0; // Always shows PLAN
 
-  // Plan item animations with staggered timing
-  const getPlanItemSpring = (index: number) =>
-    spring({
-      fps,
-      frame: Math.max(frame - revealDelay - 17 - index * 8, 0),
-      config: { damping: 140, stiffness: 200 },
-    });
-
-  // Floating animation for each item
-  const getFloatingAnimation = (index: number) => {
-    const offset = index * 0.5; // Stagger the floating motion
-    return interpolate(frame + offset * 10, [0, 60, 120], [0, -3, 0], {
-      extrapolateLeft: 'extend',
-      extrapolateRight: 'extend',
-    });
-  };
-
-  // Pulse animation for completed items (simulate completion for demo)
-  const getPulseAnimation = (index: number) => {
-    const completionFrame = 60 + index * 15; // Items complete at different times
-    const strikeEndFrame = completionFrame + 30; // Strike animation takes 30 frames
-    const isCompleted = frame > completionFrame;
-    const strikeCompleted = frame > strikeEndFrame;
-
-    if (!isCompleted || strikeCompleted) return 0;
-
-    return interpolate(
-      (frame - completionFrame) % 60, // 2-second pulse cycle at 30fps
-      [0, 15, 30, 45, 60],
-      [0, 0.3, 0, 0.3, 0],
-      {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      }
-    );
-  };
+  // Plan item animations now handled by AnimatedTaskList component
 
   return (
     <AbsoluteFill>
@@ -144,29 +106,7 @@ export const PlanScene: React.FC = () => {
         }}
       />
 
-      {/* LLM thinking overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: frame < revealDelay ? 'flex' : 'none',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 42,
-          fontWeight: 600,
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-          color: '#7dd3fc',
-          opacity: interpolate(
-            frame % stepDuration,
-            [0, stepDuration / 2, stepDuration],
-            [0, 1, 0],
-            { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-          ),
-        }}
-      >
-        {getThinkingText(frame)}
-      </div>
+      {/* overlay removed – list rows handle their own intro text */}
 
       {/* Main container */}
       <div
@@ -237,95 +177,12 @@ export const PlanScene: React.FC = () => {
           }}
         >
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {planItems.map((item, index) => {
-              const itemSpring = getPlanItemSpring(index);
-              const floatingOffset = getFloatingAnimation(index);
-              const pulseIntensity = getPulseAnimation(index);
-              const completionFrame = 60 + index * 15;
-              const isCompleted = frame > completionFrame;
-
-              return (
-                <div
-                  key={index}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                    padding: '16px 21px',
-                    backgroundColor: `rgba(255, 255, 255, ${0.05 + pulseIntensity * 0.1})`,
-                    borderRadius: 8,
-                    opacity: itemSpring,
-                    transform: `translateY(${(1 - itemSpring) * 20 + floatingOffset}px)`,
-                    fontFamily:
-                      '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
-                    boxShadow: `0 0 ${20 + pulseIntensity * 10}px rgba(125, 211, 252, ${pulseIntensity * 0.4})`,
-                    border: `1px solid rgba(125, 211, 252, ${0.1 + pulseIntensity * 0.3})`,
-                    transition: 'none', // All animations handled by Remotion
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      backgroundColor: isCompleted ? '#4ade80' : '#7dd3fc',
-                      flexShrink: 0,
-                      boxShadow: isCompleted
-                        ? `0 0 6px rgba(74, 222, 128, ${0.4 + pulseIntensity * 0.2})`
-                        : `0 0 4px rgba(125, 211, 252, 0.5)`,
-                      transform: 'scale(1)',
-                      opacity: isCompleted ? 0.7 : 1,
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: 22,
-                      color: isCompleted
-                        ? 'rgba(148, 163, 184, 0.75)'
-                        : 'rgba(255, 255, 255, 0.85)',
-                      position: 'relative',
-                      transition: 'none',
-                    }}
-                  >
-                    {item}
-                    {isCompleted && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: 0,
-                          right: 0,
-                          height: 1,
-                          background:
-                            'linear-gradient(90deg, transparent, #94a3b8, transparent)',
-                          opacity: interpolate(
-                            frame - completionFrame,
-                            [0, 30],
-                            [0, 0.8],
-                            {
-                              extrapolateLeft: 'clamp',
-                              extrapolateRight: 'clamp',
-                            }
-                          ),
-                          transform: `scaleX(${interpolate(
-                            frame - completionFrame,
-                            [0, 30],
-                            [0, 1],
-                            {
-                              extrapolateLeft: 'clamp',
-                              extrapolateRight: 'clamp',
-                            }
-                          )})`,
-                          transformOrigin: 'left center',
-                        }}
-                      />
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <AnimatedTaskList
+            items={planItems}
+            placeholders={placeholderWords}
+            revealDelay={revealDelay}
+            animationStyle="execute"   // reuse ExecuteScene bounce-in
+          />
         </div>
 
         {/* Execute Plan button */}

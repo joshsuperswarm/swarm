@@ -9,7 +9,7 @@ import {
   Audio,
   staticFile,
 } from 'remotion';
-import { Zap, FileText } from 'lucide-react';
+import { Zap, FileText, Eye } from 'lucide-react';
 
 /**
  * CreateTaskScene - Sequential Animations
@@ -17,10 +17,10 @@ import { Zap, FileText } from 'lucide-react';
  * Sequential micro-animations for better visual flow:
  *
  * Animation timeline (frames @ 30fps):
- *   0-58     → Title typewriter (cursor blinks)
- *   59-158   → Description text typewriter (cursor blinks)
- *   159-192  → Mode chip cross-fades Execute → Plan
- *   196-200  → "Create Task" button slam & bounce animation
+ *   0-72     → Mode chip cycles Execute → Review → Plan (2 clicks)
+ *   72-130   → Title typewriter (cursor blinks)
+ *   130-229  → Description text typewriter (cursor blinks)
+ *   268-272  → "Create Task" button slam & bounce animation
  */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -33,61 +33,70 @@ export const CreateTaskScene: React.FC = () => {
     config: { damping: 120, stiffness: 180 },
   });
 
+  /** NEW timeline */
+  const modeStart = 0;
+  const modePhase = 24;
+  const titleStart = modeStart + modePhase * 3; // 72
+  const descStart = titleStart + 30; // 102
+  const slamFrame = 196 + modePhase * 3; // 268
+
   /** Timing helpers */
-  const titleProg = interpolate(frame, [0, 58], [0, 1], {
+  const titleProg = interpolate(frame, [titleStart, titleStart + 58], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const descProg = interpolate(frame, [59, 158], [0, 1], {
+  const descProg = interpolate(frame, [descStart, descStart + 99], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const modeProg = spring({
-    frame: Math.max(frame - 159, 0), // ensures 0 at start
+
+  // Helper giving 0..1 inside each phase
+  const phase = (f: number) =>
+    Math.min(1, Math.max(0, (f - modeStart) / modePhase));
+
+  const execPhase = phase(frame); // 0-24
+  const reviewPhase = phase(frame - modePhase); // 24-48
+  const planPhase = phase(frame - modePhase * 2); // 48-72
+
+  // Derive the display label, icon & colors
+  type ModeState = 'Execute' | 'Review' | 'Plan';
+  const state: ModeState =
+    planPhase > 0 ? 'Plan' : reviewPhase > 0 ? 'Review' : 'Execute';
+
+  const icon =
+    state === 'Execute' ? Zap : state === 'Review' ? Eye : FileText;
+
+  const color =
+    state === 'Execute'
+      ? '#10b981' // green
+      : state === 'Review'
+      ? '#facc15' // yellow
+      : '#7dd3fc'; // blue
+
+  // Animate the "pop" per transition
+  const modePop = spring({
     fps,
+    frame:
+      frame -
+      modeStart -
+      (state === 'Execute'
+        ? 0
+        : state === 'Review'
+        ? modePhase
+        : modePhase * 2),
     config: { damping: 120, stiffness: 180 },
   });
-
-  // Enhanced mode transition animations
-  const modeTransition = interpolate(
-    modeProg,
-    [0, 0.3, 0.5, 0.7, 1],
-    [0, 0, 0.5, 1, 1],
-    {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    }
-  );
-
-  // Scale animation for mode switch - creates a "pop" effect
-  const modeScale = interpolate(
-    modeProg,
-    [0, 0.3, 0.5, 0.7, 1],
-    [1, 1, 1.15, 1.05, 1],
-    {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    }
-  );
-
-  // Flash effect during transition
-  const modeFlash = interpolate(
-    modeProg,
-    [0, 0.4, 0.5, 0.6, 1],
-    [0, 0, 1, 0, 0],
-    {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    }
-  );
+  const scale = interpolate(modePop, [0, 1], [1, 1.15], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
   // ─── Button slam animation ───
   /**
-   * Starts at frame 196 (4 frames before scene ends) to match other scenes.
-   * CreateTaskScene has 200 frames, so starts at 200-4=196.
+   * Starts at frame 268 to account for the mode cycling time shift.
    */
   const pressSpring = spring({
     fps,
-    frame: Math.max(frame - 196, 0), // begin at appearance
+    frame: Math.max(frame - slamFrame, 0), // begin at appearance
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -104,14 +113,13 @@ export const CreateTaskScene: React.FC = () => {
   );
 
   // ─── Mouse-click SFX ───
-  const slamFrame = 196;
-  const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
+  const clickLen = 8; // 8 frames ≈ 0.33 s @ 30 fps
 
   // ─── Typing SFX ───
-  const titleTypingStart = 0;
-  const titleTypingDuration = 58;
-  const descTypingStart = 59;
-  const descTypingDuration = 99;
+  const titleTypingStart     = titleStart;
+  const titleTypingDuration  = 58;   // title still instant; leave as-is
+  const descTypingStart      = descStart;  // now 30 f sooner
+  const descTypingDuration   = 99;
 
   /** Title - no animation, appears immediately */
   const fullTitle = 'Create a Remotion video for Swarm';
@@ -236,26 +244,15 @@ export const CreateTaskScene: React.FC = () => {
                 borderRadius: 6,
                 fontSize: 22,
                 fontWeight: 500,
-                transform: `scale(${modeScale})`,
-                backgroundColor:
-                  modeTransition < 0.5
-                    ? 'rgba(16,185,129,0.1)'
-                    : `rgba(${interpolate(modeTransition, [0, 1], [16, 96])}, ${interpolate(modeTransition, [0, 1], [185, 165])}, ${interpolate(modeTransition, [0, 1], [129, 250])}, 0.1)`,
-                color:
-                  modeTransition < 0.5
-                    ? '#10b981'
-                    : `rgb(${interpolate(modeTransition, [0, 1], [16, 96])}, ${interpolate(modeTransition, [0, 1], [185, 165])}, ${interpolate(modeTransition, [0, 1], [129, 250])})`,
-                boxShadow: `0 0 ${modeFlash * 20}px rgba(125, 211, 252, ${modeFlash * 0.8})`,
-                border: `1px solid rgba(125, 211, 252, ${modeFlash * 0.5})`,
+                transform: `scale(${scale})`,
+                backgroundColor: `${color}1a`, // add alpha
+                color: color,
+                border: `1px solid ${color}40`,
                 transition: 'none', // driven purely by Remotion
               }}
             >
-              {modeTransition < 0.5 ? (
-                <Zap size={22} />
-              ) : (
-                <FileText size={22} />
-              )}
-              {modeTransition < 0.5 ? 'Execute' : 'Plan'}
+              {React.createElement(icon, { size: 22 })}
+              {state}
             </div>
           </div>
 
@@ -331,6 +328,14 @@ export const CreateTaskScene: React.FC = () => {
           src={staticFile('Mechanical Keyboard Typing Sound.mp3')}
           volume={0.3}                     // lower volume for background typing
         />
+      </Sequence>
+
+      {/* Mode transition clicks */}
+      <Sequence from={modeStart + modePhase - 2} durationInFrames={clickLen}>
+        <Audio src={staticFile('Mouse Click Sound.wav')} volume={0.8} />
+      </Sequence>
+      <Sequence from={modeStart + modePhase * 2 - 2} durationInFrames={clickLen}>
+        <Audio src={staticFile('Mouse Click Sound.wav')} volume={0.8} />
       </Sequence>
 
       {/* Mouse-button click */}
