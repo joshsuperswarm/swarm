@@ -16,6 +16,7 @@
     "@vercel/analytics": "^1.4.1",
     "@vercel/speed-insights": "^1.0.9",
     "geist": "1.2.2",
+    "lightningcss-linux-x64-gnu": "^1.30.1",
     "next": "14.1.0",
     "next-mdx-remote": "^4.4.1",
     "postcss": "^8.4.35",
