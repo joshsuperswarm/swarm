@@ -45,13 +45,10 @@ export const PlanScene: React.FC = () => {
   });
 
   // ─── Button slam animation ───
-  /**
-   * Starts at frame 119 (4 frames before scene ends) to match Create Task timing.
-   * PlanScene has 125 frames, so starts at 125-4=121.
-   */
+  const pressStart = 121;                // 4 frames before 125
   const pressSpring = spring({
     fps,
-    frame: Math.max(frame - 166, 0), // begin at frame 166 (revealDelay + 121 = 45 + 121 = 166)
+    frame: Math.max(frame - pressStart, 0),
     config: { damping: 12, stiffness: 280, mass: 1.2 },
   });
   /* Scale goes from 1  →  0.88  →  1.02  →  1
@@ -68,7 +65,7 @@ export const PlanScene: React.FC = () => {
   );
 
   // ─── Mouse-click SFX ───
-  const slamFrame = 166;
+  const slamFrame = pressStart;
   const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
 
   // Status is always "PLAN" in this scene

@@ -8,8 +8,8 @@ export const Root: React.FC = () => {
         id="SwarmAdvertisement"
         component={SwarmAdvertisement}
         durationInFrames={735} // 24.5 seconds at 30fps
-        width={3840}
-        height={2160}
+        width={1280}
+        height={720}
         fps={30}
         defaultProps={{}}
       />
