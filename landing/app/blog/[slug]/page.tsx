@@ -67,8 +67,8 @@ export default function Blog({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white dark:from-gray-900 to-gray-50 dark:to-gray-800 text-gray-900 dark:text-gray-100">
-      <main className="container mx-auto py-12 md:py-24">
+    <div className="flex-1 bg-gradient-to-b from-white dark:from-gray-900 to-gray-50 dark:to-gray-800 text-gray-900 dark:text-gray-100">
+      <main className="container mx-auto py-8 md:py-16">
         <div className="max-w-3xl mx-auto">
           <script
             type="application/ld+json"

@@ -12,7 +12,7 @@ const navItems = {
 export function Navbar() {
   return (
     <div className="bg-gradient-to-b from-white to-gray-50">
-      <nav className="container mx-auto py-12">
+      <nav className="container mx-auto py-8">
         <div className="max-w-3xl mx-auto">
           {Object.entries(navItems).map(([path, { name }]) => {
             return (

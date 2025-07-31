@@ -62,11 +62,11 @@ export default function RootLayout({
       lang="en"
       className={cx(
         GeistSans.variable,
-        GeistMono.variable,
+        GeistMono.variable
       )}
     >
-      <body className="antialiased bg-[#1B1F24] text-[#EAEAEA]">
-        <main className="flex-auto min-w-0 flex flex-col">
+      <body className="flex flex-col min-h-screen antialiased bg-[#1B1F24] text-[#EAEAEA]">
+        <main className="flex-1 min-w-0 flex flex-col">
           {children}
           <Analytics />
           <SpeedInsights />

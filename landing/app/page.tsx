@@ -4,9 +4,9 @@ import WaitlistForm from "app/components/waitlist-form";
 
 export default function Page() {
   return (
-    <div className="min-h-screen text-[#EAEAEA] font-sans" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }}>
+    <div className="text-[#EAEAEA] font-sans min-h-screen" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }}>
       {/* Video Section - Full Width at Top */}
-      <div className="w-full px-8 pt-16">
+      <div className="w-full px-8 pt-8">
         <div className="max-w-4xl mx-auto">
           <div className="w-full rounded-lg overflow-hidden">
             <div style={{ padding: "56.25% 0 0 0", position: "relative" }}>
@@ -31,7 +31,7 @@ export default function Page() {
       </div>
 
       {/* Logo and Content Section */}
-      <div className="flex justify-center min-h-[60vh] px-8 py-16">
+      <div className="flex justify-center px-8 py-16">
         <div className="max-w-4xl mx-auto">
           {/* Desktop Layout: Logo on Left, Content on Right */}
           <div className="hidden md:flex gap-16">
