@@ -7,7 +7,7 @@ export const Root: React.FC = () => {
       <Composition
         id="SwarmAdvertisement"
         component={SwarmAdvertisement}
-        durationInFrames={755} // 25.17 seconds at 30fps
+        durationInFrames={735} // 24.5 seconds at 30fps
         width={1280}
         height={720}
         fps={30}

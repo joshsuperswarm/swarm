@@ -20,7 +20,7 @@ import { Zap, FileText, Eye } from 'lucide-react';
  *   0-72     → Mode chip cycles Execute → Review → Plan (2 clicks)
  *   72-130   → Title typewriter (cursor blinks)
  *   82-181   → Description text typewriter (cursor blinks)
- *   216-220  → "Create Task" button slam & bounce animation
+ *   196-200  → "Create Task" button slam & bounce animation
  */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -43,7 +43,7 @@ export const CreateTaskScene: React.FC = () => {
   const descTypingDuration   = 99;
 
   // Button appears 4 frames before scene ends (matches other scenes)
-  const slamFrame = 216; // 220-4 = 216 (4 frames before scene ends)
+  const slamFrame = 196; // 200-4 = 196 (4 frames before scene ends)
 
   /** Timing helpers */
   const titleProg = interpolate(frame, [titleStart, titleStart + 58], [0, 1], {
@@ -97,8 +97,8 @@ export const CreateTaskScene: React.FC = () => {
   });
   // ─── Button slam animation ───
   /**
-   * Starts at frame 216 (4 frames before scene ends) to match other scenes.
-   * CreateTaskScene has 220 frames, so starts at 220-4=216.
+   * Starts at frame 196 (4 frames before scene ends) to match other scenes.
+   * CreateTaskScene has 200 frames, so starts at 200-4=196.
    */
   const pressSpring = spring({
     fps,
@@ -283,7 +283,7 @@ export const CreateTaskScene: React.FC = () => {
                 color: 'rgba(255,255,255,0.9)',
                 whiteSpace: 'pre-wrap',
                 lineHeight: 1.3,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
+                fontFamily: 'monospace',
               }}
             >
               {trimmedDesc}

@@ -15,6 +15,8 @@ interface AnimatedTaskListProps {
   animationStyle?: 'default' | 'execute';
   /** Frames to wait before the list starts animating (default 0) */
   revealDelay?: number;
+  /** Disable the completion/done animation (default false) */
+  disableCompleteAnimation?: boolean;
 }
 
 export const AnimatedTaskList: React.FC<AnimatedTaskListProps> = ({
@@ -22,6 +24,7 @@ export const AnimatedTaskList: React.FC<AnimatedTaskListProps> = ({
   placeholders,
   animationStyle = 'default',
   revealDelay = 0,
+  disableCompleteAnimation = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -61,13 +64,37 @@ export const AnimatedTaskList: React.FC<AnimatedTaskListProps> = ({
       {items.map((txt, i) => {
         const s = itemSpring(i);
         const y = floatOffset(i);
-        const glow = pulse(i);
+        const glow = disableCompleteAnimation ? 0 : pulse(i);
         const completeFrame = 60 + i * 15;
-        const done = frame > completeFrame;
+        const done = disableCompleteAnimation ? false : frame > completeFrame;
         
-        // Choose which text to show
+        // Typewriter replacement from placeholder to actual text
         const placeholder = placeholders?.[i];
-        const displayText = frame < completeFrame && placeholder ? placeholder : txt;
+        
+        // Typewriter transition starts 30 frames before completion
+        const typewriterStart = completeFrame - 30;
+        const typewriterProgress = interpolate(
+          frame,
+          [typewriterStart, completeFrame],
+          [0, 1],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+        );
+        
+        // Calculate display text with typewriter effect
+        let displayText: string;
+        if (!placeholder || frame < typewriterStart) {
+          // Show placeholder normally before typewriter starts
+          displayText = placeholder || txt;
+        } else if (frame < completeFrame) {
+          // During typewriter transition: gradually replace characters
+          const targetLength = Math.floor(txt.length * typewriterProgress);
+          const actualPart = txt.slice(0, targetLength);
+          const placeholderPart = placeholder.slice(targetLength);
+          displayText = actualPart + placeholderPart;
+        } else {
+          // After completion: show full actual text
+          displayText = txt;
+        }
 
         return (
           <div
@@ -104,6 +131,7 @@ export const AnimatedTaskList: React.FC<AnimatedTaskListProps> = ({
                 color: done
                   ? "rgba(148,163,184,0.75)"
                   : "rgba(255,255,255,0.85)",
+                fontFamily: 'monospace', // Use monospace for consistent character widths during typewriter effect
               }}
             >
               {displayText}

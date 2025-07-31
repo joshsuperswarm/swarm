@@ -16,7 +16,6 @@ const reviewItems = [
   'Verify all functions have descriptive names and comments',
   'Ensure code follows project style guidelines',
   'Confirm no hardcoded values or magic numbers',
-  'Test all user input validation and sanitization',
 ];
 
 export const ReviewScene: React.FC = () => {

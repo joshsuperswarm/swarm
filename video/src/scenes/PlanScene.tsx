@@ -182,6 +182,7 @@ export const PlanScene: React.FC = () => {
             placeholders={placeholderWords}
             revealDelay={revealDelay}
             animationStyle="execute"   // reuse ExecuteScene bounce-in
+            disableCompleteAnimation={true}
           />
         </div>
 
