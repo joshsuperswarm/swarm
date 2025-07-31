@@ -10,7 +10,7 @@ export default function WaitlistForm() {
   if (state.succeeded) {
     return (
       <div className="mb-8">
-        <button className="bg-white text-black px-6 py-3 text-sm font-medium rounded flex items-center gap-2 cursor-default">
+        <button className="px-6 py-3 text-sm font-medium flex items-center gap-2 cursor-default" style={{ backgroundColor: '#7dd3fc', color: '#0f172a', borderRadius: '8px' }}>
           Signed Up ✓
         </button>
       </div>
@@ -29,7 +29,10 @@ export default function WaitlistForm() {
         <button
           onClick={handleJoinLimitedBeta}
           type="button"
-          className="bg-white text-black px-6 py-3 text-sm font-medium hover:bg-gray-100 transition-colors duration-200 cursor-pointer"
+          className="px-6 py-3 text-sm font-medium transition-colors duration-200 cursor-pointer"
+          style={{ backgroundColor: '#7dd3fc', color: '#0f172a', borderRadius: '8px' }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#60a5fa'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#7dd3fc'}
         >
           Join the Beta
         </button>
@@ -53,7 +56,10 @@ export default function WaitlistForm() {
             <button
               type="submit"
               disabled={state.submitting}
-              className="bg-white text-black px-6 py-3 text-sm font-medium hover:bg-gray-100 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: state.submitting ? '#60a5fa' : '#7dd3fc', color: '#0f172a', borderRadius: '8px' }}
+              onMouseEnter={(e) => !state.submitting && (e.currentTarget.style.backgroundColor = '#60a5fa')}
+              onMouseLeave={(e) => !state.submitting && (e.currentTarget.style.backgroundColor = '#7dd3fc')}
             >
               {state.submitting ? "Signing Up..." : "Sign Up"}
             </button>

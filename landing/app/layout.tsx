@@ -11,15 +11,15 @@ import { baseUrl } from "./sitemap";
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: "Engines – AI Platform Engineer",
-    template: "%s | Engines",
+    default: "Swarm - AI Agent IDE",
+    template: "%s | Swarm",
   },
   description: "We containerize your repo so AI agents can run it.",
   openGraph: {
-    title: "Engines – AI Platform Engineer",
+    title: "Swarm - AI Agent IDE",
     description: "We containerize your repo so AI agents can run it.",
     url: "https://engines.dev",
-    siteName: "Engines",
+    siteName: "Swarm",
     locale: "en_US",
     type: "website",
     images: [
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 1200,
-        alt: "Engines – AI Platform Engineer",
+        alt: "Swarm - AI Agent IDE",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Engines – AI Platform Engineer",
+    title: "Swarm - AI Agent IDE",
     description: "We containerize your repo so AI agents can run it.",
     images: ["/og-image.png"],
   },

@@ -4,16 +4,17 @@ import WaitlistForm from "app/components/waitlist-form";
 
 export default function Page() {
   return (
-    <div className="min-h-screen bg-[#1B1F24] text-[#EAEAEA] font-sans">
+    <div className="min-h-screen text-[#EAEAEA] font-sans" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }}>
       {/* Video Section - Full Width at Top */}
       <div className="w-full px-8 pt-16">
         <div className="max-w-4xl mx-auto">
           <div className="w-full rounded-lg overflow-hidden">
             <div style={{ padding: "56.25% 0 0 0", position: "relative" }}>
               <iframe
-                src="https://player.vimeo.com/video/1090329768?h=a0ea69c02d&badge=0&autopause=0&player_id=0&app_id=58479&muted=0"
+                src="https://player.vimeo.com/video/1106242932?badge=0&autopause=0&player_id=0&app_id=58479"
                 frameBorder="0"
-                allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
+                allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
                 style={{
                   position: "absolute",
                   top: 0,
@@ -21,7 +22,7 @@ export default function Page() {
                   width: "100%",
                   height: "100%",
                 }}
-                title="Engines Demo"
+                title="Swarm Teaser 1080p"
               />
             </div>
             <script src="https://player.vimeo.com/api/player.js"></script>
