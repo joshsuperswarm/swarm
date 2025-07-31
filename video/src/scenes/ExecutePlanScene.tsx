@@ -123,7 +123,7 @@ export const ExecutePlanScene: React.FC = () => {
           <div
             style={{
               padding: '6px 16px',
-              backgroundColor: statusTransition > 0.5 ? '#22c55e' : '#6366f1',
+              backgroundColor: statusTransition > 0.5 ? '#334155' : '#334155',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 12,

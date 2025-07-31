@@ -71,12 +71,7 @@ export const CreateTaskScene: React.FC = () => {
   const icon =
     state === 'Execute' ? Zap : state === 'Review' ? Eye : FileText;
 
-  const color =
-    state === 'Execute'
-      ? '#10b981' // green
-      : state === 'Review'
-      ? '#facc15' // yellow
-      : '#7dd3fc'; // blue
+  const color = '#7dd3fc'; // steel blue for all modes
 
   // Animate the "pop" per transition
   const modePop = spring({
@@ -183,7 +178,7 @@ export const CreateTaskScene: React.FC = () => {
           <div
             style={{
               padding: '8px 21px',
-              backgroundColor: '#6366f1',
+              backgroundColor: '#334155',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 19,

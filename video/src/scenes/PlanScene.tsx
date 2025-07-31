@@ -78,7 +78,7 @@ export const PlanScene: React.FC = () => {
           position: 'absolute',
           inset: 0,
           background:
-            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.15), rgba(99, 102, 241, 0.08), transparent)',
+            'radial-gradient(ellipse at center, rgba(125, 211, 252, 0.15), rgba(125, 211, 252, 0.05), transparent)',
           filter: 'blur(120px)',
           transform: `translateY(${interpolate(frame, [0, 300], [0, -20], {
             extrapolateLeft: 'extend',
@@ -96,7 +96,7 @@ export const PlanScene: React.FC = () => {
           width: 200,
           height: 200,
           background:
-            'radial-gradient(circle, rgba(99, 102, 241, 0.1), transparent)',
+            'radial-gradient(circle, rgba(125, 211, 252, 0.1), transparent)',
           borderRadius: '50%',
           filter: 'blur(60px)',
           transform: `translateY(${interpolate(frame, [0, 200], [0, 15], {
@@ -143,13 +143,12 @@ export const PlanScene: React.FC = () => {
           <div
             style={{
               padding: '8px 21px',
-              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+              backgroundColor: '#334155',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 19,
               fontWeight: 600,
               textTransform: 'uppercase',
-              boxShadow: '0 0 8px rgba(99, 102, 241, 0.3)',
             }}
           >
             PLAN

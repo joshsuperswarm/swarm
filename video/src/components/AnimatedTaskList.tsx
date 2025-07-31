@@ -121,7 +121,7 @@ export const AnimatedTaskList: React.FC<AnimatedTaskListProps> = ({
                 width: 6,
                 height: 6,
                 borderRadius: "50%",
-                backgroundColor: done ? "#4ade80" : "#7dd3fc",
+                backgroundColor: done ? "#60a5fa" : "#7dd3fc",
                 flexShrink: 0,
               }}
             />

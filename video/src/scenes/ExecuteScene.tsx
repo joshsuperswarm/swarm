@@ -116,7 +116,7 @@ export const ExecuteScene: React.FC = () => {
           <div
             style={{
               padding: '8px 21px',
-              background: 'linear-gradient(135deg, #3ebd93, #1f7c6d)',
+              backgroundColor: '#334155',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 19,

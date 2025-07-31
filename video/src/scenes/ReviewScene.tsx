@@ -116,7 +116,7 @@ export const ReviewScene: React.FC = () => {
           <div
             style={{
               padding: '8px 21px',
-              backgroundColor: '#f59e0b',
+              backgroundColor: '#334155',
               color: '#ffffff',
               borderRadius: 6,
               fontSize: 19,
