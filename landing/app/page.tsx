@@ -40,7 +40,7 @@ export default function Page() {
                 src="/swarm-logo-new.png"
                 alt="Swarm"
                 width={400}
-                height={200}
+                height={400}
                 priority
                 className=""
               />
@@ -88,7 +88,7 @@ export default function Page() {
                 src="/swarm-logo-new.png"
                 alt="Swarm"
                 width={300}
-                height={150}
+                height={300}
                 priority
                 className=""
               />
