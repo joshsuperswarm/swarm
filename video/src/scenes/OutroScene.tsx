@@ -44,32 +44,6 @@ export const OutroScene: React.FC = () => {
     config: { damping: 120, stiffness: 180 },
   });
 
-  // ─── Button slam animation ───
-  /**
-   * Starts at frame 96 (4 frames before scene ends) to match other button timing.
-   * OutroScene has 100 frames, so starts at 100-4=96.
-   */
-  const pressSpring = spring({
-    fps,
-    frame: Math.max(frame - 96, 0),      // begin at appearance
-    config: { damping: 12, stiffness: 280, mass: 1.2 },
-  });
-  /* Scale goes from 1  →  0.88  →  1.02  →  1
-     TranslateY goes from 0px → 8px  → -4px → 0px */
-  const pressScale = interpolate(
-    pressSpring,
-    [0, 0.5, 0.8, 1],
-    [1, 0.88, 1.02, 1],
-  );
-  const pressTranslate = interpolate(
-    pressSpring,
-    [0, 0.5, 0.8, 1],
-    [0, 4, -2, 0],   // stays within ±4 px
-  );
-
-  // ─── Mouse-click SFX ───
-  const slamFrame = 96;
-  const clickLen  = 8; // 8 frames ≈ 0.33 s @ 24 fps
 
 
 
@@ -147,7 +121,7 @@ export const OutroScene: React.FC = () => {
               letterSpacing: '0.01em',
               boxShadow: `0 4px 24px rgba(56, 189, 248, ${glow})`,
               cursor: 'pointer',
-              transform: `translateY(${pressTranslate}px) scale(${(1 + pulse * 0.03) * pressScale})`,
+              transform: `scale(${1 + pulse * 0.03})`,
               transition: 'none', // driven purely by Remotion
             }}
           >
@@ -168,18 +142,6 @@ export const OutroScene: React.FC = () => {
         </p>
       </div>
 
-      {/* Mouse-button click */}
-      <Sequence from={slamFrame} durationInFrames={clickLen}>
-        <Audio
-          src={staticFile('Mouse Click Sound.wav')}
-          trimAfter={clickLen}             // stop after ≈0.33 s
-          volume={f =>
-            interpolate(f, [0, 4], [1, 0.8], {
-              extrapolateRight: 'clamp',
-            })
-          }                                // tiny ease-out fade
-        />
-      </Sequence>
     </AbsoluteFill>
   );
 };
