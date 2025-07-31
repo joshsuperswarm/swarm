@@ -37,10 +37,10 @@ export default function Page() {
             {/* Logo on Left */}
             <div className="flex-shrink-0">
               <Image
-                src="/Engines Dev Logo Cropped.png"
-                alt="Engines"
+                src="/swarm-logo-new.png"
+                alt="Swarm"
                 width={400}
-                height={400}
+                height={200}
                 priority
                 className=""
               />
@@ -49,13 +49,13 @@ export default function Page() {
             {/* Content on Right */}
             <div className="flex-1 max-w-2xl flex flex-col justify-start">
               {/* Main headline */}
-              <h1 className="text-4xl md:text-5xl font-light mb-6 leading-tight tracking-tight -mt-4">
+              <h2 className="text-4xl md:text-5xl font-light mb-6 leading-tight tracking-tight -mt-4">
                 Setup any repo with one command.
-              </h1>
+              </h2>
 
               {/* Description */}
               <p className="text-lg text-gray-400 mb-8 leading-relaxed font-light">
-                Engines is an AI platform engineer that containerizes codebases,
+                Swarm is an AI platform engineer that containerizes codebases,
                 debugs Terraform code, and helps you get complex monorepos
                 setup.{" "}
                 <a
@@ -77,18 +77,6 @@ export default function Page() {
 
               {/* Waitlist Form */}
               <WaitlistForm />
-
-              {/* Y Combinator Badge */}
-              <div className="flex items-center gap-2 text-gray-400">
-                <span className="text-sm font-light">Backed by</span>
-                <Image
-                  src="/Y Combinator.svg"
-                  alt="Y Combinator"
-                  width={120}
-                  height={30}
-                  className="opacity-80"
-                />
-              </div>
             </div>
           </div>
 
@@ -97,10 +85,10 @@ export default function Page() {
             {/* Logo */}
             <div className="mb-8">
               <Image
-                src="/Engines Dev Logo Cropped.png"
-                alt="Engines"
+                src="/swarm-logo-new.png"
+                alt="Swarm"
                 width={300}
-                height={300}
+                height={150}
                 priority
                 className=""
               />
@@ -109,13 +97,13 @@ export default function Page() {
             {/* Content */}
             <div className="max-w-lg">
               {/* Main headline */}
-              <h1 className="text-3xl font-light mb-6 leading-tight tracking-tight">
+              <h2 className="text-3xl font-light mb-6 leading-tight tracking-tight">
                 Setup any repo with one command.
-              </h1>
+              </h2>
 
               {/* Description */}
               <p className="text-base text-gray-400 mb-8 leading-relaxed font-light">
-                Engines is an AI platform engineer that containerizes codebases,
+                Swarm is an AI platform engineer that containerizes codebases,
                 debugs Terraform code, and helps you get complex monorepos
                 setup.{" "}
                 <a
@@ -136,21 +124,7 @@ export default function Page() {
               </p>
 
               {/* Waitlist Form */}
-              <div className="mb-8">
-                <WaitlistForm />
-              </div>
-
-              {/* Y Combinator Badge */}
-              <div className="flex items-center gap-2 text-gray-400">
-                <span className="text-sm font-light">Backed by</span>
-                <Image
-                  src="/Y Combinator.svg"
-                  alt="Y Combinator"
-                  width={120}
-                  height={30}
-                  className="opacity-80"
-                />
-              </div>
+              <WaitlistForm />
             </div>
           </div>
         </div>
