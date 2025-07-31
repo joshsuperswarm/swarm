@@ -1,26 +1,32 @@
-import Image from "next/image";
-import { BlogPosts } from "app/components/posts";
-import WaitlistForm from "app/components/waitlist-form";
+import Image from 'next/image';
+import { BlogPosts } from 'app/components/posts';
+import WaitlistForm from 'app/components/waitlist-form';
 
 export default function Page() {
   return (
-    <div className="text-[#EAEAEA] font-sans min-h-screen" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)' }}>
+    <div
+      className="text-[#EAEAEA] font-sans min-h-screen"
+      style={{
+        background:
+          'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+      }}
+    >
       {/* Video Section - Full Width at Top */}
       <div className="w-full px-8 pt-8">
         <div className="max-w-4xl mx-auto">
           <div className="w-full rounded-lg overflow-hidden">
-            <div style={{ padding: "56.25% 0 0 0", position: "relative" }}>
+            <div style={{ padding: '56.25% 0 0 0', position: 'relative' }}>
               <iframe
                 src="https://player.vimeo.com/video/1106242932?badge=0&autopause=0&player_id=0&app_id=58479"
                 frameBorder="0"
                 allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
                 referrerPolicy="strict-origin-when-cross-origin"
                 style={{
-                  position: "absolute",
+                  position: 'absolute',
                   top: 0,
                   left: 0,
-                  width: "100%",
-                  height: "100%",
+                  width: '100%',
+                  height: '100%',
                 }}
                 title="Swarm Teaser 1080p"
               />
@@ -51,14 +57,13 @@ export default function Page() {
             <div className="flex-1 max-w-2xl flex flex-col justify-start">
               {/* Main headline */}
               <h2 className="text-4xl md:text-5xl font-light mb-6 leading-tight tracking-tight -mt-4">
-                Setup any repo with one command.
+                Vibing at the speed of thought.
               </h2>
 
               {/* Description */}
               <p className="text-lg text-gray-400 mb-8 leading-relaxed font-light">
-                Swarm is an AI platform engineer that containerizes codebases,
-                debugs Terraform code, and helps you get complex monorepos
-                setup.{" "}
+                Swarm is an Agent IDE designed for speed. It allows you to
+                acheive flow while managing multiple coding agents.{' '}
                 <a
                   href="https://twitter.com/jmvldz"
                   target="_blank"
@@ -99,14 +104,13 @@ export default function Page() {
             <div className="max-w-lg">
               {/* Main headline */}
               <h2 className="text-3xl font-light mb-6 leading-tight tracking-tight">
-                Setup any repo with one command.
+                Vibing at the speed of thought.
               </h2>
 
               {/* Description */}
               <p className="text-base text-gray-400 mb-8 leading-relaxed font-light">
-                Swarm is an AI platform engineer that containerizes codebases,
-                debugs Terraform code, and helps you get complex monorepos
-                setup.{" "}
+                Swarm is an Agent IDE designed for speed. It allows you to
+                acheive flow while managing multiple coding agents.{' '}
                 <a
                   href="https://twitter.com/jmvldz"
                   target="_blank"

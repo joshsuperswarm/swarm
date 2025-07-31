@@ -35,12 +35,12 @@ export const CreateTaskScene: React.FC = () => {
 
   /** Retimed timeline */
   const modeStart = 0;
-  const modePhase = 24;                      // Execute → Review → Plan (0‑72)
+  const modePhase = 24; // Execute → Review → Plan (0‑72)
   const titleStart = modeStart + modePhase * 3; // 72
-  const descStart = titleStart + 10;         // 82  (was +30)
+  const descStart = titleStart + 10; // 82  (was +30)
 
   // Keep typing length the same
-  const descTypingDuration   = 99;
+  const descTypingDuration = 99;
 
   // Button appears 4 frames before scene ends (matches other scenes)
   const slamFrame = 196; // 200-4 = 196 (4 frames before scene ends)
@@ -68,8 +68,7 @@ export const CreateTaskScene: React.FC = () => {
   const state: ModeState =
     planPhase > 0 ? 'Plan' : reviewPhase > 0 ? 'Review' : 'Execute';
 
-  const icon =
-    state === 'Execute' ? Zap : state === 'Review' ? Eye : FileText;
+  const icon = state === 'Execute' ? Zap : state === 'Review' ? Eye : FileText;
 
   const color = '#7dd3fc'; // steel blue for all modes
 
@@ -82,8 +81,8 @@ export const CreateTaskScene: React.FC = () => {
       (state === 'Execute'
         ? 0
         : state === 'Review'
-        ? modePhase
-        : modePhase * 2),
+          ? modePhase
+          : modePhase * 2),
     config: { damping: 120, stiffness: 180 },
   });
   const scale = interpolate(modePop, [0, 1], [1, 1.15], {
@@ -117,9 +116,9 @@ export const CreateTaskScene: React.FC = () => {
   const clickLen = 8; // 8 frames ≈ 0.33 s @ 30 fps
 
   // ─── Typing SFX ───
-  const titleTypingStart     = titleStart;
-  const titleTypingDuration  = 58;   // title still instant; leave as-is
-  const descTypingStart      = descStart;  // now starts earlier
+  const titleTypingStart = titleStart;
+  const titleTypingDuration = 58; // title still instant; leave as-is
+  const descTypingStart = descStart; // now starts earlier
 
   /** Title - no animation, appears immediately */
   const fullTitle = 'Create a Remotion video for Swarm';
@@ -262,11 +261,11 @@ export const CreateTaskScene: React.FC = () => {
               backgroundColor: '#1f2937',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: 8,
-              padding: 28,            // even padding
+              padding: 28, // even padding
               minHeight: 190,
-              height: 190,            // fixed box height
-              display: 'flex',        // NEW
-              flexDirection: 'column',// NEW
+              height: 190, // fixed box height
+              display: 'flex', // NEW
+              flexDirection: 'column', // NEW
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif',
             }}
@@ -326,7 +325,7 @@ export const CreateTaskScene: React.FC = () => {
       <Sequence from={descTypingStart} durationInFrames={descTypingDuration}>
         <Audio
           src={staticFile('Mechanical Keyboard Typing Sound.mp3')}
-          volume={0.3}                     // lower volume for background typing
+          volume={0.3} // lower volume for background typing
         />
       </Sequence>
 
@@ -334,7 +333,10 @@ export const CreateTaskScene: React.FC = () => {
       <Sequence from={modeStart + modePhase - 2} durationInFrames={clickLen}>
         <Audio src={staticFile('Mouse Click Sound.wav')} volume={0.8} />
       </Sequence>
-      <Sequence from={modeStart + modePhase * 2 - 2} durationInFrames={clickLen}>
+      <Sequence
+        from={modeStart + modePhase * 2 - 2}
+        durationInFrames={clickLen}
+      >
         <Audio src={staticFile('Mouse Click Sound.wav')} volume={0.8} />
       </Sequence>
 
@@ -342,12 +344,12 @@ export const CreateTaskScene: React.FC = () => {
       <Sequence from={slamFrame} durationInFrames={clickLen}>
         <Audio
           src={staticFile('Mouse Click Sound.wav')}
-          trimAfter={clickLen}             // stop after ≈0.33 s
-          volume={f =>
+          trimAfter={clickLen} // stop after ≈0.33 s
+          volume={(f) =>
             interpolate(f, [0, 4], [1, 0.8], {
               extrapolateRight: 'clamp',
             })
-          }                                // tiny ease-out fade
+          } // tiny ease-out fade
         />
       </Sequence>
     </AbsoluteFill>
