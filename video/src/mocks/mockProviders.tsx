@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { realTaskData, realTodos, statuses } from './mockData';
+import { taskDetail, mockTodos } from './index';
+import { STATUSES } from '../types';
 
 // Create a mock query client
 const queryClient = new QueryClient({
@@ -16,19 +17,19 @@ const queryClient = new QueryClient({
 // Mock the query hooks
 export const mockQueries = {
   useTasksQuery: () => ({
-    data: [realTaskData],
+    data: [taskDetail],
     isLoading: false,
     error: null
   }),
   
   useTaskDetailsQuery: (taskId: number) => ({
-    data: realTaskData,
+    data: taskDetail,
     isLoading: false,
     error: null
   }),
   
   useTaskTodosQuery: (taskId: number) => ({
-    data: realTodos,
+    data: mockTodos,
     isLoading: false,
     error: null
   })
@@ -47,7 +48,7 @@ export const mockOtherHooks = {
 
 // Mock data exports
 export const mockData = {
-  statuses
+  statuses: STATUSES
 };
 
 interface MockProvidersProps {
