@@ -42,7 +42,7 @@ export const PlanScene: React.FC = () => {
   });
 
   // ─── Button slam animation ───
-  const pressStart = 121;                // 4 frames before 125
+  const pressStart = 121;                // 4 frames before 125 (matches other scenes)
   const pressSpring = spring({
     fps,
     frame: Math.max(frame - pressStart, 0),

@@ -26,28 +26,28 @@ export const SwarmAdvertisement: React.FC = () => {
         <IntroScene />
       </Sequence>
 
-      {/* Create Task Scene: 60-332 frames (9.07 seconds) */}
-      <Sequence from={60} durationInFrames={272}>
+      {/* Create Task Scene: 60-280 frames (7.33 seconds) */}
+      <Sequence from={60} durationInFrames={220}>
         <CreateTaskScene />
       </Sequence>
 
-      {/* Plan Scene: 332-457 frames (4.17 seconds) */}
-      <Sequence from={332} durationInFrames={125}>
+      {/* Plan Scene: 280-405 frames (4.17 seconds) */}
+      <Sequence from={280} durationInFrames={125}>
         <PlanScene />
       </Sequence>
 
-      {/* Execute Scene: 457-582 frames (4.17 seconds) */}
-      <Sequence from={457} durationInFrames={125}>
+      {/* Execute Scene: 405-530 frames (4.17 seconds) */}
+      <Sequence from={405} durationInFrames={125}>
         <ExecuteScene />
       </Sequence>
 
-      {/* Review Scene: 582-707 frames (4.17 seconds) */}
-      <Sequence from={582} durationInFrames={125}>
+      {/* Review Scene: 530-655 frames (4.17 seconds) */}
+      <Sequence from={530} durationInFrames={125}>
         <ReviewScene />
       </Sequence>
 
-      {/* Outro Scene: 707-807 frames (3.33 seconds) */}
-      <Sequence from={707} durationInFrames={100}>
+      {/* Outro Scene: 655-755 frames (3.33 seconds) */}
+      <Sequence from={655} durationInFrames={100}>
         <OutroScene />
       </Sequence>
     </AbsoluteFill>

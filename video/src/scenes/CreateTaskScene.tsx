@@ -19,8 +19,8 @@ import { Zap, FileText, Eye } from 'lucide-react';
  * Animation timeline (frames @ 30fps):
  *   0-72     → Mode chip cycles Execute → Review → Plan (2 clicks)
  *   72-130   → Title typewriter (cursor blinks)
- *   130-229  → Description text typewriter (cursor blinks)
- *   268-272  → "Create Task" button slam & bounce animation
+ *   82-181   → Description text typewriter (cursor blinks)
+ *   201-205  → "Create Task" button slam & bounce animation
  */
 export const CreateTaskScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -33,12 +33,17 @@ export const CreateTaskScene: React.FC = () => {
     config: { damping: 120, stiffness: 180 },
   });
 
-  /** NEW timeline */
+  /** Retimed timeline */
   const modeStart = 0;
-  const modePhase = 24;
+  const modePhase = 24;                      // Execute → Review → Plan (0‑72)
   const titleStart = modeStart + modePhase * 3; // 72
-  const descStart = titleStart + 30; // 102
-  const slamFrame = 196 + modePhase * 3; // 268
+  const descStart = titleStart + 10;         // 82  (was +30)
+
+  // Keep typing length the same
+  const descTypingDuration   = 99;
+
+  // Button appears shortly after description finishes (≃ +20 f)
+  const slamFrame = descStart + descTypingDuration + 20; // 82+99+20 = 201 (was 268)
 
   /** Timing helpers */
   const titleProg = interpolate(frame, [titleStart, titleStart + 58], [0, 1], {
@@ -92,7 +97,7 @@ export const CreateTaskScene: React.FC = () => {
   });
   // ─── Button slam animation ───
   /**
-   * Starts at frame 268 to account for the mode cycling time shift.
+   * Starts at frame 201 - shortly after description typing finishes.
    */
   const pressSpring = spring({
     fps,
@@ -118,8 +123,7 @@ export const CreateTaskScene: React.FC = () => {
   // ─── Typing SFX ───
   const titleTypingStart     = titleStart;
   const titleTypingDuration  = 58;   // title still instant; leave as-is
-  const descTypingStart      = descStart;  // now 30 f sooner
-  const descTypingDuration   = 99;
+  const descTypingStart      = descStart;  // now starts earlier
 
   /** Title - no animation, appears immediately */
   const fullTitle = 'Create a Remotion video for Swarm';
