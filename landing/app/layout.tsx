@@ -6,10 +6,10 @@ import { Navbar } from './components/nav';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import Footer from './components/footer';
-import { baseUrl } from './sitemap';
+import { siteUrl } from '../lib/siteUrl';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'Swarm - Agent IDE',
     template: '%s | Swarm',
@@ -18,13 +18,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Swarm - Agent IDE',
     description: 'We containerize your repo so AI agents can run it.',
-    url: 'https://engines.dev',
+    url: siteUrl,
     siteName: 'Swarm',
     locale: 'en_US',
     type: 'website',
     images: [
       {
-        url: '/og-image.png',
+        url: `${siteUrl}/og-image.png`,
         width: 1200,
         height: 1200,
         alt: 'Swarm - Agent IDE',
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Swarm - Agent IDE',
     description: 'We containerize your repo so AI agents can run it.',
-    images: ['/og-image.png'],
+    images: [`${siteUrl}/og-image.png`],
   },
   robots: {
     index: true,

@@ -1,6 +1,7 @@
 import { getBlogPosts } from 'app/blog/utils'
+import { siteUrl } from '../lib/siteUrl'
 
-export const baseUrl = 'https://engines.dev'
+export const baseUrl = siteUrl
 
 export default async function sitemap() {
   let blogs = getBlogPosts().map((post) => ({
