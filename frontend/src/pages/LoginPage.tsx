@@ -1,4 +1,4 @@
-import { Waitlist } from "@clerk/clerk-react";
+import { SignIn } from "@clerk/clerk-react";
 
 export function LoginPage() {
   return (
@@ -6,7 +6,7 @@ export function LoginPage() {
       <div className="text-center">
         <h1 className="text-6xl font-bold text-gray-900 mb-12">Swarm</h1>
         <div className="max-w-md mx-auto">
-          <Waitlist />
+          <SignIn />
         </div>
       </div>
     </div>
