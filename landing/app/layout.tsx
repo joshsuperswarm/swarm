@@ -7,6 +7,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import Footer from './components/footer';
 import { siteUrl } from '../lib/siteUrl';
+import { ClerkProvider } from '@clerk/nextjs';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -58,14 +59,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cx(GeistSans.variable, GeistMono.variable)}>
-      <body className="flex flex-col min-h-screen antialiased bg-[#1B1F24] text-[#EAEAEA]">
-        <main className="flex-1 min-w-0 flex flex-col">
-          {children}
-          <Analytics />
-          <SpeedInsights />
-        </main>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={cx(GeistSans.variable, GeistMono.variable)}>
+        <body className="flex flex-col min-h-screen antialiased bg-[#1B1F24] text-[#EAEAEA]">
+          <main className="flex-1 min-w-0 flex flex-col">
+            {children}
+            <Analytics />
+            <SpeedInsights />
+          </main>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
