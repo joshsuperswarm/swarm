@@ -6,7 +6,7 @@ export function LoginPage() {
       <div className="text-center">
         <h1 className="text-6xl font-bold text-gray-900 mb-12">Swarm</h1>
         <div className="max-w-md mx-auto">
-          <Waitlist redirectUrl={import.meta.env.VITE_CLERK_AFTER_SIGN_IN_URL} />
+          <Waitlist />
         </div>
       </div>
     </div>
