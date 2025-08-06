@@ -1,5 +1,4 @@
 import Image from 'next/image';
-import { BlogPosts } from 'app/components/posts';
 import WaitlistForm from 'app/components/waitlist-form';
 import { PricingTable } from '@clerk/nextjs';
 
