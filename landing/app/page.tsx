@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { BlogPosts } from 'app/components/posts';
 import WaitlistForm from 'app/components/waitlist-form';
+import { PricingTable } from '@clerk/nextjs';
 
 export default function Page() {
   return (
@@ -130,6 +131,25 @@ export default function Page() {
 
               {/* Waitlist Form */}
               <WaitlistForm />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pricing Section */}
+      <div className="px-8 py-16">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-light mb-4 text-white">
+              Choose Your Plan
+            </h2>
+            <p className="text-lg text-gray-400 font-light">
+              Get started with Swarm today
+            </p>
+          </div>
+          <div className="flex justify-center">
+            <div className="w-full max-w-4xl">
+              <PricingTable />
             </div>
           </div>
         </div>
