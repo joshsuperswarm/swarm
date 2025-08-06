@@ -13,11 +13,7 @@ if (!PUBLISHABLE_KEY) {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <ClerkProvider 
-    publishableKey={PUBLISHABLE_KEY}
-    afterSignInUrl={import.meta.env.VITE_CLERK_AFTER_SIGN_IN_URL}
-    afterSignUpUrl={import.meta.env.VITE_CLERK_AFTER_SIGN_UP_URL}
-  >
+  <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{ persister }}
