@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import type { TaskWithRun } from "@/types";
 import { createColumns } from "@/components/data-table/columns";
 import { DataTable } from "@/components/data-table/data-table";
+import { Protect } from "@clerk/clerk-react";
+import PricingScreen from "@/pages/PricingPage";
 import { useTasksQuery } from "@/services/queries";
 import { ApiService } from "@/services/api";
 import { useTaskHotkeys } from "@/hooks/useTaskHotkeys";
@@ -114,12 +116,18 @@ export function TasksPage() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <MemoizedDataTable
-          data={tasks}
-          columns={columns}
-          loading={isFetching && tasks.length === 0}
-          highlightedRow={String(currentSelectedTask?.task_id ?? '')}
-        />
+        {/* Plan gate – show pricing if user lacks bronze plan */}
+        <Protect
+          plan="bronze"
+          fallback={<PricingScreen />}
+        >
+          <MemoizedDataTable
+            data={tasks}
+            columns={columns}
+            loading={isFetching && tasks.length === 0}
+            highlightedRow={String(currentSelectedTask?.task_id ?? '')}
+          />
+        </Protect>
       </div>
     </div>
   );
