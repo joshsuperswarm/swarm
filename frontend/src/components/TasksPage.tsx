@@ -1,24 +1,18 @@
-import React, {
-  useState,
-  useMemo,
-  useEffect,
-} from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useBackendJwtQuery } from "@/services/auth";
-import { useNavigate } from "react-router-dom";
-import type { TaskWithRun } from "@/types";
-import { createColumns } from "@/components/data-table/columns";
-import { DataTable } from "@/components/data-table/data-table";
-import { Protect } from "@clerk/clerk-react";
-import PricingScreen from "@/pages/PricingPage";
-import { useTasksQuery } from "@/services/queries";
-import { ApiService } from "@/services/api";
-import { useTaskHotkeys } from "@/hooks/useTaskHotkeys";
-
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useBackendJwtQuery } from '@/services/auth';
+import { useNavigate } from 'react-router-dom';
+import type { TaskWithRun } from '@/types';
+import { createColumns } from '@/components/data-table/columns';
+import { DataTable } from '@/components/data-table/data-table';
+import { Protect } from '@clerk/clerk-react';
+import PricingScreen from '@/pages/PricingPage';
+import { useTasksQuery } from '@/services/queries';
+import { ApiService } from '@/services/api';
+import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
 
 // Memoize DataTable outside component to ensure stable reference
 const MemoizedDataTable = React.memo(DataTable<TaskWithRun, unknown>); // default shallow compare
-
 
 export function TasksPage() {
   // console.log('🔄 TasksPage render')
@@ -36,7 +30,7 @@ export function TasksPage() {
   useEffect(() => {
     if (!jwt || tasks.length === 0) return;
 
-    const prefetchCount = 20;                // <= tweak if desired
+    const prefetchCount = 20; // <= tweak if desired
     tasks.slice(0, prefetchCount).forEach((t) => {
       // prime simple task lookup
       qc.setQueryData(['task', t.task_id], t);
@@ -49,7 +43,8 @@ export function TasksPage() {
       });
       qc.prefetchQuery({
         queryKey: ['task-logs', t.task_id],
-        queryFn: () => ApiService.getTaskLogs(jwt, t.task_id).then(r => r.logs),
+        queryFn: () =>
+          ApiService.getTaskLogs(jwt, t.task_id).then((r) => r.logs),
         staleTime: Infinity,
       });
     });
@@ -58,7 +53,7 @@ export function TasksPage() {
   // Keep selectedIndex within bounds when tasks change
   React.useEffect(() => {
     if (tasks.length > 0) {
-      setSelectedIndex(prev => Math.min(prev, tasks.length - 1));
+      setSelectedIndex((prev) => Math.min(prev, tasks.length - 1));
     } else {
       setSelectedIndex(0);
     }
@@ -75,8 +70,12 @@ export function TasksPage() {
   // Handle Enter key to navigate to task detail
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
       if ((e.key === 'o' || e.key === 'Enter') && currentSelectedTask) {
         e.preventDefault();
         navigate(`/tasks/${currentSelectedTask.task_id}`);
@@ -103,7 +102,9 @@ export function TasksPage() {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Failed to load tasks
             </h3>
-            <p className="text-gray-600 mb-4">{error.message || 'An error occurred'}</p>
+            <p className="text-gray-600 mb-4">
+              {error.message || 'An error occurred'}
+            </p>
             <button
               onClick={() => window.location.reload()}
               className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
@@ -116,11 +117,8 @@ export function TasksPage() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        {/* Plan gate – show pricing if user lacks bronze plan */}
-        <Protect
-          plan="bronze"
-          fallback={<PricingScreen />}
-        >
+        {/* Plan gate – show pricing if user lacks plan */}
+        <Protect plan="swarm_pro" fallback={<PricingScreen />}>
           <MemoizedDataTable
             data={tasks}
             columns={columns}
