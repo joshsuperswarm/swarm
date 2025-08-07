@@ -3,6 +3,7 @@ import { TasksPage } from '@/components/TasksPage';
 import { TaskPage } from '@/pages/TaskPage';
 import { TaskChatPage } from '@/pages/TaskChatPage';
 import { LoginPage } from '@/pages/LoginPage';
+import PricingScreen from '@/pages/PricingPage';
 
 interface RouterProps {
   isSignedIn: boolean;
@@ -10,15 +11,18 @@ interface RouterProps {
 }
 
 export function Router({ isSignedIn }: RouterProps) {
-  if (!isSignedIn) {
-    return <LoginPage />;
-  }
-
   return (
     <Routes>
-      <Route path="/" element={<TasksPage />} />
-      <Route path="/tasks/:id" element={<TaskPage />} />
-      <Route path="/tasks/:id/chat" element={<TaskChatPage />} />
+      <Route path="/pricing" element={<PricingScreen />} />
+      {isSignedIn ? (
+        <>
+          <Route path="/" element={<TasksPage />} />
+          <Route path="/tasks/:id" element={<TaskPage />} />
+          <Route path="/tasks/:id/chat" element={<TaskChatPage />} />
+        </>
+      ) : (
+        <Route path="*" element={<LoginPage />} />
+      )}
     </Routes>
   );
 }
