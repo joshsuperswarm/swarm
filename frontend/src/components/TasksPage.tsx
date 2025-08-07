@@ -15,14 +15,17 @@ import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
 const MemoizedDataTable = React.memo(DataTable<TaskWithRun, unknown>); // default shallow compare
 
 export function TasksPage() {
-  // console.log('🔄 TasksPage render')
   const navigate = useNavigate();
   const { data: rawTasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const { has } = useAuth();
-  const hasValidPlan =
-    has({ plan: 'free' }) || has({ plan: 'swarm_pro' });
+  const { has, isLoaded } = useAuth();
+
+  if (!isLoaded) {
+    return <div>Loading...</div>;
+  }
+
+  const hasValidPlan = has({ plan: 'free' }) || has({ plan: 'swarm_pro' });
 
   if (!hasValidPlan) {
     return <PricingScreen />;
