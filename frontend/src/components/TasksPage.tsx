@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { TaskWithRun } from '@/types';
 import { createColumns } from '@/components/data-table/columns';
 import { DataTable } from '@/components/data-table/data-table';
-import { Protect } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
 import PricingScreen from '@/pages/PricingPage';
 import { useTasksQuery } from '@/services/queries';
 import { ApiService } from '@/services/api';
@@ -19,6 +19,14 @@ export function TasksPage() {
   const navigate = useNavigate();
   const { data: rawTasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const { has } = useAuth();
+  const hasValidPlan =
+    has({ plan: 'free' }) || has({ plan: 'swarm_pro' });
+
+  if (!hasValidPlan) {
+    return <PricingScreen />;
+  }
 
   // Reverse the array so newest appears at top but j/k navigation works correctly
   const tasks = useMemo(() => [...rawTasks].reverse(), [rawTasks]);
@@ -117,15 +125,12 @@ export function TasksPage() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        {/* Plan gate – show pricing if user lacks plan */}
-        <Protect plan="swarm_pro" fallback={<PricingScreen />}>
-          <MemoizedDataTable
-            data={tasks}
-            columns={columns}
-            loading={isFetching && tasks.length === 0}
-            highlightedRow={String(currentSelectedTask?.task_id ?? '')}
-          />
-        </Protect>
+        <MemoizedDataTable
+          data={tasks}
+          columns={columns}
+          loading={isFetching && tasks.length === 0}
+          highlightedRow={String(currentSelectedTask?.task_id ?? '')}
+        />
       </div>
     </div>
   );
