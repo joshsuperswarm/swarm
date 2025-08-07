@@ -136,7 +136,7 @@ export function DataTable<TData, TValue>({
                         }}
                         className={cn(
                           "cursor-pointer border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
-                          isSelected && "bg-gradient-to-r from-slate-50 to-slate-100 border-l-4 border-l-slate-400"
+                          isSelected && "bg-gradient-to-r from-slate-50 to-slate-100 border-l-2 border-l-slate-400 border-r-2 border-r-slate-400"
                         )}
                         onClick={() => {
                           const task = row.original as { task_id: number }
