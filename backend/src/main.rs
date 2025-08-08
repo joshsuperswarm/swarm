@@ -130,7 +130,7 @@ async fn handle_task_success(
     tracing::info!("Handling successful completion for task {}", task_id);
 
     // Get task, user, and repository information
-    let task = match app_state.database.get_task_by_id(task_id).await? {
+    let task = match app_state.database.get_task_by_id_raw(task_id).await? {
         Some(task) => task,
         None => {
             tracing::error!("Task {} not found", task_id);
@@ -1370,25 +1370,10 @@ async fn get_task_details(
         }
     };
 
-    // Verify task exists and belongs to user
-    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
-        Ok(tasks) => tasks,
-        Err(e) => {
-            tracing::error!("→ get_task_details API: failed to get user tasks: {:?}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
-        Some(task) => task,
-        None => {
-            tracing::warn!(
-                "→ get_task_details API: task {} not found for user or access denied",
-                task_id
-            );
-            return Err(StatusCode::FORBIDDEN);
-        }
-    };
+    // Verify task belongs to user
+    app_state.database.ensure_task_owner(task_id, db_user.id)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
 
     // Get task details
     let details = match app_state.database.get_task_details(task_id).await {
@@ -1417,16 +1402,10 @@ async fn get_task_logs(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Verify task exists and belongs to user
-    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
-        Ok(tasks) => tasks,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
-        Some(task) => task,
-        None => return Err(StatusCode::FORBIDDEN),
-    };
+    // Verify task belongs to user
+    app_state.database.ensure_task_owner(task_id, db_user.id)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
 
     // Get logs since the specified ID (or all logs if no since parameter)
     let logs = match query.since {
@@ -1448,7 +1427,7 @@ async fn get_task_logs(
                 }
             }
         }
-        None => match app_state.database.get_task_logs(task_id).await {
+        None => match app_state.database.get_task_logs_raw(task_id).await {
             Ok(logs) => logs,
             Err(e) => {
                 tracing::error!("Error fetching all logs for task {}: {}", task_id, e);
@@ -1486,10 +1465,14 @@ async fn get_task_todos(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Single database query that combines ownership verification with todo fetching
+    // Verify task belongs to user
+    app_state.database.ensure_task_owner(task_id, db_user.id)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
+
     let todos = app_state
         .database
-        .get_agent_todos_for_user(task_id, db_user.id)
+        .get_agent_todos(task_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1509,16 +1492,10 @@ async fn get_task_messages(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Verify task exists and belongs to user
-    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
-        Ok(tasks) => tasks,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
-        Some(task) => task,
-        None => return Err(StatusCode::FORBIDDEN),
-    };
+    // Verify task belongs to user
+    app_state.database.ensure_task_owner(task_id, db_user.id)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
 
     let messages = match app_state.database.get_task_messages(task_id).await {
         Ok(messages) => messages,
@@ -1547,16 +1524,16 @@ async fn post_task_message(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Verify task exists and belongs to user
-    let tasks = match app_state.database.get_user_tasks(db_user.id).await {
-        Ok(tasks) => tasks,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
+    // Verify task belongs to user
+    app_state.database.ensure_task_owner(task_id, db_user.id)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
 
-    let _task = match tasks.into_iter().find(|t| t.id == task_id) {
-        Some(task) => task,
-        None => return Err(StatusCode::FORBIDDEN),
-    };
+    // Retrieve task for later use
+    let _task = app_state.database.get_task_by_id_raw(task_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     if payload.content.trim().is_empty() {
         return Err(StatusCode::BAD_REQUEST);

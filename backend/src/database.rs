@@ -241,7 +241,8 @@ impl Database {
         Ok(tasks)
     }
 
-    pub async fn get_task_by_id(&self, task_id: i32) -> AppResult<Option<Task>> {
+    /// ⚠ INTERNAL – call only after ensure_task_owner().
+    pub async fn get_task_by_id_raw(&self, task_id: i32) -> AppResult<Option<Task>> {
         let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
             .fetch_optional(&self.pool)
             .await?;
@@ -384,7 +385,8 @@ impl Database {
         }
     }
 
-    pub async fn get_task_logs(&self, task_id: i32) -> AppResult<Vec<TaskLog>> {
+    /// ⚠ INTERNAL – call only after ensure_task_owner().
+    pub async fn get_task_logs_raw(&self, task_id: i32) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
             SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
@@ -815,10 +817,43 @@ impl Database {
         Ok(())
     }
 
+    // Ownership verification helpers
+    /// Verifies the task belongs to the given user; returns Forbidden on mismatch.
+    pub async fn ensure_task_owner(&self, task_id: i32, user_id: i32) -> AppResult<()> {
+        let result = sqlx::query_scalar!(
+            "SELECT 1 FROM tasks WHERE id = $1 AND user_id = $2",
+            task_id,
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match result {
+            Some(_) => Ok(()),
+            None => Err(AppError::Auth("Task access denied".to_string())),
+        }
+    }
+
+    /// Verifies the repository belongs to the given user; returns Forbidden on mismatch.
+    pub async fn ensure_repo_owner(&self, repo_id: i32, user_id: i32) -> AppResult<()> {
+        let result = sqlx::query_scalar!(
+            "SELECT 1 FROM repositories WHERE id = $1 AND user_id = $2",
+            repo_id,
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match result {
+            Some(_) => Ok(()),
+            None => Err(AppError::Auth("Repository access denied".to_string())),
+        }
+    }
+
     pub async fn get_task_details(&self, task_id: i32) -> AppResult<TaskDetails> {
         // Get task
         let task = self
-            .get_task_by_id(task_id)
+            .get_task_by_id_raw(task_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Task {} not found", task_id)))?;
 
@@ -978,6 +1013,7 @@ mod tests {
             user_id: user.id,
             repository_id: repo.id,
             title: "Test Task".to_string(),
+            description: None,
         };
         let task = db.create_task(create_task).await.unwrap();
 
@@ -1041,7 +1077,130 @@ mod tests {
             assistant_msg_with_run.run.is_some(),
             "Assistant message should have a run"
         );
-        assert_eq!(assistant_msg_with_run.run.as_ref().unwrap().id, run.id);
+        assert_eq!(assistant_msg_with_run.run.as_ref().unwrap().run.id, run.id);
+
+        cleanup_test_data(&pool).await;
+    }
+
+    #[tokio::test]
+    async fn user_cannot_read_others_logs() {
+        let pool = setup_test_db().await;
+        let db = Database::new(pool.clone());
+
+        cleanup_test_data(&pool).await;
+
+        // Create test users Alice and Bob
+        let alice = db
+            .create_user(CreateUser {
+                clerk_user_id: "test_alice_123".to_string(),
+                github_username: Some("alice".to_string()),
+                github_user_id: Some(11111),
+                email: Some("alice@example.com".to_string()),
+            })
+            .await
+            .unwrap();
+
+        let bob = db
+            .create_user(CreateUser {
+                clerk_user_id: "test_bob_456".to_string(),
+                github_username: Some("bob".to_string()),
+                github_user_id: Some(22222),
+                email: Some("bob@example.com".to_string()),
+            })
+            .await
+            .unwrap();
+
+        // Create test repository for Bob
+        let bob_repo = db
+            .create_repository(crate::models::CreateRepository {
+                github_repo_id: 555555,
+                owner: "bob".to_string(),
+                name: "bob-repo".to_string(),
+                full_name: "bob/bob-repo".to_string(),
+                user_id: bob.id,
+                is_private: false,
+            })
+            .await
+            .unwrap();
+
+        // Create task for Bob
+        let bob_task = db
+            .create_task(crate::models::CreateTask {
+                user_id: bob.id,
+                repository_id: bob_repo.id,
+                title: "Bob's Task".to_string(),
+                description: None,
+            })
+            .await
+            .unwrap();
+
+        // Alice should NOT be able to access Bob's task
+        let result = db.ensure_task_owner(bob_task.id, alice.id).await;
+        assert!(result.is_err());
+        match result {
+            Err(AppError::Auth(_)) => {}, // Expected
+            _ => panic!("Expected Auth error for cross-user task access"),
+        }
+
+        // Bob should be able to access his own task
+        let result = db.ensure_task_owner(bob_task.id, bob.id).await;
+        assert!(result.is_ok());
+
+        cleanup_test_data(&pool).await;
+    }
+
+    #[tokio::test]
+    async fn user_cannot_access_others_repos() {
+        let pool = setup_test_db().await;
+        let db = Database::new(pool.clone());
+
+        cleanup_test_data(&pool).await;
+
+        // Create test users Alice and Bob
+        let alice = db
+            .create_user(CreateUser {
+                clerk_user_id: "test_alice_repo".to_string(),
+                github_username: Some("alice".to_string()),
+                github_user_id: Some(33333),
+                email: Some("alice@example.com".to_string()),
+            })
+            .await
+            .unwrap();
+
+        let bob = db
+            .create_user(CreateUser {
+                clerk_user_id: "test_bob_repo".to_string(),
+                github_username: Some("bob".to_string()),
+                github_user_id: Some(44444),
+                email: Some("bob@example.com".to_string()),
+            })
+            .await
+            .unwrap();
+
+        // Create repository for Bob
+        let bob_repo = db
+            .create_repository(crate::models::CreateRepository {
+                github_repo_id: 666666,
+                owner: "bob".to_string(),
+                name: "bob-private-repo".to_string(),
+                full_name: "bob/bob-private-repo".to_string(),
+                user_id: bob.id,
+                is_private: true,
+            })
+            .await
+            .unwrap();
+
+        // Alice should NOT be able to access Bob's repository
+        let result = db.ensure_repo_owner(bob_repo.id, alice.id).await;
+        assert!(result.is_err());
+        match result {
+            Err(AppError::Auth(_)) => {}, // Expected
+            _ => panic!("Expected Auth error for cross-user repo access"),
+        }
+
+        // Bob should be able to access his own repository
+        let result = db.ensure_repo_owner(bob_repo.id, bob.id).await;
+        assert!(result.is_ok());
 
         cleanup_test_data(&pool).await;
     }

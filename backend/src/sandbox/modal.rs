@@ -453,7 +453,7 @@ impl ModalProvider {
             let mut state = ArtifactParsingState::default();
 
             // Load PR artifacts from task
-            if let Ok(Some(task)) = db.get_task_by_id(task_id).await {
+            if let Ok(Some(task)) = db.get_task_by_id_raw(task_id).await {
                 state.pr_title = task.pr_title;
                 state.pr_body = task.pr_body;
             }
