@@ -307,73 +307,6 @@ impl ModalProvider {
         }
     }
 
-    /// Push changes to GitHub branch - delegates to modal shim
-    pub async fn push_changes(
-        &self,
-        sandbox_id: &str,
-        repo_path: &str,
-        branch: &str,
-        task_id: i32,
-        author_name: &str,
-        author_email: &str,
-        commit_title: &str,
-        commit_body: &str,
-    ) -> SandboxResult<()> {
-        info!(
-            "Pushing changes via modal shim to branch {} in sandbox {}",
-            branch, sandbox_id
-        );
-
-        // Create request payload for modal shim
-        let push_req = serde_json::json!({
-            "repo_path": repo_path,
-            "branch": branch,
-            "task_id": task_id,
-            "author_name": author_name,
-            "author_email": author_email,
-            "commit_title": commit_title,
-            "commit_body": commit_body
-        });
-
-        // Make HTTP request to modal shim for push changes
-        let url = format!(
-            "{}/sandboxes/{}/push_changes_advanced",
-            self.client.base_url, sandbox_id
-        );
-        let response = self
-            .client
-            .client
-            .post(&url)
-            .json(&push_req)
-            .send()
-            .await
-            .map_err(|e| {
-                SandboxError::SandboxOperationError(format!("HTTP request failed: {}", e))
-            })?;
-
-        if response.status().is_success() {
-            let _exec_resp: ExecResponse = response.json().await.map_err(|e| {
-                SandboxError::SandboxOperationError(format!("Failed to parse response: {}", e))
-            })?;
-
-            info!(
-                "✓ Successfully pushed changes to branch {} in sandbox {}",
-                branch, sandbox_id
-            );
-
-            Ok(())
-        } else {
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            Err(SandboxError::SandboxOperationError(format!(
-                "Failed to push changes: {}",
-                error_text
-            )))
-        }
-    }
-
     /// Extract text content from JSON messages for artifact parsing
     fn extract_text_from_json_line(line: &str) -> String {
         if line.starts_with('{') {
@@ -916,30 +849,6 @@ impl SandboxProvider for ModalProvider {
                 e
             ))),
         }
-    }
-
-    async fn push_changes(
-        &self,
-        sandbox_id: &str,
-        repo_path: &str,
-        branch: &str,
-        task_id: i32,
-        author_name: &str,
-        author_email: &str,
-        commit_title: &str,
-        commit_body: &str,
-    ) -> SandboxResult<()> {
-        self.push_changes(
-            sandbox_id,
-            repo_path,
-            branch,
-            task_id,
-            author_name,
-            author_email,
-            commit_title,
-            commit_body,
-        )
-        .await
     }
 
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {

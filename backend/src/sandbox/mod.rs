@@ -72,18 +72,7 @@ pub trait SandboxProvider: Send + Sync {
         command_id: &str,
     ) -> SandboxResult<Option<i32>>;
 
-    /// Push changes to GitHub branch after task completion  
-    async fn push_changes(
-        &self,
-        sandbox_id: &str,
-        repo_path: &str,
-        branch: &str,
-        task_id: i32,
-        author_name: &str,
-        author_email: &str,
-        commit_title: &str,
-        commit_body: &str,
-    ) -> SandboxResult<()>;
+    // push_changes method removed - branches are now created and pushed by the agent during execution
 
     /// Delete a sandbox
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;

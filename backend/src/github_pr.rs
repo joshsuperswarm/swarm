@@ -136,9 +136,9 @@ impl GitHubPRClient {
                     )
                 }))
         } else {
-            // Create new PR
+            // Create new PR - expecting branch to exist remotely (pushed by agent)
             tracing::info!(
-                "Creating new PR for task {} from branch '{}' to 'main'",
+                "Creating new PR for task {} from branch '{}' to 'main' (branch should already exist remotely)",
                 task.id,
                 branch
             );

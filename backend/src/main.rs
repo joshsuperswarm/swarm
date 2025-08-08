@@ -217,56 +217,10 @@ async fn handle_task_success(
         }
     };
 
-    // Get author information - fail if not available
-    let author_name = match user.github_username.clone() {
-        Some(username) => username,
-        None => {
-            tracing::error!(
-                "No GitHub username available for user {} in task {}",
-                user.id,
-                task_id
-            );
-            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
-                let _ = app_state.database.update_run_status(run_id, "failed").await;
-            }
-            return Ok(());
-        }
-    };
+    // Author information and repo path no longer needed for backend processing
+    // (agent handles branch creation and pushing directly)
 
-    let author_email = match user.email.clone() {
-        Some(email) => email,
-        None => {
-            tracing::error!(
-                "No email available for user {} in task {}",
-                user.id,
-                task_id
-            );
-            if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
-                let _ = app_state.database.update_run_status(run_id, "failed").await;
-            }
-            return Ok(());
-        }
-    };
-
-    // Create repo path for Modal
-    let repo_name = repository.name.clone();
-    let repo_path = format!("/home/swarm/{}", repo_name);
-
-    // Validate that AI-generated artifacts are present
-    let commit_title = match run.commit_title.as_ref() {
-        Some(title) if !title.trim().is_empty() => title,
-        _ => {
-            tracing::error!(
-                "Task {} run {} missing AI-generated commit title",
-                task_id,
-                run.id
-            );
-            let _ = app_state.database.update_run_status(run.id, "failed").await;
-            return Ok(());
-        }
-    };
-
-    let commit_body = run.commit_body.as_deref().unwrap_or("AI-generated changes");
+    // No longer requiring commit artifacts since the agent pushes the branch directly
 
     let pr_title = match task.pr_title.as_ref() {
         Some(title) if !title.trim().is_empty() => title,
@@ -281,32 +235,12 @@ async fn handle_task_success(
 
     let pr_body = task.pr_body.as_deref().unwrap_or("AI-generated changes");
 
-    // Push changes to GitHub
+    // Using pre-pushed branch created by the agent during execution
     tracing::info!(
-        "Pushing changes for task {} with AI-generated commit message",
+        "Using pre-pushed branch {} for task {} (no longer pushing from backend)",
+        branch,
         task_id
     );
-    if let Err(e) = app_state
-        .sandbox
-        .push_changes(
-            sandbox_id,
-            &repo_path,
-            branch,
-            task_id,
-            &author_name,
-            &author_email,
-            commit_title,
-            commit_body,
-        )
-        .await
-    {
-        tracing::error!("Failed to push changes for task {}: {}", task_id, e);
-        let _ = app_state
-            .database
-            .update_task_status(task_id, "failed", None)
-            .await;
-        return Ok(());
-    }
 
     // Create GitHub PR client
     tracing::info!(
@@ -615,20 +549,6 @@ mod tests {
             Ok(None)
         }
 
-        async fn push_changes(
-            &self,
-            _sandbox_id: &str,
-            _repo_path: &str,
-            _branch: &str,
-            _task_id: i32,
-            _author_name: &str,
-            _author_email: &str,
-            _commit_title: &str,
-            _commit_body: &str,
-        ) -> crate::sandbox::SandboxResult<()> {
-            Ok(())
-        }
-
         async fn delete_sandbox(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<()> {
             Ok(())
         }
@@ -695,20 +615,6 @@ mod tests {
             _command_id: &str,
         ) -> crate::sandbox::SandboxResult<Option<i32>> {
             Ok(self.exit_code)
-        }
-
-        async fn push_changes(
-            &self,
-            _sandbox_id: &str,
-            _repo_path: &str,
-            _branch: &str,
-            _task_id: i32,
-            _author_name: &str,
-            _author_email: &str,
-            _commit_title: &str,
-            _commit_body: &str,
-        ) -> crate::sandbox::SandboxResult<()> {
-            Ok(())
         }
 
         async fn delete_sandbox(&self, _sandbox_id: &str) -> crate::sandbox::SandboxResult<()> {

@@ -29,14 +29,19 @@ EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."
 # Complete Claude Code prompt template
 CLAUDE_PROMPT_TEMPLATE = """Please work on this task {task_id}: {prompt}.
 
+Before starting work on the task, create a new branch using the `SWARM_BRANCH` environment variable as the name of the branch.
+Once you have completed the task, push the branch to the remote repository.
+
 {mode_instructions}
 
 After completing the task, you MUST output the following markers in this exact format:
 
-COMMIT_MESSAGE_TITLE: Your concise commit title here
-COMMIT_MESSAGE_BODY: Your concise commit message body here
-PR_TITLE: Your concise pull request title here
-PR_BODY: Your very concise pull request description here
+PR_TITLE: <short title>
+PR_BODY:
+<markdown with summary, test notes, risk, rollout/backout>
 
-The system requires these markers to automatically generate commit messages and pull
-requests. Without them, the task will fail."""
+The system requires these PR markers to automatically generate pull requests. 
+Do NOT emit COMMIT_MESSAGE_* markers as the system no longer uses them.
+Without the PR markers, the task will fail."""
+
+# Then, using the GitHub CLI, create a pull request for the branch.
