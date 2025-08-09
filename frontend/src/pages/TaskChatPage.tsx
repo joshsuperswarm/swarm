@@ -10,6 +10,8 @@ import { useRunMode } from "@/hooks/useRunMode";
 import { Bot } from 'lucide-react';
 import type { TaskLog } from "@/types/generated/TaskLog";
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
+import { AnimatedTitle } from "@/components/AnimatedTitle";
+import { isTitlePending } from "@/lib/titleState";
 
 export function TaskChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +45,14 @@ export function TaskChatPage() {
     currentRunStatus || "",
   );
   const status = statuses.find((s) => s.value === currentRunStatus);
+  
+  // Pick the first user message as description proxy if available
+  const firstUser = messages.find(m => m.role === "user");
+  const pendingTitle = isTitlePending({
+    title: task.title,
+    status: currentRunStatus || null,
+    description: firstUser?.content || null,
+  });
   
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
@@ -85,7 +95,9 @@ export function TaskChatPage() {
             <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
               #{task.id}
             </span>
-            <h1 className="text-xl font-semibold text-gray-900">{task.title}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">
+              <AnimatedTitle title={task.title || ""} pending={pendingTitle} />
+            </h1>
           </div>
           
           {/* Task Status */}

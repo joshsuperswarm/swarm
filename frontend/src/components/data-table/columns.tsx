@@ -15,6 +15,8 @@ import {
 
 import { statuses } from "@/data/data"
 import type { Task } from "@/types"
+import { AnimatedTitle } from "@/components/AnimatedTitle"
+import { isTitlePending } from "@/lib/titleState"
 
 export const createColumns = (): ColumnDef<Task>[] => [
   {
@@ -60,11 +62,19 @@ export const createColumns = (): ColumnDef<Task>[] => [
     accessorKey: "title",
     header: "Title",
     cell: ({ row }) => {
+      const t = row.original
+      const pending = isTitlePending({
+        title: t.title,
+        status: t.status,
+        description: t.description ?? null,
+      })
       return (
         <div className="flex space-x-1 items-center">
-          <span className="max-w-[500px] truncate font-medium text-xs">
-            {row.getValue("title")}
-          </span>
+          <AnimatedTitle
+            title={t.title || ""}
+            pending={pending}
+            className="max-w-[500px] truncate font-medium text-xs"
+          />
         </div>
       )
     },

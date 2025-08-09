@@ -7,6 +7,8 @@ import { TodoList } from '@/components/TodoList';
 import { statuses } from '@/data/data';
 import { useTasksQuery, useTaskDetailsQuery, useTaskTodosQuery } from '@/services/queries';
 import { Copy, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { AnimatedTitle } from '@/components/AnimatedTitle';
+import { isTitlePending } from '@/lib/titleState';
 
 // Key filter to ignore hotkeys when user is typing
 const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -185,6 +187,12 @@ export function TaskPage() {
     currentRunStatus ?? ''
   );
 
+  const pendingTitle = isTitlePending({
+    title: liveTask.title,
+    status: currentRunStatus || null,
+    description: derivedDescription || null,
+  });
+
   return (
     <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
       {/* Header */}
@@ -205,7 +213,9 @@ export function TaskPage() {
             <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
               #{liveTask.id}
             </span>
-            <h1 className="text-2xl font-bold text-gray-900">{liveTask.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              <AnimatedTitle title={liveTask.title || ""} pending={pendingTitle} />
+            </h1>
           </div>
           
           {/* Right side - Status only */}
