@@ -16,7 +16,6 @@ pub struct ModalProvider {
     region: Option<String>,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSandboxRequest {
     pub repo_url: String,
@@ -217,14 +216,18 @@ impl ModalSandboxClient {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ArtifactKind { CommitBody, PrTitle, PrBody }
+enum ArtifactKind {
+    CommitBody,
+    PrTitle,
+    PrBody,
+}
 
 #[derive(Debug, Default)]
 struct ArtifactCollector {
     commit_title: Option<String>,
-    commit_body:  Option<String>,
-    pr_title:     Option<String>,
-    pr_body:      Option<String>,
+    commit_body: Option<String>,
+    pr_title: Option<String>,
+    pr_body: Option<String>,
 
     current: Option<ArtifactKind>,
     buf: Vec<String>,
@@ -260,8 +263,8 @@ impl ArtifactCollector {
             if !content.is_empty() {
                 match kind {
                     ArtifactKind::CommitBody => self.commit_body = Some(content),
-                    ArtifactKind::PrTitle    => self.pr_title   = Some(content),
-                    ArtifactKind::PrBody     => self.pr_body    = Some(content),
+                    ArtifactKind::PrTitle => self.pr_title = Some(content),
+                    ArtifactKind::PrBody => self.pr_body = Some(content),
                 }
             }
             self.buf.clear();
@@ -322,19 +325,25 @@ fn consume_artifact_line(line: &str, ac: &mut ArtifactCollector) {
     if l.starts_with("COMMIT_MESSAGE_BODY:") {
         let rest = l.trim_start_matches("COMMIT_MESSAGE_BODY:").trim();
         ac.start(ArtifactKind::CommitBody);
-        if !rest.is_empty() { ac.push_text(rest); }
+        if !rest.is_empty() {
+            ac.push_text(rest);
+        }
         return;
     }
     if l.starts_with("PR_TITLE:") {
         let rest = l.trim_start_matches("PR_TITLE:").trim();
         ac.start(ArtifactKind::PrTitle);
-        if !rest.is_empty() { ac.push_text(rest); }
+        if !rest.is_empty() {
+            ac.push_text(rest);
+        }
         return;
     }
     if l.starts_with("PR_BODY:") {
         let rest = l.trim_start_matches("PR_BODY:").trim();
         ac.start(ArtifactKind::PrBody);
-        if !rest.is_empty() { ac.push_text(rest); }
+        if !rest.is_empty() {
+            ac.push_text(rest);
+        }
         return;
     }
 
@@ -423,7 +432,6 @@ impl ModalProvider {
         }
     }
 
-
     pub async fn pull_logs_once(
         &self,
         db: &crate::database::Database,
@@ -448,13 +456,13 @@ impl ModalProvider {
             // Seed from DB (so repeated pulls accumulate properly)
             let mut collector = ArtifactCollector::default();
 
-            if let Ok(Some(task)) = db.get_task_by_id(task_id).await {
+            if let Ok(Some(task)) = db.get_task_by_id_raw(task_id).await {
                 collector.pr_title = task.pr_title;
-                collector.pr_body  = task.pr_body;
+                collector.pr_body = task.pr_body;
             }
             if let Ok(Some(run)) = db.get_run_by_id(run_id).await {
                 collector.commit_title = run.commit_title;
-                collector.commit_body  = run.commit_body;
+                collector.commit_body = run.commit_body;
             }
 
             let _processed = self
@@ -961,7 +969,8 @@ mod tests {
         // JSON object split across chunks should still parse
         let chunk1 = r#"{"type":"assistant","message":{"content":[{"text":"function hello() {\n  console.log(\"world\");\n}"#;
         let chunk2 = r#"}]}}"#;
-        let chunk3 = r#"{"type":"result","subtype":"success","result":"PR_TITLE: T\nPR_BODY: B\n"}"#;
+        let chunk3 =
+            r#"{"type":"result","subtype":"success","result":"PR_TITLE: T\nPR_BODY: B\n"}"#;
 
         let result1 = provider
             .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut collector)
@@ -983,7 +992,7 @@ mod tests {
 
         // After flush, artifacts should be captured
         assert_eq!(collector.pr_title.as_deref(), Some("T"));
-        assert_eq!(collector.pr_body.as_deref(),  Some("B"));
+        assert_eq!(collector.pr_body.as_deref(), Some("B"));
     }
 
     #[test]
