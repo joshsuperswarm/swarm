@@ -223,7 +223,7 @@ enum ArtifactKind {
 }
 
 #[derive(Debug, Default)]
-struct ArtifactCollector {
+pub(crate) struct ArtifactCollector {
     commit_title: Option<String>,
     commit_body: Option<String>,
     pr_title: Option<String>,
