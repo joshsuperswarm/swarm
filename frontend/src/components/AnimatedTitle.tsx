@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 interface AnimatedTitleProps {
   title: string
   pending: boolean
+  status?: string | null
   className?: string
   ariaLabelPending?: string
 }
@@ -12,6 +13,7 @@ interface AnimatedTitleProps {
 export function AnimatedTitle({
   title,
   pending,
+  status,
   className,
   ariaLabelPending = "Generating title…",
 }: AnimatedTitleProps) {
@@ -20,7 +22,32 @@ export function AnimatedTitle({
     []
   )
   const [displayed, setDisplayed] = useState<string>("")
+  const [shouldAnimate, setShouldAnimate] = useState<boolean>(false)
   const typingRef = useRef<number | null>(null)
+  const prevStateRef = useRef<{ title: string; pending: boolean }>({ title, pending })
+  const wasEverEmptyRef = useRef<boolean>(!title.trim() || pending)
+
+  // Detect when we should animate (for tasks that were ever empty, excluding failed tasks)
+  useEffect(() => {
+    const prevState = prevStateRef.current
+    const titleChanged = prevState.title !== title
+    const isNowResolved = !pending && title.trim()
+    const isFailed = status === 'failed'
+    
+    // Track if task was ever empty
+    if (pending || !title.trim()) {
+      wasEverEmptyRef.current = true
+    }
+    
+    // Only animate if: task was ever empty, title changed to resolved state, and not failed
+    if (wasEverEmptyRef.current && titleChanged && isNowResolved && !isFailed) {
+      setShouldAnimate(true)
+    } else {
+      setShouldAnimate(false)
+    }
+    
+    prevStateRef.current = { title, pending }
+  }, [title, pending, status])
 
   // Reset when title changes or returns to pending
   useEffect(() => {
@@ -33,7 +60,9 @@ export function AnimatedTitle({
   // Typewriter on resolve
   useEffect(() => {
     if (pending) return
-    if (prefersReduce) {
+    
+    // If we shouldn't animate or user prefers reduced motion, show immediately
+    if (!shouldAnimate || prefersReduce) {
       setDisplayed(title)
       return
     }
@@ -54,7 +83,7 @@ export function AnimatedTitle({
     return () => {
       if (typingRef.current) cancelAnimationFrame(typingRef.current)
     }
-  }, [pending, title, prefersReduce])
+  }, [pending, title, shouldAnimate, prefersReduce])
 
   if (pending) {
     return (
@@ -91,7 +120,7 @@ export function AnimatedTitle({
     <span className={cn("inline-flex items-center", className)}>
       <span className="whitespace-pre-wrap">{displayed}</span>
       <AnimatePresence>
-        {displayed !== title && (
+        {shouldAnimate && displayed !== title && (
           <motion.span
             className="blink"
             initial={{ opacity: 1 }}

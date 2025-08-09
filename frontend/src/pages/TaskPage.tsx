@@ -214,7 +214,7 @@ export function TaskPage() {
               #{liveTask.id}
             </span>
             <h1 className="text-2xl font-bold text-gray-900">
-              <AnimatedTitle title={liveTask.title || ""} pending={pendingTitle} />
+              <AnimatedTitle title={liveTask.title || ""} pending={pendingTitle} status={currentRunStatus} />
             </h1>
           </div>
           

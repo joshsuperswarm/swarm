@@ -73,6 +73,7 @@ export const createColumns = (): ColumnDef<Task>[] => [
           <AnimatedTitle
             title={t.title || ""}
             pending={pending}
+            status={t.status}
             className="max-w-[500px] truncate font-medium text-xs"
           />
         </div>
