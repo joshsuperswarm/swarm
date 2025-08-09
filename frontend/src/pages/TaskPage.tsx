@@ -55,6 +55,8 @@ export function TaskPage() {
   
   // Get todos for this task
   const messages = taskDetails?.messages || [];
+  const firstUserMessage = messages.find((m) => m.role === 'user');
+  const derivedDescription = firstUserMessage?.content || '';
   const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
   const currentRunStatus = currentRun?.run?.status;
   const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
@@ -240,13 +242,13 @@ export function TaskPage() {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Description</h3>
         </div>
-        {(liveTask.description || 'No description provided').split('\n').length <= 30 || isDescriptionExpanded ? (
+        {(derivedDescription || 'No description provided').split('\n').length <= 30 || isDescriptionExpanded ? (
           <div className="relative group">
             <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {liveTask.description || 'No description provided'}
+              {derivedDescription || 'No description provided'}
             </div>
             <div className="absolute top-2 right-2 flex gap-1">
-              {(liveTask.description || 'No description provided').split('\n').length > 30 && (
+              {(derivedDescription || 'No description provided').split('\n').length > 30 && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -261,7 +263,7 @@ export function TaskPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const text = liveTask.description || 'No description provided';
+                  const text = derivedDescription || 'No description provided';
                   navigator.clipboard.writeText(text).then(() => {
                     setIsCopied(true);
                     setTimeout(() => setIsCopied(false), 10000);
@@ -292,7 +294,7 @@ export function TaskPage() {
                 )}
               </Button>
             </div>
-            {(liveTask.description || 'No description provided').split('\n').length > 30 && (
+            {(derivedDescription || 'No description provided').split('\n').length > 30 && (
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
                 <Button
                   variant="outline"
@@ -309,7 +311,7 @@ export function TaskPage() {
         ) : (
           <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 leading-relaxed relative overflow-hidden">
             <div className="whitespace-pre-wrap">
-              {(liveTask.description || 'No description provided').split('\n').slice(0, 10).join('\n')}
+              {(derivedDescription || 'No description provided').split('\n').slice(0, 10).join('\n')}
             </div>
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-gray-100 to-transparent pointer-events-none"></div>
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
@@ -320,7 +322,7 @@ export function TaskPage() {
                 className="h-8 px-4 text-xs text-muted-foreground hover:text-foreground bg-white border-gray-300 shadow-sm"
               >
                 <ChevronDown className="h-3 w-3 mr-1" />
-                Expand ({(liveTask.description || 'No description provided').split('\n').length} lines)
+                Expand ({(derivedDescription || 'No description provided').split('\n').length} lines)
               </Button>
             </div>
           </div>
