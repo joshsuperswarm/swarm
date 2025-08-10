@@ -128,11 +128,15 @@ export const useTaskDetailsQuery = (taskId: number, enabled: boolean = true) => 
     queryKey: ['task-details', taskId],
     enabled: enabled && taskId > 0 && isSuccess,
     queryFn: async () => {
-      console.log('→ Fetching task details for taskId:', taskId);
+      if (import.meta.env.DEV) {
+        console.log('→ Fetching task details for taskId:', taskId);
+      }
       const result = await ApiService.getTaskDetails(jwt!, taskId);
-      console.log('Task details API response:', result);
-      console.log('  - Task:', result.task);
-      console.log('  - Messages count:', result.messages?.length || 0);
+      if (import.meta.env.DEV) {
+        console.log('Task details API response:', result);
+        console.log('  - Task:', result.task);
+        console.log('  - Messages count:', result.messages?.length || 0);
+      }
       return result;
     },
     staleTime: 5 * 1000, // 5 seconds - allow frequent updates

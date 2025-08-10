@@ -36,6 +36,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const [loading, setLoading] = useState(false);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const lastActiveElementRef = useRef<HTMLElement | null>(null);
 
   // Run mode cycling
   const runModes: RunMode[] = ['execute', 'plan', 'review'];
@@ -73,11 +74,21 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   // Auto-focus description input when modal opens and handle body lock
   useEffect(() => {
     if (isOpen) {
+      // Store the currently focused element
+      lastActiveElementRef.current = document.activeElement as HTMLElement;
+      
       document.body.classList.add('body-lock');
       if (descriptionInputRef.current) {
         // Small delay to ensure modal is fully rendered
         setTimeout(() => {
           descriptionInputRef.current?.focus();
+        }, 100);
+      }
+    } else {
+      // Restore focus to the previously focused element when modal closes
+      if (lastActiveElementRef.current) {
+        setTimeout(() => {
+          lastActiveElementRef.current?.focus();
         }, 100);
       }
     }
@@ -162,7 +173,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center p-0 md:p-4 z-50">
       <div ref={modalRef}
-        className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 w-full h-[100dvh] md:h-auto md:max-w-2xl rounded-t-2xl md:rounded-lg p-4 safe-pt safe-pb overflow-auto">
+        className="modal-sheet bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 w-full h-[100dvh] md:h-auto md:max-w-2xl rounded-t-2xl md:rounded-lg p-4 safe-pt safe-pb overflow-auto">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Task</h2>
           <button

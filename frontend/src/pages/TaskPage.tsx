@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { useTasksQuery, useTaskDetailsQuery, useTaskTodosQuery } from '@/service
 import { Copy, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { AnimatedTitle } from '@/components/AnimatedTitle';
 import { isTitlePending } from '@/lib/titleState';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // Key filter to ignore hotkeys when user is typing
 const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -21,6 +22,7 @@ const keyFilter = (keyboardEvent: KeyboardEvent) => {
 export function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   
   // Hide log viewer until the user opts in
   const [logsVisible, setLogsVisible] = useState(false);
@@ -30,6 +32,30 @@ export function TaskPage() {
   
   // Copy button state
   const [isCopied, setIsCopied] = useState(false);
+  
+  // Dynamic height calculation for log viewer
+  const [logViewerHeight, setLogViewerHeight] = useState(384);
+  
+  useEffect(() => {
+    const calculateHeight = () => {
+      if (typeof window === 'undefined') return;
+      
+      if (isMobile) {
+        setLogViewerHeight(Math.max(280, window.innerHeight - 280));
+      } else {
+        setLogViewerHeight(384);
+      }
+    };
+    
+    calculateHeight();
+    window.addEventListener('resize', calculateHeight);
+    window.addEventListener('orientationchange', calculateHeight);
+    
+    return () => {
+      window.removeEventListener('resize', calculateHeight);
+      window.removeEventListener('orientationchange', calculateHeight);
+    };
+  }, [isMobile]);
   
   // Logs state from TaskLogViewer
   const [logsState, setLogsState] = useState<{
@@ -408,7 +434,7 @@ export function TaskPage() {
               taskId={liveTask.id}
               taskStatus={currentRunStatus || undefined}
               hideHeader={true}
-              heightPx={typeof window !== 'undefined' && window.innerWidth < 768 ? Math.max(280, window.innerHeight - 280) : 384}
+              heightPx={logViewerHeight}
               onLogsStateChange={setLogsState}
             />
           )}
@@ -418,7 +444,7 @@ export function TaskPage() {
                 taskId={liveTask.id}
                 taskStatus={currentRunStatus || undefined}
                 hideHeader={true}
-                heightPx={typeof window !== 'undefined' && window.innerWidth < 768 ? Math.max(280, window.innerHeight - 280) : 384}
+                heightPx={logViewerHeight}
                 onLogsStateChange={setLogsState}
               />
             </div>

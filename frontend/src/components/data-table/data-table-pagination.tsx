@@ -93,7 +93,7 @@ export function DataTablePagination<TData>({
             <ChevronRightIcon className="h-4 w-4 ml-1" />
           </Button>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground" aria-live="polite">
           {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
         </div>
       </div>

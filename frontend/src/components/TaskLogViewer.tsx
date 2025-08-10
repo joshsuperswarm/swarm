@@ -40,7 +40,9 @@ interface TaskLogViewerProps {
 }
 
 const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus, hideHeader = false, logs: propLogs, heightPx, onLogsStateChange }) => {
-  console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
+  if (import.meta.env.DEV) {
+    console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
+  }
   
   /* pull any prefetched logs from React Query – instant render */
   const { data: prefetchedLogs = [], isLoading: prefetchLoading } = useTaskLogsQuery(taskId, !propLogs);
@@ -105,7 +107,9 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
   }, [showPretty]);
 
   const fetchLogs = useCallback(async (since?: number) => {
-    console.log('🔄 TaskLogViewer fetchLogs called - taskId:', taskId, 'since:', since)
+    if (import.meta.env.DEV) {
+      console.log('🔄 TaskLogViewer fetchLogs called - taskId:', taskId, 'since:', since)
+    }
     if (since) {
       setIsPolling(true);
     }

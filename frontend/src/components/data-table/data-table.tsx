@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table"
 
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/useIsMobile"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -52,7 +53,9 @@ export function DataTable<TData, TValue>({
   // Log when table instance is created
   React.useEffect(() => {
     if (isFirstRender.current) {
-      console.log('🔄 Creating Table Instance... (should only happen once)')
+      if (import.meta.env.DEV) {
+        console.log('🔄 Creating Table Instance... (should only happen once)')
+      }
       isFirstRender.current = false
     }
   }, [])
@@ -73,7 +76,7 @@ export function DataTable<TData, TValue>({
     debugTable: false, // Turn off TanStack debug logs
   })
 
-  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  const isMobile = useIsMobile();
 
   return (
     <div className="space-y-1 w-full">
@@ -87,12 +90,13 @@ export function DataTable<TData, TValue>({
             </div>
           ))}
           {!loading && table.getRowModel().rows.map((row) => {
-            const r: any = row.original;
+            const r = row.original as { task_id: number; title?: string; status?: string; mode?: string; created_at?: string | null };
             return (
               <button
                 key={row.id}
                 className="w-full text-left rounded-lg border bg-white p-3 active:bg-gray-50"
                 onClick={() => navigate(`/tasks/${r.task_id}`)}
+                aria-label={`Task #${r.task_id}: ${r.title || 'Untitled'}. ${r.status ? r.status.replace('_', ' ') : 'status unknown'}`}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-gray-500">#{r.task_id}</span>

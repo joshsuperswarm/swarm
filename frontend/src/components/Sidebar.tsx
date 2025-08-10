@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { useNavigate } from 'react-router-dom'
 import { Edit } from 'lucide-react'
 
 interface SidebarProps {
@@ -8,6 +9,7 @@ interface SidebarProps {
 
 export function Sidebar({ onCreateTask }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const navigate = useNavigate()
 
   // Toggle sidebar with cmd+b
   useHotkeys('cmd+b', () => {
@@ -79,7 +81,7 @@ export function Sidebar({ onCreateTask }: SidebarProps) {
         <div className="max-w-screen-sm mx-auto px-3 py-2 flex items-center justify-between">
           <button
             className="flex-1 touch-target text-sm font-medium text-gray-700"
-            onClick={() => (window.location.href = '/')}
+            onClick={() => navigate('/')}
             aria-label="Tasks"
           >
             Tasks
@@ -93,9 +95,13 @@ export function Sidebar({ onCreateTask }: SidebarProps) {
               Create
             </button>
           )}
-          <a href="/pricing" className="flex-1 text-right text-sm text-gray-500 touch-target" aria-label="Pricing">
+          <button 
+            onClick={() => navigate('/pricing')} 
+            className="flex-1 text-right text-sm text-gray-500 touch-target" 
+            aria-label="Pricing"
+          >
             Pricing
-          </a>
+          </button>
         </div>
       </div>
     </>
