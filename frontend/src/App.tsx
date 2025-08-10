@@ -8,6 +8,7 @@ import { ApiService, type RunMode } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useCreateTaskMutation } from '@/services/queries'
+import { useOnboarding } from '@/hooks/useOnboarding'
 import { Edit } from 'lucide-react'
 import swarmLogo from './assets/swarm-logo.png'
 import './App.css'
@@ -19,6 +20,7 @@ function App() {
   const { loadUserProfile, clearUserProfile } = useUserStore()
   const createTask = useCreateTaskMutation()
   const api = useBackendApi()
+  const { onboardingStatus, isLoading: onboardingLoading } = useOnboarding()
 
   const handleTaskCreated = async (taskData: {
     description: string;
@@ -120,7 +122,7 @@ function App() {
     setIsCreateModalOpen(true);
   });
 
-  if (!isLoaded) {
+  if (!isLoaded || (isSignedIn && onboardingLoading)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -129,6 +131,11 @@ function App() {
   }
 
   if (!isSignedIn) {
+    return <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />;
+  }
+
+  // If user hasn't completed onboarding, show onboarding without layout
+  if (onboardingStatus && !onboardingStatus.onboarding_completed) {
     return <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />;
   }
 
