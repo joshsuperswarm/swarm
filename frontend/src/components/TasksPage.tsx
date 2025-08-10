@@ -81,11 +81,24 @@ export function TasksPage() {
   // Handle Enter key to navigate to task detail
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
+      const target = e.target as HTMLElement | null;
+
+      // 1) Ignore when typing in common editable contexts
+      const isInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable === true;
+
+      // 2) Ignore when pressed on buttons/links (e.g., modal submit button)
+      const isButtonOrLink =
+        target instanceof HTMLButtonElement ||
+        target instanceof HTMLAnchorElement;
+
+      // 3) Ignore if the event occurred within an open dialog/modal
+      //    (we'll mark modal container with role="dialog" aria-modal="true")
+      const inDialog = !!target?.closest('[role="dialog"], [aria-modal="true"]');
+
+      if (isInput || isButtonOrLink || inDialog) return;
 
       if ((e.key === 'o' || e.key === 'Enter') && currentSelectedTask) {
         e.preventDefault();
