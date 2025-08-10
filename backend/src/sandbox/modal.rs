@@ -452,6 +452,8 @@ impl ModalProvider {
 
         if !combined_output.is_empty() {
             let mut buffer = String::new();
+            let mut last_assistant_text = String::new();
+            let mut last_result_block = String::new();
 
             // Seed from DB (so repeated pulls accumulate properly)
             let mut collector = ArtifactCollector::default();
@@ -473,8 +475,23 @@ impl ModalProvider {
                     &combined_output,
                     &mut buffer,
                     &mut collector,
+                    &mut last_assistant_text,
+                    &mut last_result_block,
                 )
                 .await?;
+
+            // Save final message to run (prefer result block over assembled assistant text)
+            let final_md = if !last_result_block.is_empty() {
+                last_result_block
+            } else {
+                last_assistant_text
+            };
+
+            if !final_md.trim().is_empty() {
+                if let Err(e) = db.set_run_final_message(run_id, final_md).await {
+                    warn!("Failed to save final message for run {}: {}", run_id, e);
+                }
+            }
 
             // Save PR artifacts to task
             if let Err(e) = db
@@ -499,6 +516,7 @@ impl ModalProvider {
     }
 
     /// Process Modal log stream with StreamDeserializer for proper JSON object parsing
+    /// Now also tracks final assistant message content for PR generation
     pub async fn process_modal_log_stream(
         &self,
         db: &crate::database::Database,
@@ -507,6 +525,8 @@ impl ModalProvider {
         raw_stream: &str,
         buffer: &mut String,
         collector: &mut ArtifactCollector,
+        last_assistant_text: &mut String,
+        last_result_block: &mut String,
     ) -> SandboxResult<usize> {
         buffer.push_str(raw_stream);
 
@@ -528,6 +548,28 @@ impl ModalProvider {
                         warn!("✗ Failed to store log line for task {}: {}", task_id, e);
                     } else {
                         lines_processed += 1;
+                    }
+
+                    // Capture final message content for PR synthesis
+                    if modal_log.log_type == "assistant" {
+                        if let Some(text) = modal_log.content
+                            .get("message")
+                            .and_then(|m| m.get("content"))
+                            .and_then(|c| c.as_array())
+                        {
+                            for content_item in text {
+                                if let Some(text_content) = content_item.get("text").and_then(|t| t.as_str()) {
+                                    if !last_assistant_text.is_empty() {
+                                        last_assistant_text.push('\n');
+                                    }
+                                    last_assistant_text.push_str(text_content);
+                                }
+                            }
+                        }
+                    } else if modal_log.log_type == "result" {
+                        if let Some(result_content) = modal_log.content.get("result").and_then(|r| r.as_str()) {
+                            *last_result_block = result_content.to_string();
+                        }
                     }
 
                     // Parse todos (unchanged)
@@ -972,21 +1014,24 @@ mod tests {
         let chunk3 =
             r#"{"type":"result","subtype":"success","result":"PR_TITLE: T\nPR_BODY: B\n"}"#;
 
+        let mut last_assistant_text = String::new();
+        let mut last_result_block = String::new();
+
         let result1 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut collector)
+            .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut collector, &mut last_assistant_text, &mut last_result_block)
             .await;
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0);
         assert!(!buffer.is_empty());
 
         let result2 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk2, &mut buffer, &mut collector)
+            .process_modal_log_stream(&db, task_id, 1, chunk2, &mut buffer, &mut collector, &mut last_assistant_text, &mut last_result_block)
             .await;
         assert!(result2.is_err() || result2.unwrap() == 1);
 
         // Now feed a small result with markers and ensure collector captures them
         let result3 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk3, &mut buffer, &mut collector)
+            .process_modal_log_stream(&db, task_id, 1, chunk3, &mut buffer, &mut collector, &mut last_assistant_text, &mut last_result_block)
             .await;
         let _ = result3.is_ok();
 

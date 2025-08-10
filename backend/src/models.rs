@@ -135,6 +135,7 @@ pub struct Run {
     pub status: Option<String>,
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
+    pub final_message_md: Option<String>,
     pub mode: String,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,

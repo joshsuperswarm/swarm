@@ -479,7 +479,7 @@ impl Database {
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
-            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at FROM runs WHERE id = $1",
+            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at FROM runs WHERE id = $1",
             run_id
         )
         .fetch_optional(&self.pool)
@@ -554,7 +554,7 @@ impl Database {
             UPDATE runs
                SET status = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
             "#,
             run_id,
             status
@@ -576,7 +576,7 @@ impl Database {
             UPDATE runs
                SET session_id = $2, command_id = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
             "#,
             run_id,
             session,
@@ -599,11 +599,28 @@ impl Database {
             UPDATE runs
                SET commit_title = $2, commit_body = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
             "#,
             run_id,
             commit_title,
             commit_body
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run)
+    }
+
+    pub async fn set_run_final_message(&self, run_id: i32, md: String) -> AppResult<Run> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            UPDATE runs
+               SET final_message_md = $2, updated_at = NOW()
+             WHERE id = $1
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            "#,
+            run_id,
+            md
         )
         .fetch_one(&self.pool)
         .await?;
@@ -617,7 +634,7 @@ impl Database {
             UPDATE runs
                SET branch = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
             "#,
             run_id,
             branch
@@ -639,7 +656,7 @@ impl Database {
             UPDATE runs
                SET sandbox_id = $2, sandbox_hostname = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
             "#,
             run_id,
             sandbox_id,
@@ -656,7 +673,7 @@ impl Database {
             r#"
             INSERT INTO runs (task_id, mode, status, created_at, updated_at)
             VALUES ($1, $2, 'pending', NOW(), NOW())
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
             "#,
             task_id,
             mode,
@@ -740,6 +757,7 @@ impl Database {
                         status: row.status,
                         commit_title: row.commit_title,
                         commit_body: row.commit_body,
+                        final_message_md: None, // This is assembled separately
                         mode: mode,
                         created_at: row.run_created_at,
                         updated_at: row.run_updated_at,

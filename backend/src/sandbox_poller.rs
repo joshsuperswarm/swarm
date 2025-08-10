@@ -27,9 +27,6 @@ use tracing::{debug, error, info, warn};
 // ——————————————————————————————————————————————————————————————
 //  Helper functions
 // ——————————————————————————————————————————————————————————————
-fn has_required_artifacts(run: &crate::models::Run) -> bool {
-    run.commit_title.is_some() && run.commit_body.is_some()
-}
 
 // ——————————————————————————————————————————————————————————————
 //  Provider factory (Modal only)
@@ -181,8 +178,8 @@ async fn handle_task(
         .await
     {
         if code == 0 {
-            // Task completed successfully, now poll for artifacts
-            wait_for_artifacts(
+            // Task completed successfully, now process final message for PR synthesis
+            wait_for_final_message(
                 app_state,
                 provider,
                 run_id,
@@ -241,7 +238,7 @@ async fn handle_task(
 // ——————————————————————————————————————————————————————————————
 //  Helpers
 // ——————————————————————————————————————————————————————————————
-async fn wait_for_artifacts(
+async fn wait_for_final_message(
     app_state: &AppState,
     provider: &dyn SandboxProvider,
     run_id: i32,
@@ -249,59 +246,59 @@ async fn wait_for_artifacts(
     sandbox_id: &str,
     command_id: &str,
 ) -> anyhow::Result<()> {
-    info!("task {task_id} finished with exit‑code 0 – waiting for artifacts");
+    info!("task {task_id} finished with exit‑code 0 – waiting for final message");
 
-    // Poll for artifacts with timeout
-    let timeout_duration = Duration::from_secs(30); // 30 seconds
-    let poll_interval = Duration::from_secs(2);
-    let start_time = Instant::now();
+    // Ensure last logs pulled after exit to capture the final message
+    if let Some(modal_url) = &app_state.config.modal_url {
+        let modal = sandbox::modal::ModalProvider::new(
+            modal_url.clone(),
+            app_state.config.modal_region.clone(),
+        );
+        let _ = modal
+            .pull_logs_once(&app_state.database, task_id, run_id, sandbox_id, command_id)
+            .await;
+    }
 
-    loop {
-        // Pull logs to collect any new artifacts
-        if let Some(modal_url) = &app_state.config.modal_url {
-            let modal = sandbox::modal::ModalProvider::new(
-                modal_url.clone(),
-                app_state.config.modal_region.clone(),
-            );
-            let _ = modal
-                .pull_logs_once(&app_state.database, task_id, run_id, sandbox_id, command_id)
-                .await;
-        }
+    let run = app_state.database.get_run_by_id(run_id).await?
+        .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
 
-        // Check if we have all required artifacts
-        if let Ok(Some(run)) = app_state.database.get_run_by_id(run_id).await {
-            if has_required_artifacts(&run) {
-                info!(
-                    "run {} / task {} has all required artifacts – proceeding to finalize",
-                    run_id, task_id
-                );
-                return finalize_success(
-                    app_state, provider, run_id, task_id, sandbox_id, command_id, &run.mode,
-                )
-                .await;
-            }
-        }
+    let final_md = run.final_message_md.clone().unwrap_or_default();
 
-        // Check timeout
-        if start_time.elapsed() > timeout_duration {
-            warn!(
-                "run {} / task {} timed out waiting for artifacts after 30 seconds",
-                run_id, task_id
-            );
-            // Get run mode for timeout case
-            let run_mode = if let Ok(Some(run)) = app_state.database.get_run_by_id(run_id).await {
-                run.mode
-            } else {
-                "execute".to_string() // fallback to execute if we can't get the run
-            };
+    if final_md.trim().is_empty() {
+        tracing::error!("Run {} has no final message; cannot synthesize PR", run_id);
+        app_state.database.update_run_status(run_id, "failed").await?;
+        return Err(anyhow::anyhow!("No final message to synthesize PR from"));
+    }
+
+    // Synthesize PR from the final message
+    let api_key = app_state.config.anthropic_api_key.clone()
+        .ok_or_else(|| anyhow::anyhow!("No Anthropic API key configured"))?;
+    
+    match crate::claude::synthesize_pr_from_agent_output(&final_md, &api_key).await {
+        Ok((pr_title, pr_body)) => {
+            // Save PR artifacts to task
+            app_state.database
+                .set_task_pr_artifacts(task_id, Some(pr_title.clone()), Some(pr_body.clone()))
+                .await?;
+
+            // Also set a commit title/body (short form)
+            let commit_title = pr_title.chars().take(72).collect::<String>();
+            app_state.database
+                .set_run_artifacts(run_id, Some(commit_title), None)
+                .await?;
+
+            info!("Successfully synthesized PR for task {} from final message", task_id);
+
             return finalize_success(
-                app_state, provider, run_id, task_id, sandbox_id, command_id, &run_mode,
+                app_state, provider, run_id, task_id, sandbox_id, command_id, &run.mode,
             )
             .await;
         }
-
-        // Wait before next poll
-        sleep(poll_interval).await;
+        Err(e) => {
+            tracing::error!("PR synthesis failed for task {}: {}", task_id, e);
+            app_state.database.update_run_status(run_id, "failed").await?;
+            return Err(anyhow::anyhow!("PR synthesis failed: {}", e));
+        }
     }
 }
 
@@ -311,24 +308,12 @@ async fn finalize_success(
     run_id: i32,
     task_id: i32,
     sandbox_id: &str,
-    command_id: &str,
+    _command_id: &str,
     run_mode: &str,
 ) -> anyhow::Result<()> {
-    info!("task {task_id} finished with exit‑code 0 – collecting logs & artifacts");
+    info!("task {task_id} finalizing success");
 
-    // Use provider-specific log collection on success
-    if let Some(modal_url) = &app_state.config.modal_url {
-        let modal = sandbox::modal::ModalProvider::new(
-            modal_url.clone(),
-            app_state.config.modal_region.clone(),
-        );
-        modal
-            .pull_logs_once(&app_state.database, task_id, run_id, sandbox_id, command_id)
-            .await
-            .ok();
-    }
-
-    // Fetch comment artifacts after successful completion and before delete_sandbox
+    // Fetch comment artifacts after successful completion for plan and review modes
     // Only fetch artifacts for plan and review modes - execute mode doesn't generate artifacts
     if run_mode == "plan" || run_mode == "review" {
         match provider.fetch_artifact(sandbox_id, task_id, run_mode).await {
