@@ -32,7 +32,7 @@ use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
-use onboarding::{encrypt_secret, get_onboarding_status};
+use onboarding::{encrypt_secret, ensure_onboarding_complete, get_onboarding_status};
 use models::{
     AgentTodo, ApiKeysStatus, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
     GitHubToken, MessageWithRun, OnboardingStatus, RepositoryTS, RepositoryWithTasks, Run, RunWithMeta, 
@@ -1276,6 +1276,14 @@ async fn get_tasks(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
+
     // Get user's tasks with latest run data from database
     match app_state.database.get_user_runs_latest(user.id).await {
         Ok(mut task_runs) => {
@@ -1337,6 +1345,14 @@ async fn create_task(
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
+
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
 
     // Validate repository access
     let _repository = match app_state
@@ -1536,6 +1552,14 @@ async fn get_task_details(
         }
     };
 
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
+
     // Verify task belongs to user
     app_state.database.ensure_task_owner(task_id, db_user.id)
         .await
@@ -1567,6 +1591,14 @@ async fn get_task_logs(
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
+
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
 
     // Verify task belongs to user
     app_state.database.ensure_task_owner(task_id, db_user.id)
@@ -1631,6 +1663,14 @@ async fn get_task_todos(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
+
     // Verify task belongs to user
     app_state.database.ensure_task_owner(task_id, db_user.id)
         .await
@@ -1657,6 +1697,14 @@ async fn get_task_messages(
     let db_user = get_or_create_user(&app_state.database, &user.id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
 
     // Verify task belongs to user
     app_state.database.ensure_task_owner(task_id, db_user.id)
@@ -1689,6 +1737,14 @@ async fn post_task_message(
     let db_user = get_or_create_user(&app_state.database, &user.id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
 
     // Verify task belongs to user
     app_state.database.ensure_task_owner(task_id, db_user.id)
