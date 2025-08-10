@@ -1,7 +1,5 @@
 export function isTitlePending({
   title,
-  status,        // kept for signature compatibility
-  description,   // kept for signature compatibility
 }: {
   title?: string | null
   status?: string | null

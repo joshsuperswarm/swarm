@@ -25,7 +25,7 @@ export function TasksPage() {
     return <div>Loading...</div>;
   }
 
-  const hasValidPlan = has({ plan: 'free' }) || has({ plan: 'swarm_pro' });
+  const hasValidPlan = has({ plan: 'free' });
 
   if (!hasValidPlan) {
     return <PricingScreen />;
