@@ -70,14 +70,18 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     }
   }, [isOpen, user]);
 
-  // Auto-focus description input when modal opens
+  // Auto-focus description input when modal opens and handle body lock
   useEffect(() => {
-    if (isOpen && descriptionInputRef.current) {
-      // Small delay to ensure modal is fully rendered
-      setTimeout(() => {
-        descriptionInputRef.current?.focus();
-      }, 100);
+    if (isOpen) {
+      document.body.classList.add('body-lock');
+      if (descriptionInputRef.current) {
+        // Small delay to ensure modal is fully rendered
+        setTimeout(() => {
+          descriptionInputRef.current?.focus();
+        }, 100);
+      }
     }
+    return () => document.body.classList.remove('body-lock');
   }, [isOpen]);
 
   // Focus trap for accessibility and run mode cycling
@@ -156,13 +160,15 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
-      <div ref={modalRef} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg max-w-2xl w-full p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center p-0 md:p-4 z-50">
+      <div ref={modalRef}
+        className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 w-full h-[100dvh] md:h-auto md:max-w-2xl rounded-t-2xl md:rounded-lg p-4 safe-pt safe-pb overflow-auto">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Task</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors touch-target"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
@@ -194,7 +200,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               <button
                 type="button"
                 onClick={cycleRunMode}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${getModeConfig(formData.mode).color}`}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium border transition-colors touch-target ${getModeConfig(formData.mode).color}`}
                 title={`${getModeConfig(formData.mode).description} (Shift+Tab to cycle)`}
               >
                 {React.createElement(getModeConfig(formData.mode).icon, { size: 14 })}
@@ -222,7 +228,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <button
               type="submit"
               disabled={loading || !user?.default_repo || !formData.description.trim()}
-              className="px-4 py-2 text-sm text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-400 dark:disabled:bg-gray-600 rounded-md transition-colors"
+              className="px-4 py-2 text-sm text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-400 dark:disabled:bg-gray-600 rounded-md transition-colors touch-target"
             >
               {loading ? 'Creating...' : 'Create Task'}
             </button>

@@ -104,7 +104,7 @@ export function TasksPage() {
   }, []);
 
   return (
-    <div className="relative flex-1 min-w-0 overflow-hidden px-4 py-4">
+    <div className="relative flex-1 min-w-0 overflow-hidden px-3 py-3 md:px-4 md:py-4 pb-24">
       {/* Error overlay */}
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80">

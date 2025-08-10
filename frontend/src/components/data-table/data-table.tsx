@@ -73,11 +73,52 @@ export function DataTable<TData, TValue>({
     debugTable: false, // Turn off TanStack debug logs
   })
 
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+
   return (
     <div className="space-y-1 w-full">
-      <div className="rounded-md overflow-hidden flex flex-col w-full">
-        <div className="overflow-auto flex-1">
-          <Table className="w-full">
+      {/* Mobile cards */}
+      {isMobile ? (
+        <div className="md:hidden space-y-2">
+          {loading && Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-lg border bg-white p-3">
+              <div className="h-4 w-1/2 bg-muted rounded animate-pulse" />
+              <div className="mt-2 h-3 w-2/3 bg-muted rounded animate-pulse" />
+            </div>
+          ))}
+          {!loading && table.getRowModel().rows.map((row) => {
+            const r: any = row.original;
+            return (
+              <button
+                key={row.id}
+                className="w-full text-left rounded-lg border bg-white p-3 active:bg-gray-50"
+                onClick={() => navigate(`/tasks/${r.task_id}`)}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono text-gray-500">#{r.task_id}</span>
+                  <span className="text-[11px] text-gray-500">
+                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
+                  </span>
+                </div>
+                <div className="mt-1 text-sm font-medium">
+                  {r.title || 'Untitled'}
+                </div>
+                <div className="mt-1 flex items-center gap-3 text-xs text-gray-600">
+                  {r.mode && <span className="capitalize">{String(r.mode)}</span>}
+                  {r.status && <span className="capitalize">• {String(r.status).replace('_', ' ')}</span>}
+                </div>
+              </button>
+            )
+          })}
+          {!loading && table.getRowModel().rows.length === 0 && (
+            <div className="rounded-lg border bg-white p-4 text-center text-sm text-muted-foreground">No results.</div>
+          )}
+        </div>
+      ) : (
+        /* Existing table (desktop) */
+        <div className="rounded-md overflow-hidden flex flex-col w-full">
+          <div className="overflow-auto flex-1">
+            <Table className="w-full">
             <TableHeader className="shadow-[0_1px_0_0_theme(colors.border)] sticky top-0 z-20 bg-white">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -168,9 +209,10 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ) : null}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

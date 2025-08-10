@@ -194,9 +194,9 @@ export function TaskPage() {
   });
 
   return (
-    <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header */}
-      <div className="mb-6">
+    <div className="flex-1 w-full px-3 md:px-6 lg:px-8 py-3 md:py-6 pb-28">
+      {/* Sticky header container */}
+      <div className="sticky top-0 z-30 -mx-3 md:mx-0 bg-white/95 backdrop-blur border-b safe-pt px-3 py-2 mb-6">
         <div className="flex items-center gap-2 mb-4">
           <Button
             variant="ghost"
@@ -213,7 +213,7 @@ export function TaskPage() {
             <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
               #{liveTask.id}
             </span>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
               <AnimatedTitle title={liveTask.title || ""} pending={pendingTitle} status={currentRunStatus} />
             </h1>
           </div>
@@ -408,6 +408,7 @@ export function TaskPage() {
               taskId={liveTask.id}
               taskStatus={currentRunStatus || undefined}
               hideHeader={true}
+              heightPx={typeof window !== 'undefined' && window.innerWidth < 768 ? Math.max(280, window.innerHeight - 280) : 384}
               onLogsStateChange={setLogsState}
             />
           )}
@@ -417,6 +418,7 @@ export function TaskPage() {
                 taskId={liveTask.id}
                 taskStatus={currentRunStatus || undefined}
                 hideHeader={true}
+                heightPx={typeof window !== 'undefined' && window.innerWidth < 768 ? Math.max(280, window.innerHeight - 280) : 384}
                 onLogsStateChange={setLogsState}
               />
             </div>

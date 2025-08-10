@@ -26,6 +26,7 @@ interface TaskLogViewerProps {
   taskStatus?: string;
   hideHeader?: boolean;
   logs?: (string | TaskLog)[];
+  heightPx?: number;
   onLogsStateChange?: (state: {
     isLoading: boolean;
     isPolling: boolean;
@@ -38,7 +39,7 @@ interface TaskLogViewerProps {
   }) => void;
 }
 
-const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus, hideHeader = false, logs: propLogs, onLogsStateChange }) => {
+const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStatus, hideHeader = false, logs: propLogs, heightPx, onLogsStateChange }) => {
   console.log('🔄 TaskLogViewer render - taskId:', taskId, 'taskStatus:', taskStatus)
   
   /* pull any prefetched logs from React Query – instant render */
@@ -318,13 +319,13 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
         </div>
       )}
       
-      <div className="h-96 w-full rounded-md border border-linear-border bg-linear-text p-2">
+      <div className="w-full rounded-md border border-linear-border bg-linear-text p-2" style={{ height: heightPx ?? 384 }}>
         {logs.length === 0 && !isLoading ? (
           <span className="text-white/70 text-xs font-normal">No logs yet...</span>
         ) : isLoading && logs.length === 0 ? (
           <span className="text-white/70 text-xs font-normal">Loading logs...</span>
         ) : (
-          <VirtualisedLogViewer lines={logs} height={352} />
+          <VirtualisedLogViewer lines={logs} height={heightPx ? heightPx - 16 : 368} />
         )}
       </div>
     </div>

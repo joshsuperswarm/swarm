@@ -22,7 +22,7 @@ export const createColumns = (): ColumnDef<Task>[] => [
   {
     accessorKey: "task_id",
     header: "Task",
-    cell: ({ row }) => <div className="w-[80px] text-xs font-mono">{row.getValue("task_id")}</div>,
+    cell: ({ row }) => <div className="w-[64px] md:w-[80px] text-[11px] md:text-xs font-mono">{row.getValue("task_id")}</div>,
     enableSorting: false,
     enableHiding: false,
   },
@@ -50,9 +50,9 @@ export const createColumns = (): ColumnDef<Task>[] => [
       const Icon = config.icon;
 
       return (
-        <div className="flex w-[80px] items-center gap-1">
+        <div className="flex w-[64px] md:w-[80px] items-center gap-1">
           <Icon className={`h-3 w-3 ${config.color}`} />
-          <span className={`text-xs ${config.color}`}>{config.label}</span>
+          <span className={`text-[11px] md:text-xs ${config.color}`}>{config.label}</span>
         </div>
       );
     },
@@ -74,7 +74,7 @@ export const createColumns = (): ColumnDef<Task>[] => [
             title={t.title || ""}
             pending={pending}
             status={t.status}
-            className="max-w-[500px] truncate font-medium text-xs"
+            className="max-w-[60vw] md:max-w-[500px] truncate font-medium text-sm md:text-xs"
           />
         </div>
       )
@@ -96,7 +96,7 @@ export const createColumns = (): ColumnDef<Task>[] => [
       // If status is "pr_opened" and we have a PR URL, make it clickable
       if (status.value === "pr_opened" && task.github_pr_url) {
         return (
-          <div className="flex w-[100px] items-center">
+          <div className="flex w-[80px] md:w-[100px] items-center">
             {status.icon && (
               <status.icon className="mr-1 h-3 w-3 text-muted-foreground" />
             )}
@@ -104,7 +104,7 @@ export const createColumns = (): ColumnDef<Task>[] => [
               href={task.github_pr_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline"
+              className="text-[11px] md:text-xs text-blue-600 hover:underline"
               onClick={(e) => e.stopPropagation()} // Prevent row click
             >
               {status.label}
@@ -114,11 +114,11 @@ export const createColumns = (): ColumnDef<Task>[] => [
       }
 
       return (
-        <div className="flex w-[100px] items-center">
+        <div className="flex w-[80px] md:w-[100px] items-center">
           {status.icon && (
             <status.icon className="mr-1 h-3 w-3 text-muted-foreground" />
           )}
-          <span className="text-xs">{status.label}</span>
+          <span className="text-[11px] md:text-xs">{status.label}</span>
         </div>
       )
     },
@@ -132,7 +132,7 @@ export const createColumns = (): ColumnDef<Task>[] => [
       
       const date = new Date(createdAt)
       return (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[11px] md:text-xs text-muted-foreground">
           {date.toLocaleDateString()}
         </span>
       )

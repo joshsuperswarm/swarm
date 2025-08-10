@@ -87,15 +87,15 @@ export function TaskChatPage() {
   };
   
   return (
-    <div className="flex flex-col h-full">
-      {/* Task Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200 bg-white">
+    <div className="flex flex-col h-[100dvh]">
+      {/* Header */}
+      <div className="flex-shrink-0 border-b bg-white sticky top-0 z-30 safe-pt px-3 py-2">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
               #{task.id}
             </span>
-            <h1 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-lg md:text-xl font-semibold text-gray-900">
               <AnimatedTitle title={task.title || ""} pending={pendingTitle} />
             </h1>
           </div>
@@ -114,9 +114,10 @@ export function TaskChatPage() {
           )}
         </div>
       </div>
-      
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-6 space-y-6">
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="space-y-6">
         {messages.length === 0 && !finished && !isSending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
@@ -184,17 +185,18 @@ export function TaskChatPage() {
         )}
         </div>
       </div>
-      
-      <div className="flex-shrink-0 p-4">
-        <div className="flex items-center gap-3 max-w-2xl mx-auto">
-          {/* Mode indicator */}
+
+      {/* Sticky input */}
+      <div className="flex-shrink-0 border-t bg-white px-3 py-2 safe-pb">
+        <div className="flex items-center gap-2 max-w-screen-sm mx-auto">
+          {/* Mode button */}
           <button
             onClick={cycleRunMode}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition-colors duration-150 ease-out"
+            className="flex items-center gap-1 px-2 py-2 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition-colors touch-target"
             title="Shift+Tab to cycle modes"
           >
             <span>{getModeConfig(mode).icon}</span>
-            <span>{getModeConfig(mode).label}</span>
+            <span className="hidden sm:inline">{getModeConfig(mode).label}</span>
           </button>
           
           {/* Input container */}
@@ -206,14 +208,14 @@ export function TaskChatPage() {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isSending}
-              className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed touch-target"
             />
             
             {/* Send button inside input */}
             <button 
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isSending}
-              className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-sm bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center"
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-sm bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center touch-target"
               title="Send message"
             >
               <span className="text-xs">
