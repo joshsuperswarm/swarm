@@ -31,6 +31,12 @@ pub enum AppError {
 
     #[error("HTTP request error: {0}")]
     Http(#[from] reqwest::Error),
+
+    #[error("Crypto error: {0}")]
+    Crypto(String),
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
 }
 
 impl From<String> for AppError {
@@ -73,6 +79,14 @@ impl IntoResponse for AppError {
             AppError::Http(ref e) => {
                 tracing::error!("HTTP request error: {}", e);
                 (StatusCode::BAD_GATEWAY, "HTTP request failed")
+            }
+            AppError::Crypto(ref message) => {
+                tracing::error!("Crypto error: {}", message);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Cryptographic operation failed")
+            }
+            AppError::Forbidden(ref message) => {
+                tracing::warn!("Forbidden access: {}", message);
+                (StatusCode::FORBIDDEN, message.as_str())
             }
         };
 

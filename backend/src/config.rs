@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use base64::engine::{general_purpose::STANDARD as BASE64_ENGINE, Engine};
 use std::env;
 
 #[derive(Debug, Clone)]
@@ -11,6 +12,7 @@ pub struct Config {
     pub modal_region: Option<String>,
     pub openai_api_key: Option<String>,
     pub anthropic_api_key: Option<String>,
+    pub api_keys_kek: [u8; 32],
 }
 
 impl Config {
@@ -37,6 +39,20 @@ impl Config {
         let openai_api_key = env::var("OPENAI_API_KEY").ok();
         let anthropic_api_key = env::var("ANTHROPIC_API_KEY").ok();
 
+        let kek_b64 = env::var("API_KEYS_KEK_BASE64").map_err(|_| {
+            AppError::Internal("API_KEYS_KEK_BASE64 environment variable is required".to_string())
+        })?;
+        
+        let kek_bytes = BASE64_ENGINE
+            .decode(&kek_b64)
+            .map_err(|_| {
+                AppError::Internal("API_KEYS_KEK_BASE64 must be valid base64".to_string())
+            })?;
+        
+        let api_keys_kek: [u8; 32] = kek_bytes.try_into().map_err(|_| {
+            AppError::Internal("API_KEYS_KEK_BASE64 must decode to exactly 32 bytes".to_string())
+        })?;
+
         Ok(Config {
             database_url,
             clerk_secret_key,
@@ -46,6 +62,7 @@ impl Config {
             modal_region,
             openai_api_key,
             anthropic_api_key,
+            api_keys_kek,
         })
     }
 }

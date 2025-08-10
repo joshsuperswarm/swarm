@@ -12,6 +12,9 @@ pub struct User {
     pub github_user_id: Option<i32>,
     pub email: Option<String>,
     pub default_repo_id: Option<i32>,
+    pub onboarding_completed: Option<bool>,
+    pub onboarding_completed_at: Option<DateTime<Utc>>,
+    pub onboarding_step: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -320,4 +323,44 @@ pub struct TaskLogsPaginated {
 pub struct TaskDetails {
     pub task: Task,
     pub messages: Vec<MessageWithRun>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserApiKeys {
+    pub id: i32,
+    pub user_id: i32,
+    pub anthropic_ciphertext: Option<String>,
+    pub anthropic_nonce: Option<String>,
+    pub openai_ciphertext: Option<String>,
+    pub openai_nonce: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct OnboardingStatus {
+    pub onboarding_completed: bool,
+    pub step: Option<String>, // 'api-keys' | 'default-repo' | null
+    pub has_anthropic: bool,
+    pub has_openai: bool,
+    pub has_default_repo: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ApiKeysStatus {
+    pub has_anthropic: bool,
+    pub has_openai: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateApiKeysRequest {
+    pub anthropic_api_key: Option<String>,
+    pub openai_api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetDefaultRepoRequest {
+    pub repository_id: i32,
 }

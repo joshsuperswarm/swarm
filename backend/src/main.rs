@@ -21,6 +21,7 @@ mod error;
 mod github;
 mod github_pr;
 mod models;
+mod onboarding;
 mod sandbox;
 mod sandbox_poller;
 mod task_pipeline;

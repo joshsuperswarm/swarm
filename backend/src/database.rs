@@ -41,7 +41,7 @@ impl Database {
     }
 
     pub async fn get_user_by_id(&self, user_id: i32) -> AppResult<Option<User>> {
-        let user = sqlx::query_as!(User, "SELECT id, clerk_user_id, github_username, github_user_id, email, default_repo_id, created_at, updated_at FROM users WHERE id = $1", user_id)
+        let user = sqlx::query_as!(User, "SELECT id, clerk_user_id, github_username, github_user_id, email, default_repo_id, onboarding_completed, onboarding_completed_at, onboarding_step, created_at, updated_at FROM users WHERE id = $1", user_id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -879,6 +879,93 @@ impl Database {
         let messages = self.get_task_messages(task_id).await?;
 
         Ok(TaskDetails { task, messages })
+    }
+
+    // User API Keys operations
+    pub async fn upsert_user_api_keys(
+        &self,
+        user_id: i32,
+        anthropic_ciphertext: Option<String>,
+        anthropic_nonce: Option<String>,
+        openai_ciphertext: Option<String>,
+        openai_nonce: Option<String>,
+    ) -> AppResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO user_api_keys (user_id, anthropic_ciphertext, anthropic_nonce, openai_ciphertext, openai_nonce)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id) 
+            DO UPDATE SET 
+                anthropic_ciphertext = COALESCE($2, user_api_keys.anthropic_ciphertext),
+                anthropic_nonce = COALESCE($3, user_api_keys.anthropic_nonce),
+                openai_ciphertext = COALESCE($4, user_api_keys.openai_ciphertext),
+                openai_nonce = COALESCE($5, user_api_keys.openai_nonce),
+                updated_at = NOW()
+            "#,
+            user_id,
+            anthropic_ciphertext,
+            anthropic_nonce,
+            openai_ciphertext,
+            openai_nonce
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_user_api_keys(&self, user_id: i32) -> AppResult<Option<crate::models::UserApiKeys>> {
+        let api_keys = sqlx::query_as!(
+            crate::models::UserApiKeys,
+            "SELECT * FROM user_api_keys WHERE user_id = $1",
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(api_keys)
+    }
+
+    // Onboarding operations
+    pub async fn update_onboarding_step(&self, user_id: i32, step: Option<String>) -> AppResult<()> {
+        sqlx::query!(
+            "UPDATE users SET onboarding_step = $2, updated_at = NOW() WHERE id = $1",
+            user_id,
+            step
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn complete_onboarding(&self, user_id: i32) -> AppResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE users 
+            SET onboarding_completed = true, 
+                onboarding_completed_at = NOW(), 
+                onboarding_step = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+            user_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_onboarding_completed(&self, user_id: i32) -> AppResult<bool> {
+        let result = sqlx::query!(
+            "SELECT onboarding_completed FROM users WHERE id = $1",
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result.and_then(|r| r.onboarding_completed).unwrap_or(false))
     }
 }
 
