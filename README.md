@@ -29,7 +29,10 @@ A task management system where users can create tasks assigned to AI agents that
 3. **Set up environment variables**
    ```bash
    cp .env.example .env
-   # Edit .env with your Clerk keys
+   # Edit .env with your Clerk keys and generate encryption key
+   
+   # Generate API_KEYS_KEK_BASE64:
+   openssl rand -base64 32
    ```
 
 4. **Run the backend**
@@ -76,6 +79,8 @@ docker-compose logs postgres
 ## Key Features
 
 - GitHub OAuth authentication (required)
+- **User onboarding flow**: New users must provide AI API keys and select a default repository
+- Secure API key storage with envelope encryption
 - Repository selection for task creation
 - AI agent task management
 - Real-time task status tracking
@@ -109,6 +114,8 @@ docker-compose logs postgres
 ### Backend
 - `DATABASE_URL` - PostgreSQL connection string (default: docker compose)
 - `CLERK_SECRET_KEY` - Clerk secret key for JWT validation
+- `API_KEYS_KEK_BASE64` - Base64-encoded 32-byte key for encrypting user API keys
+- `ONBOARDING_ENFORCED` - Enable/disable onboarding requirements (default: true)
 - `PORT` - Server port (default: 3001)
 
 ### Frontend
@@ -122,3 +129,4 @@ docker-compose logs postgres
 3. Deploy backend as web service
 4. Deploy frontend as static site
 5. Set production environment variables
+6. **For existing deployments**: Run `backend/scripts/mark_existing_users_complete.sql` to mark current users as onboarding complete
