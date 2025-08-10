@@ -112,14 +112,21 @@ export function DefaultRepoSelector() {
                   : 'border-gray-200 hover:border-gray-300'
                 }
               `}
+              style={{ position: 'relative' }}
             >
+              {/* Keep the input focusable but prevent layout/scroll jumps */}
               <input
                 type="radio"
                 name="repository"
                 value={repo.id}
                 checked={selectedRepoId === repo.id}
                 onChange={() => setSelectedRepoId(repo.id)}
-                className="sr-only"
+                className="absolute opacity-0"
+                style={{
+                  // ensure it sits inside the label's box so the browser doesn't scroll
+                  inset: 0,
+                  pointerEvents: 'none',
+                }}
               />
               <div className={`
                 w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3

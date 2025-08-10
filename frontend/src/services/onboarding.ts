@@ -44,11 +44,11 @@ export const OnboardingService = {
     });
   },
 
-  async setDefaultRepo(token: string, request: SetDefaultRepoRequest): Promise<{ success: boolean }> {
+  async setDefaultRepo(token: string, payload: SetDefaultRepoRequest): Promise<{ success: boolean }> {
     return request<{ success: boolean }>('/api/user/default-repo', {
       method: 'PUT',
       token,
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
     });
   },
 };

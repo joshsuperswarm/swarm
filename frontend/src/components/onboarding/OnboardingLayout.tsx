@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import swarmLogo from '@/assets/swarm-logo.png';
 import { OnboardingProgress } from './OnboardingProgress';
