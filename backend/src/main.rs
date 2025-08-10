@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::Json,
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 use serde::Deserialize;
@@ -32,10 +32,12 @@ use database::Database;
 use error::{AppError, AppResult};
 use github::GitHubClient;
 use github_pr::GitHubPRClient;
+use onboarding::{encrypt_secret, get_onboarding_status};
 use models::{
-    AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
-    GitHubToken, MessageWithRun, RepositoryTS, RepositoryWithTasks, Run, RunWithMeta, Task,
-    TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, User, UserWithDefaultRepo,
+    AgentTodo, ApiKeysStatus, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
+    GitHubToken, MessageWithRun, OnboardingStatus, RepositoryTS, RepositoryWithTasks, Run, RunWithMeta, 
+    SetDefaultRepoRequest, Task, TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, 
+    UpdateApiKeysRequest, User, UserWithDefaultRepo,
 };
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
@@ -445,6 +447,10 @@ async fn main() -> AppResult<()> {
         .route("/api/user/profile", get(get_user_profile))
         .route("/api/user/repos", get(get_user_repos))
         .route("/api/user/default-repo", post(set_default_repo))
+        .route("/api/user/onboarding-status", get(get_onboarding_status_endpoint))
+        .route("/api/user/api-keys", post(update_api_keys))
+        .route("/api/user/api-keys/status", get(get_api_keys_status))
+        .route("/api/user/default-repo", put(set_default_repo_onboarding))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
         .route("/api/tasks/:id/details", get(get_task_details))
@@ -1062,11 +1068,6 @@ async fn get_user_repos(
     }
 }
 
-#[derive(Deserialize)]
-struct SetDefaultRepoRequest {
-    repository_id: Option<i32>,
-}
-
 async fn set_default_repo(
     CurrentUser(clerk_user): CurrentUser,
     State(app_state): State<AppState>,
@@ -1079,14 +1080,7 @@ async fn set_default_repo(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    match app_state
-        .database
-        .update_user_github_info(
-            user.id, None, // We don't have github_username in the auth context
-            None,
-        )
-        .await
-    {
+    match app_state.database.set_default_repository(user.id, Some(payload.repository_id)).await {
         Ok(updated_user) => Ok(Json(json!({
             "success": true,
             "default_repo_id": payload.repository_id,
@@ -1096,6 +1090,177 @@ async fn set_default_repo(
             }
         }))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+// Onboarding handlers
+async fn get_onboarding_status_endpoint(
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
+) -> Result<Json<OnboardingStatus>, StatusCode> {
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    match get_onboarding_status(&app_state.database.pool, user.id).await {
+        Ok(status) => Ok(Json(status)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn update_api_keys(
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
+    Json(payload): Json<UpdateApiKeysRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Validate that at least one key is provided and non-empty
+    if payload.anthropic_api_key.as_ref().map_or(true, |k| k.trim().is_empty()) &&
+       payload.openai_api_key.as_ref().map_or(true, |k| k.trim().is_empty()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Encrypt the keys
+    let mut anthropic_ciphertext = None;
+    let mut anthropic_nonce = None;
+    let mut openai_ciphertext = None;
+    let mut openai_nonce = None;
+
+    if let Some(key) = &payload.anthropic_api_key {
+        if !key.trim().is_empty() {
+            match encrypt_secret(&app_state.config, key) {
+                Ok((ciphertext, nonce)) => {
+                    anthropic_ciphertext = Some(ciphertext);
+                    anthropic_nonce = Some(nonce);
+                }
+                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    }
+
+    if let Some(key) = &payload.openai_api_key {
+        if !key.trim().is_empty() {
+            match encrypt_secret(&app_state.config, key) {
+                Ok((ciphertext, nonce)) => {
+                    openai_ciphertext = Some(ciphertext);
+                    openai_nonce = Some(nonce);
+                }
+                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    }
+
+    // Store encrypted keys in database
+    if let Err(_) = app_state.database.upsert_user_api_keys(
+        user.id,
+        anthropic_ciphertext,
+        anthropic_nonce,
+        openai_ciphertext,
+        openai_nonce,
+    ).await {
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    // Check if we should update onboarding step
+    match get_onboarding_status(&app_state.database.pool, user.id).await {
+        Ok(status) => {
+            if status.has_anthropic && status.has_openai && !status.has_default_repo {
+                // Both keys provided, move to default-repo step
+                if let Err(_) = app_state.database.update_onboarding_step(user.id, Some("default-repo".to_string())).await {
+                    // Log but don't fail the request
+                    tracing::warn!("Failed to update onboarding step for user {}", user.id);
+                }
+            } else if (status.has_anthropic || status.has_openai) && status.has_default_repo {
+                // Has keys and repo, complete onboarding
+                if let Err(_) = app_state.database.complete_onboarding(user.id).await {
+                    tracing::warn!("Failed to complete onboarding for user {}", user.id);
+                }
+            }
+        }
+        Err(_) => {
+            tracing::warn!("Failed to get onboarding status for user {}", user.id);
+        }
+    }
+
+    Ok(Json(json!({"success": true})))
+}
+
+async fn get_api_keys_status(
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
+) -> Result<Json<ApiKeysStatus>, StatusCode> {
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    match app_state.database.get_user_api_keys(user.id).await {
+        Ok(api_keys) => {
+            let has_anthropic = api_keys.as_ref()
+                .and_then(|k| k.anthropic_ciphertext.as_ref())
+                .is_some();
+            let has_openai = api_keys.as_ref()
+                .and_then(|k| k.openai_ciphertext.as_ref())
+                .is_some();
+            
+            Ok(Json(ApiKeysStatus {
+                has_anthropic,
+                has_openai,
+            }))
+        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn set_default_repo_onboarding(
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
+    Json(payload): Json<SetDefaultRepoRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    // Get or create user
+    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+        Ok(user) => user,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Verify repository belongs to user
+    match app_state.database.ensure_repo_owner(payload.repository_id, user.id).await {
+        Ok(_) => {
+            // Set default repository
+            match app_state.database.set_default_repository(user.id, Some(payload.repository_id)).await {
+                Ok(_) => {
+                    // Check if onboarding should be completed
+                    match get_onboarding_status(&app_state.database.pool, user.id).await {
+                        Ok(status) => {
+                            if (status.has_anthropic || status.has_openai) && status.has_default_repo {
+                                // Has keys and repo, complete onboarding
+                                if let Err(_) = app_state.database.complete_onboarding(user.id).await {
+                                    tracing::warn!("Failed to complete onboarding for user {}", user.id);
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            tracing::warn!("Failed to get onboarding status for user {}", user.id);
+                        }
+                    }
+
+                    Ok(Json(json!({
+                        "success": true,
+                        "default_repo_id": payload.repository_id
+                    })))
+                }
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+        Err(_) => Err(StatusCode::FORBIDDEN),
     }
 }
 
