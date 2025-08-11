@@ -23,7 +23,7 @@ services:
         cargo install sqlx-cli --locked --no-default-features --features rustls,postgres
       fi
 
-      cargo build --release --no-dev-deps
+      cargo build --release
 
     # Run DB migrations right before the new release goes live.
     preDeployCommand: |
