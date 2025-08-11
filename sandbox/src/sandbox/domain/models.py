@@ -58,15 +58,6 @@ class ClaudeCodeExecReq(BaseModel):
     mode: str = "execute"  # execute, plan, or review
 
 
-class PushChangesReq(BaseModel):
-    repo_path: str
-    branch: str
-    task_id: int
-    author_name: str
-    author_email: str
-    commit_title: str
-    commit_body: str
-
 
 class ArtifactResp(BaseModel):
     body: str

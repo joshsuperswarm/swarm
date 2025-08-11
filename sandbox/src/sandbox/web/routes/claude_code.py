@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from ...domain.models import ClaudeCodeExecReq, PushChangesReq, ExecResp
+from ...domain.models import ClaudeCodeExecReq, ExecResp
 
 router = APIRouter()
 
@@ -19,8 +19,3 @@ async def exec_claude_code(sandbox_id: str, req: ClaudeCodeExecReq, request: Req
     return claude_service.exec(sandbox_id, req)
 
 
-@router.post("/sandboxes/{sandbox_id}/push_changes_advanced", response_model=ExecResp)
-async def push_changes_advanced(sandbox_id: str, req: PushChangesReq, request: Request):
-    """Push changes to GitHub branch with proper commit information."""
-    git_service = request.app.state.svc_git
-    return git_service.push_advanced(sandbox_id, req)
