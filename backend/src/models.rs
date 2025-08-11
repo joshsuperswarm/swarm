@@ -52,6 +52,7 @@ pub struct Repository {
     pub is_private: Option<bool>,
     pub created_at: Option<DateTime<Utc>>,
     pub last_fetched_at: Option<DateTime<Utc>>,
+    pub github_pushed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -66,6 +67,8 @@ pub struct RepositoryTS {
     pub is_private: Option<bool>,
     pub created_at: Option<String>,
     pub last_fetched_at: Option<String>,
+    #[ts(optional)]
+    pub github_pushed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +79,7 @@ pub struct CreateRepository {
     pub full_name: String,
     pub user_id: i32,
     pub is_private: bool,
+    pub github_pushed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
@@ -223,6 +227,8 @@ pub struct RepositoryWithTasks {
     pub task_count: i64,
     pub created_at: Option<DateTime<Utc>>,
     pub last_fetched_at: Option<DateTime<Utc>>,
+    #[ts(optional)]
+    pub github_pushed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]

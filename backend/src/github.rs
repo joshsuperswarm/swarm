@@ -13,6 +13,7 @@ pub struct GitHubRepository {
     pub description: Option<String>,
     pub language: Option<String>,
     pub updated_at: String,
+    pub pushed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +118,7 @@ impl GitHubClient {
                         .updated_at
                         .map(|dt| dt.to_rfc3339())
                         .unwrap_or_default(),
+                    pushed_at: repo.pushed_at.map(|dt| dt.to_rfc3339()),
                 });
             }
 
@@ -239,6 +241,7 @@ mod tests {
             description: Some("A test repository".to_string()),
             language: Some("Rust".to_string()),
             updated_at: "2023-01-01T00:00:00Z".to_string(),
+            pushed_at: Some("2023-01-02T00:00:00Z".to_string()),
         };
 
         let json = serde_json::to_string(&repo).expect("Failed to serialize repository");
@@ -302,6 +305,7 @@ mod tests {
             description: None, // Test None values
             language: None,    // Test None values
             updated_at: "".to_string(),
+            pushed_at: None, // Test None values
         };
 
         // Test that None values serialize/deserialize properly

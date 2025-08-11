@@ -878,6 +878,7 @@ async fn get_user_profile(
                         is_private: repo.is_private,
                         created_at: repo.created_at.map(|dt| dt.to_rfc3339()),
                         last_fetched_at: repo.last_fetched_at.map(|dt| dt.to_rfc3339()),
+                        github_pushed_at: repo.github_pushed_at.map(|dt| dt.to_rfc3339()),
                     })
                 } else {
                     None
@@ -1031,6 +1032,10 @@ async fn get_user_repos(
             full_name: repo.full_name.clone(),
             user_id: user.id,
             is_private: repo.private,
+            github_pushed_at: repo.pushed_at
+                .as_deref()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc)),
         })
         .collect();
 

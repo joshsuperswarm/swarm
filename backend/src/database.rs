@@ -89,7 +89,8 @@ impl Database {
             repo.name,
             repo.full_name,
             repo.user_id,
-            repo.is_private
+            repo.is_private,
+            repo.github_pushed_at
         )
         .fetch_one(&self.pool)
         .await?;
@@ -114,6 +115,7 @@ impl Database {
                 task_count: row.task_count.unwrap_or(0),
                 created_at: row.created_at,
                 last_fetched_at: row.last_fetched_at,
+                github_pushed_at: row.github_pushed_at,
             })
             .collect();
 
@@ -1110,6 +1112,7 @@ mod tests {
             full_name: "testowner/testrepo".to_string(),
             user_id: user.id,
             is_private: false,
+            github_pushed_at: None,
         };
         let repo = db.create_repository(create_repo).await.unwrap();
 
@@ -1224,6 +1227,7 @@ mod tests {
                 full_name: "bob/bob-repo".to_string(),
                 user_id: bob.id,
                 is_private: false,
+                github_pushed_at: None,
             })
             .await
             .unwrap();
@@ -1291,6 +1295,7 @@ mod tests {
                 full_name: "bob/bob-private-repo".to_string(),
                 user_id: bob.id,
                 is_private: true,
+                github_pushed_at: None,
             })
             .await
             .unwrap();
