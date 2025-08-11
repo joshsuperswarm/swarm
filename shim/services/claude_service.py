@@ -1,0 +1,121 @@
+import uuid
+import shlex
+import textwrap
+import logging
+from fastapi import HTTPException
+
+from ..domain.models import ClaudeCodeExecReq, ExecReq, ExecResp
+from ..utils.config import TMP_DIR, PATH_EXPORT, DB_URL
+from ..utils.logging import get_logger
+from ..adapters.modal_adapter import ModalAdapter
+from .sandbox_service import SandboxService
+from .process_service import ProcessService
+
+
+class ClaudeService:
+    """Service for Claude Code operations."""
+    
+    def __init__(self, sandbox_service: SandboxService, process_service: ProcessService):
+        self.sandbox_service = sandbox_service
+        self.process_service = process_service
+        self.logger = get_logger(__name__)
+    
+    def exec(self, sandbox_id: str, req: ClaudeCodeExecReq) -> ExecResp:
+        """Execute Claude Code with prompt, environment, and configuration."""
+        from ..prompts import (
+            PLAN_MODE_INSTRUCTIONS,
+            REVIEW_MODE_INSTRUCTIONS,
+            EXECUTE_MODE_INSTRUCTIONS,
+            CLAUDE_PROMPT_TEMPLATE,
+        )
+        
+        sb = self.sandbox_service.get(sandbox_id)
+        adapter = ModalAdapter(sb, self.logger)
+
+        # -------- 1.  Create the Claude prompt with artifact markers ------------
+
+        # Generate mode-specific instructions
+        if req.mode == "plan":
+            mode_instructions = PLAN_MODE_INSTRUCTIONS.format(task_id=req.task_id)
+        elif req.mode == "review":
+            mode_instructions = REVIEW_MODE_INSTRUCTIONS.format(task_id=req.task_id)
+        else:  # execute mode
+            mode_instructions = EXECUTE_MODE_INSTRUCTIONS
+
+        claude_prompt = CLAUDE_PROMPT_TEMPLATE.format(
+            task_id=req.task_id, prompt=req.prompt, mode_instructions=mode_instructions
+        )
+
+        # -------- 2.  write prompt file -----------------------------------------
+        prompt_id = str(uuid.uuid4())
+        prompt_dir = TMP_DIR
+        prompt_path = f"{prompt_dir}/{prompt_id}.txt"
+
+        # make sure tmp dir exists (idempotent, fast)
+        sb.exec("mkdir", "-p", prompt_dir).wait()
+
+        write_result = adapter.write_base64(prompt_path, claude_prompt)
+        if write_result == 0:
+            self.logger.info("Prompt written successfully to %s", prompt_path)
+        else:
+            self.logger.error(
+                "Failed to write prompt to %s (exit code: %d)", prompt_path, write_result
+            )
+
+        # -------- 3.  build environment -----------------------------------------
+        env_pairs = {
+            "GITHUB_TOKEN": req.github_token,
+            "ANTHROPIC_API_KEY": req.anthropic_api_key,
+            "SWARM_TASK_ID": str(req.task_id),
+            "SWARM_BRANCH": req.branch,
+            "GIT_AUTHOR_NAME": req.author_name,
+            "GIT_AUTHOR_EMAIL": req.author_email,
+        }
+        if req.openai_api_key:
+            env_pairs["OPENAI_API_KEY"] = req.openai_api_key
+
+        env_setup = " && ".join(
+            f"export {k}={shlex.quote(v)}" for k, v in env_pairs.items()
+        )
+
+        # -------- 4.  craft final command ---------------------------------------
+        shell_script = textwrap.dedent(
+            f"""
+            {env_setup}
+            export PATH="{PATH_EXPORT}"
+            export DATABASE_URL="{DB_URL}"
+            cd {shlex.quote(req.repo_path)}
+            cat {shlex.quote(prompt_path)} | claude -p --dangerously-skip-permissions --verbose --output-format stream-json
+        """
+        )
+
+        self.logger.info(f"Executing Claude Code for task {req.task_id} in repo {req.repo_path}")
+        self.logger.debug(f"Claude Code shell script:\n{shell_script}")
+
+        exec_req = ExecReq(
+            cmd=["bash", "-c", shell_script],
+            cwd=req.repo_path,  # still needed for container
+        )
+        return self.process_service.exec(sandbox_id, exec_req)
+    
+    def install_claude_code(self, sandbox_id: str) -> ExecResp:
+        """Verify Claude Code is available (already installed in pre-built image)."""
+        try:
+            self.logger.info(f"Verifying Claude Code in sandbox {sandbox_id}")
+
+            # Claude Code is already installed in the pre-built image, just verify
+            verify_cmd = f"""
+                export PATH="{PATH_EXPORT}" && \\
+                which claude && \\
+                claude --version
+            """
+
+            exec_req = ExecReq(cmd=["bash", "-c", verify_cmd], cwd="/home/swarm")
+
+            return self.process_service.exec(sandbox_id, exec_req)
+
+        except Exception as e:
+            self.logger.error(f"Failed to verify Claude Code: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to verify Claude Code: {str(e)}"
+            )

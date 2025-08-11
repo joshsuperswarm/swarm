@@ -20,7 +20,7 @@ def main():
 
     # Import and run with uvicorn
     import uvicorn
-    from shim import app
+    from shim.web.app import app
 
     uvicorn.run(
         app,
