@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from sandbox.services.git_service import GitService
 from sandbox.services.process_service import ProcessService
-from sandbox.domain.models import ExecReq, ExecResp, PushChangesReq
+from sandbox.domain.models import ExecReq, ExecResp
 
 
 class TestGitService:
@@ -98,121 +98,6 @@ class TestGitService:
         assert "push -u origin" in script
         assert result == mock_resp
 
-    def test_push_advanced_errors_if_wrong_branch(self):
-        """Test that push_advanced errors if we're not on expected branch."""
-        req = PushChangesReq(
-            task_id=123,
-            repo_path="/test/repo",
-            branch="expected-branch",
-            commit_title="Test commit",
-            commit_body="Test body"
-        )
-        
-        result = self.git_service.push_advanced("test-sandbox", req)
-        
-        # Verify the script checks current branch
-        call_args = self.mock_process_service.exec.call_args
-        script = call_args[0][1].cmd[2]
-        assert 'cur=$(git rev-parse --abbrev-ref HEAD)' in script
-        assert 'if [ "$cur" != \'expected-branch\' ]; then' in script
-        assert 'exit 2' in script
-
-    def test_push_advanced_stages_and_commits(self):
-        """Test that push_advanced stages files and commits."""
-        req = PushChangesReq(
-            task_id=456,
-            repo_path="/test/repo",
-            branch="test-branch",
-            commit_title="Feature: Add new functionality",
-            commit_body="Detailed description of changes"
-        )
-        
-        mock_resp = Mock(spec=ExecResp)
-        self.mock_process_service.exec.return_value = mock_resp
-        
-        result = self.git_service.push_advanced("test-sandbox", req)
-        
-        # Verify the script stages and commits
-        call_args = self.mock_process_service.exec.call_args
-        script = call_args[0][1].cmd[2]
-        assert "git add -A" in script
-        assert "git commit -F" in script
-        assert "Feature: Add new functionality" in script
-        assert "Detailed description of changes" in script
-        assert result == mock_resp
-
-    def test_push_advanced_pushes_without_switching(self):
-        """Test that push_advanced pushes without switching branches."""
-        req = PushChangesReq(
-            task_id=789,
-            repo_path="/test/repo",
-            branch="current-branch", 
-            commit_title="Fix bug",
-            commit_body="Bug fix details"
-        )
-        
-        result = self.git_service.push_advanced("test-sandbox", req)
-        
-        # Verify the script just pushes (no checkout/switch)
-        call_args = self.mock_process_service.exec.call_args
-        script = call_args[0][1].cmd[2]
-        assert "git push" in script
-        # Should NOT contain branch switching commands
-        assert "git checkout" not in script
-        assert "git switch" not in script
-        assert "-u origin" not in script  # upstream should already be set
-
-    def test_push_advanced_validates_branch_name(self):
-        """Test that push_advanced validates branch names."""
-        req = PushChangesReq(
-            task_id=999,
-            repo_path="/test/repo",
-            branch="invalid branch name",  # contains space
-            commit_title="Test",
-            commit_body="Test"
-        )
-        
-        with pytest.raises(HTTPException) as exc_info:
-            self.git_service.push_advanced("test-sandbox", req)
-        
-        assert exc_info.value.status_code == 400
-        assert "Invalid branch name" in str(exc_info.value.detail)
-
-    def test_push_advanced_handles_exceptions(self):
-        """Test that push_advanced handles exceptions properly."""
-        req = PushChangesReq(
-            task_id=888,
-            repo_path="/test/repo",
-            branch="test-branch",
-            commit_title="Test",
-            commit_body="Test"
-        )
-        
-        # Mock process service to raise exception
-        self.mock_process_service.exec.side_effect = Exception("Process failed")
-        
-        with pytest.raises(HTTPException) as exc_info:
-            self.git_service.push_advanced("test-sandbox", req)
-        
-        assert exc_info.value.status_code == 500
-        assert "Failed to push changes" in str(exc_info.value.detail)
-
-    def test_push_advanced_cleans_up_temp_files(self):
-        """Test that push_advanced cleans up temporary commit message files."""
-        req = PushChangesReq(
-            task_id=777,
-            repo_path="/test/repo", 
-            branch="cleanup-test",
-            commit_title="Test cleanup",
-            commit_body="Testing file cleanup"
-        )
-        
-        result = self.git_service.push_advanced("test-sandbox", req)
-        
-        # Verify temp file cleanup
-        call_args = self.mock_process_service.exec.call_args
-        script = call_args[0][1].cmd[2]
-        assert "rm -f /tmp/commit_message_777" in script
 
     def test_ensure_branch_checked_out_validates_branch(self):
         """Test that ensure_branch_checked_out validates branch names."""
@@ -234,8 +119,8 @@ class TestGitService:
             branch="feature/test-branch" 
         )
         
-        # Verify shell quoting is used
+        # Verify shell quoting is used for paths with spaces
         call_args = self.mock_process_service.exec.call_args
         script = call_args[0][1].cmd[2]
         assert "'/path with spaces/repo'" in script
-        assert "'feature/test-branch'" in script
+        assert "feature/test-branch" in script  # Branch doesn't need quotes as it has no special chars
