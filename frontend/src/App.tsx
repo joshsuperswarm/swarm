@@ -17,10 +17,13 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const { isSignedIn, isLoaded } = useAuth()
   const { user } = useUser()
-  const { loadUserProfile, clearUserProfile } = useUserStore()
+  const { user: userData, loadUserProfile, clearUserProfile } = useUserStore()
   const createTask = useCreateTaskMutation()
   const api = useBackendApi()
   const { onboardingStatus, isLoading: onboardingLoading } = useOnboarding()
+
+  // Extract default repository from user data (single source of truth)
+  const defaultRepository = userData?.default_repo ?? null
 
   const handleTaskCreated = async (taskData: {
     description: string;
@@ -172,6 +175,7 @@ function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateTask={handleTaskCreated}
+        defaultRepository={defaultRepository}
       />
     </Layout>
   )

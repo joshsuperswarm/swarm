@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Zap, FileText, Search } from 'lucide-react';
-import { useUserStore } from '@/store/userStore';
 import type { RunMode } from '@/services/api';
+import type { RepositoryTS } from '@/types/generated/RepositoryTS';
 
 interface CreateTaskData {
   description: string;
@@ -19,13 +19,15 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateTask: (task: CreateTaskData) => void;
+  defaultRepository: RepositoryTS | null;
 }
 
 
 export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ 
   isOpen, 
   onClose, 
-  onCreateTask 
+  onCreateTask,
+  defaultRepository
 }) => {
   const [formData, setFormData] = useState<CreateTaskFormData>({
     description: '',
@@ -58,18 +60,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     }
   };
   
-  // Get user data from store instead of fetching on every modal open
-  const { user, loading: userLoading } = useUserStore();
-
-  // Set default repository when modal opens and user data is available
+  // Initialize repository when modal opens or when default changes
   useEffect(() => {
-    if (isOpen && user?.default_repo) {
-      setFormData(prev => ({
-        ...prev,
-        repositoryId: user.default_repo!.id
-      }));
+    if (isOpen && defaultRepository && !formData.repositoryId) {
+      setFormData(prev => ({ ...prev, repositoryId: defaultRepository.id }));
     }
-  }, [isOpen, user]);
+  }, [isOpen, defaultRepository, formData.repositoryId]);
 
   // Auto-focus description input when modal opens and handle body lock
   useEffect(() => {
@@ -200,14 +196,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           }}
           className="space-y-3"
         >
-          {userLoading ? (
-            <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading default repository...</p>
-            </div>
-          ) : user?.default_repo ? (
+          {defaultRepository ? (
             <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
               <p className="text-gray-700 dark:text-gray-300 text-sm">
-                <strong>{user.default_repo.full_name}</strong> {user.default_repo.is_private ? '(Private)' : '(Public)'}
+                <strong>{defaultRepository.full_name}</strong> {defaultRepository.is_private ? '(Private)' : '(Public)'}
               </p>
             </div>
           ) : (
@@ -252,7 +244,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           <div className="flex justify-end pt-1">
             <button
               type="submit"
-              disabled={loading || !user?.default_repo || !formData.description.trim()}
+              disabled={loading || !defaultRepository || !formData.description.trim()}
               className="px-4 py-2 text-sm text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-400 dark:disabled:bg-gray-600 rounded-md transition-colors touch-target"
             >
               {loading ? 'Creating...' : 'Create Task'}
