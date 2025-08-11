@@ -88,6 +88,7 @@ export const useSendTaskMessage = (taskId: number) => {
               status: run.status,
               commit_title: run.commit_title || null,
               commit_body: run.commit_body || null,
+              final_message_md: run.final_message_md || null,
               mode: run.mode,
               created_at: run.created_at,
               updated_at: run.updated_at || null,
