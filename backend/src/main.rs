@@ -52,19 +52,19 @@ pub struct AppState {
 
 async fn get_or_create_user(
     database: &Database,
-    clerk_user_id: &str,
+    clerk_user: &auth::ClerkUser,
 ) -> Result<models::User, StatusCode> {
     // Try to get existing user
-    if let Ok(Some(user)) = database.get_user_by_clerk_id(clerk_user_id).await {
+    if let Ok(Some(user)) = database.get_user_by_clerk_id(&clerk_user.id).await {
         return Ok(user);
     }
 
     // Create new user if doesn't exist
     let create_user = CreateUser {
-        clerk_user_id: clerk_user_id.to_string(),
+        clerk_user_id: clerk_user.id.clone(),
         github_username: None,
         github_user_id: None,
-        email: None,
+        email: clerk_user.email.clone(),
     };
 
     database
@@ -85,7 +85,7 @@ async fn store_github_token(
     );
 
     // Upsert Swarm user (helper re-uses existing DB methods)
-    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+    let db_user = match get_or_create_user(&app_state.database, &user).await {
         Ok(u) => {
             tracing::debug!("Found/created DB user with ID: {}", u.id);
             u
@@ -909,7 +909,7 @@ async fn get_user_repos(
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1074,7 +1074,7 @@ async fn set_default_repo(
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1098,7 +1098,7 @@ async fn get_onboarding_status_endpoint(
     State(app_state): State<AppState>,
 ) -> Result<Json<OnboardingStatus>, StatusCode> {
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1115,7 +1115,7 @@ async fn update_api_keys(
     Json(payload): Json<UpdateApiKeysRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1196,7 +1196,7 @@ async fn get_api_keys_status(
     State(app_state): State<AppState>,
 ) -> Result<Json<ApiKeysStatus>, StatusCode> {
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1225,7 +1225,7 @@ async fn set_default_repo_onboarding(
     Json(payload): Json<SetDefaultRepoRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1270,7 +1270,7 @@ async fn get_tasks(
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1340,7 +1340,7 @@ async fn create_task(
 ) -> Result<Json<Value>, StatusCode> {
     // User is already authenticated by middleware
     // Get or create user
-    let user = match get_or_create_user(&app_state.database, &clerk_user.id).await {
+    let user = match get_or_create_user(&app_state.database, &clerk_user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1480,7 +1480,7 @@ async fn connect_github(
     CurrentUser(clerk_user): CurrentUser,
     State(app_state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
-    let user = get_or_create_user(&app_state.database, &clerk_user.id)
+    let user = get_or_create_user(&app_state.database, &clerk_user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1538,7 +1538,7 @@ async fn get_task_details(
     Path(task_id): Path<i32>,
 ) -> Result<Json<TaskDetails>, StatusCode> {
     // Get or create database user from Clerk user
-    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+    let db_user = match get_or_create_user(&app_state.database, &user).await {
         Ok(user) => user,
         Err(e) => {
             tracing::error!("→ get_task_details API: failed to get/create user: {:?}", e);
@@ -1581,7 +1581,7 @@ async fn get_task_logs(
     Query(query): Query<LogsQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     // Verify the task belongs to the user
-    let db_user = match get_or_create_user(&app_state.database, &user.id).await {
+    let db_user = match get_or_create_user(&app_state.database, &user).await {
         Ok(user) => user,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -1653,7 +1653,7 @@ async fn get_task_todos(
     State(app_state): State<AppState>,
     Path(task_id): Path<i32>,
 ) -> Result<Json<Value>, StatusCode> {
-    let db_user = get_or_create_user(&app_state.database, &user.id)
+    let db_user = get_or_create_user(&app_state.database, &user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1688,7 +1688,7 @@ async fn get_task_messages(
     State(app_state): State<AppState>,
     Path(task_id): Path<i32>,
 ) -> Result<Json<Value>, StatusCode> {
-    let db_user = get_or_create_user(&app_state.database, &user.id)
+    let db_user = get_or_create_user(&app_state.database, &user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1728,7 +1728,7 @@ async fn post_task_message(
     Path(task_id): Path<i32>,
     Json(payload): Json<PostMessageRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let db_user = get_or_create_user(&app_state.database, &user.id)
+    let db_user = get_or_create_user(&app_state.database, &user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

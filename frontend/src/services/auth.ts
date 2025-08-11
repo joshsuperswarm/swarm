@@ -9,7 +9,7 @@ export function useBackendJwtQuery() {
     queryKey: ['backend-jwt'],
     enabled: isSignedIn,
     queryFn: async () => {
-      const jwt = await getToken()
+      const jwt = await getToken({ template: "Email" })
       if (!jwt) throw new Error('No JWT')
       return jwt
     },
