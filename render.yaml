@@ -5,32 +5,34 @@ databases:
     plan: basic-1gb
 
 services:
-  # Rust Backend API
   - type: web
     name: swarm-backend
-    env: rust
+    runtime: rust            # prefer "runtime" over legacy "env"
     plan: starter
-    build:
-      cacheDirs:
-        - /usr/local/cargo/registry   # crates.io tarballs
-        - /usr/local/cargo/git        # git dependencies
-        - /usr/local/cargo/bin        # keeps sqlx-cli between builds
-        - target                      # compiled artifacts
+    # If your Cargo.toml lives in /backend, keep this. Otherwise remove it.
+    rootDir: backend
+
+    # Build the binary (skip dev/test deps) and ensure sqlx-cli is available.
     buildCommand: |
       set -euo pipefail
-      export CARGO_HOME=/usr/local/cargo
+      export XDG_CACHE_HOME=/opt/render/.cache
+      export CARGO_HOME="$XDG_CACHE_HOME/cargo"
+      export CARGO_TARGET_DIR=target
 
-      # Install sqlx-cli once; subsequent deploys reuse from cache
       if ! command -v sqlx >/dev/null 2>&1; then
         cargo install sqlx-cli --locked --no-default-features --features rustls,postgres
       fi
 
-      # Run DB migrations (DATABASE_URL must be set in Render)
+      cargo build --release --no-dev-deps
+
+    # Run DB migrations right before the new release goes live.
+    preDeployCommand: |
+      export XDG_CACHE_HOME=/opt/render/.cache
+      export CARGO_HOME="$XDG_CACHE_HOME/cargo"
       sqlx migrate run
 
-      # Release build without dev/test deps to cut compile time
-      cargo build --release --no-dev-deps
     startCommand: ./target/release/swarm-backend
+
     envVars:
       - key: DATABASE_URL
         fromDatabase:
