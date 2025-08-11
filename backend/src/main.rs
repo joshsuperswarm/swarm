@@ -381,6 +381,8 @@ async fn main() -> AppResult<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
+    tracing::info!("Starting Swarm backend server - testing Render build speed");
+
     // Load configuration
     let config = Config::from_env()?;
 
