@@ -117,16 +117,16 @@ pub async fn run_full_task_pipeline(
         }
     };
 
-    // Get Anthropic API key from environment
-    let anthropic_api_key = match app_state.config.anthropic_api_key.as_ref() {
-        Some(key) => key.clone(),
+    // Get user's stored API keys
+    let (anthropic_api_key_opt, openai_api_key_opt) =
+        crate::onboarding::get_decrypted_api_keys_for_user(&app_state.database, &app_state.config, user.id).await?;
+
+    let anthropic_api_key = match anthropic_api_key_opt {
+        Some(k) => k,
         None => {
-            tracing::error!(
-                "No Anthropic API key configured in environment for task {}",
-                task.id
-            );
+            tracing::error!("No Anthropic API key stored for user {}", user.id);
             let _ = app_state.database.update_run_status(run.id, "failed").await;
-            return Err(anyhow::anyhow!("No Anthropic API key configured"));
+            return Err(anyhow::anyhow!("No Anthropic API key for user"));
         }
     };
 
@@ -211,7 +211,7 @@ pub async fn run_full_task_pipeline(
             &github_token,
             &prompt,
             &anthropic_api_key,
-            app_state.config.openai_api_key.as_deref(),
+            openai_api_key_opt.as_deref(),
             &branch,
             &author_name,
             &author_email,

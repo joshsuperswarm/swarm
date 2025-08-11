@@ -75,6 +75,26 @@ pub fn decrypt_secret(config: &Config, ciphertext_b64: &str, nonce_b64: &str) ->
         .map_err(|_| AppError::Crypto("Decrypted data is not valid UTF-8".to_string()))
 }
 
+pub async fn get_decrypted_api_keys_for_user(
+    db: &crate::database::Database,
+    config: &Config,
+    user_id: i32,
+) -> AppResult<(Option<String>, Option<String>)> {
+    if let Some(keys) = db.get_user_api_keys(user_id).await? {
+        let anthropic = match (&keys.anthropic_ciphertext, &keys.anthropic_nonce) {
+            (Some(ct), Some(nonce)) => Some(decrypt_secret(config, ct, nonce)?),
+            _ => None,
+        };
+        let openai = match (&keys.openai_ciphertext, &keys.openai_nonce) {
+            (Some(ct), Some(nonce)) => Some(decrypt_secret(config, ct, nonce)?),
+            _ => None,
+        };
+        Ok((anthropic, openai))
+    } else {
+        Ok((None, None))
+    }
+}
+
 pub async fn ensure_onboarding_complete(db: &PgPool, user_id: i32) -> AppResult<()> {
     let user = sqlx::query_as!(
         crate::models::User,
@@ -157,8 +177,6 @@ mod tests {
             port: 3000,
             modal_url: None,
             modal_region: None,
-            openai_api_key: None,
-            anthropic_api_key: None,
             api_keys_kek: [0u8; 32], // Test key
         }
     }

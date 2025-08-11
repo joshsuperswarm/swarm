@@ -10,8 +10,6 @@ pub struct Config {
     pub port: u16,
     pub modal_url: Option<String>,
     pub modal_region: Option<String>,
-    pub openai_api_key: Option<String>,
-    pub anthropic_api_key: Option<String>,
     pub api_keys_kek: [u8; 32],
 }
 
@@ -36,8 +34,6 @@ impl Config {
 
         let modal_url = env::var("MODAL_URL").ok();
         let modal_region = env::var("MODAL_REGION").ok();
-        let openai_api_key = env::var("OPENAI_API_KEY").ok();
-        let anthropic_api_key = env::var("ANTHROPIC_API_KEY").ok();
 
         let kek_b64 = env::var("API_KEYS_KEK_BASE64").map_err(|_| {
             AppError::Internal("API_KEYS_KEK_BASE64 environment variable is required".to_string())
@@ -60,8 +56,6 @@ impl Config {
             port,
             modal_url,
             modal_region,
-            openai_api_key,
-            anthropic_api_key,
             api_keys_kek,
         })
     }

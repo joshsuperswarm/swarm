@@ -646,8 +646,7 @@ mod tests {
             port: 3001,
             modal_url: None,
             modal_region: None,
-            openai_api_key: None,
-            anthropic_api_key: Some("test-anthropic-key".to_string()),
+            api_keys_kek: [0u8; 32], // Test key
         };
 
         // Create a mock database (this would need proper mocking in a real test)
@@ -1396,11 +1395,6 @@ async fn create_task(
         }
     };
 
-    // Pre-flight validation: Check Anthropic API key
-    if app_state.config.anthropic_api_key.is_none() {
-        tracing::error!("No Anthropic API key configured in environment");
-        return Err(StatusCode::BAD_REQUEST);
-    }
 
     if payload.description.trim().is_empty() {
         return Err(StatusCode::BAD_REQUEST); // still needed

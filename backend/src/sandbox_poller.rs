@@ -270,9 +270,15 @@ async fn wait_for_final_message(
         return Err(anyhow::anyhow!("No final message to synthesize PR from"));
     }
 
-    // Synthesize PR from the final message
-    let api_key = app_state.config.anthropic_api_key.clone()
-        .ok_or_else(|| anyhow::anyhow!("No Anthropic API key configured"))?;
+    // Get task to get user_id
+    let task = app_state.database.get_task_by_id_raw(task_id).await?
+        .ok_or_else(|| anyhow::anyhow!("Task {} not found", task_id))?;
+
+    // Get user's stored API keys
+    let (anthropic_api_key_opt, _) =
+        crate::onboarding::get_decrypted_api_keys_for_user(&app_state.database, &app_state.config, task.user_id).await?;
+    let api_key = anthropic_api_key_opt
+        .ok_or_else(|| anyhow::anyhow!("No Anthropic API key for user"))?;
     
     match crate::claude::synthesize_pr_from_agent_output(&final_md, &api_key).await {
         Ok((pr_title, pr_body)) => {
