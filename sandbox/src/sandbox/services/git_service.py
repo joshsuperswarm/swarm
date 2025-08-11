@@ -13,24 +13,6 @@ class GitService:
         self.process_service = process_service
         self.logger = get_logger(__name__)
     
-    def configure_global(self, sandbox_id: str, user_name: str, user_email: str) -> ExecResp:
-        """Configure Git user settings."""
-        if not user_name or not user_email:
-            raise HTTPException(
-                status_code=400, detail="user_name and user_email are required"
-            )
-
-        # Commands are now automatically run as swarm user via exec_command
-        exec_req = ExecReq(
-            cmd=[
-                "bash",
-                "-c",
-                f"git config --global user.name '{user_name}' && git config --global user.email '{user_email}'",
-            ],
-            cwd="/home/swarm",  # Git config is global, so any directory works
-        )
-        return self.process_service.exec(sandbox_id, exec_req)
-    
     def push_simple(self, sandbox_id: str, repo_dir: str, branch: str) -> ExecResp:
         """Push changes to the repository."""
         exec_req = ExecReq(

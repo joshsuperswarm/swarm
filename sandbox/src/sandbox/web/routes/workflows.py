@@ -30,12 +30,6 @@ async def install_tools(sandbox_id: str, request: Request):
     return process_service.exec(sandbox_id, exec_req)
 
 
-@router.post("/sandboxes/{sandbox_id}/configure_git", response_model=ExecResp)
-async def configure_git(sandbox_id: str, req: WorkflowReq, request: Request):
-    """Configure Git user settings."""
-    git_service = request.app.state.svc_git
-    return git_service.configure_global(sandbox_id, req.user_name, req.user_email)
-
 
 @router.post("/sandboxes/{sandbox_id}/push_changes", response_model=ExecResp)
 async def push_changes(sandbox_id: str, req: WorkflowReq, request: Request):

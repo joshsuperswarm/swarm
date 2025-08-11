@@ -46,11 +46,8 @@ class SandboxService:
             # Clone repository (git is already installed via image)
             self._clone_repository(sb, req, sandbox_id)
             
-            # Configure git user settings during startup if provided
-            if req.author_name and req.author_email:
-                self._configure_git(sb, req)
-            else:
-                self.logger.info("No git author info provided, skipping git configuration")
+            # Always configure git user settings (author is now required)
+            self._configure_git(sb, req)
 
             # Run backend/scripts/start_postgres_and_migrate.sh
             self._bootstrap_postgres(sb, req)

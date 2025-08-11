@@ -278,24 +278,6 @@ class TestSandboxAPI:
             workdir="/",
         )
 
-    def test_workflow_configure_git(self, mock_modal_sandbox, mock_process):
-        """Test workflow helper: configure git."""
-        SANDBOXES["test-sandbox-123"] = mock_modal_sandbox
-        PROCS["test-sandbox-123"] = {}
-        mock_modal_sandbox.exec.return_value = mock_process
-
-        request_data = {"user_name": "Test User", "user_email": "test@example.com"}
-
-        response = client.post(
-            "/sandboxes/test-sandbox-123/configure_git", json=request_data
-        )
-        assert response.status_code == 200
-
-        # Verify git config was called
-        expected_cmd = "git config --global user.name 'Test User' && git config --global user.email 'test@example.com'"
-        mock_modal_sandbox.exec.assert_called_with(
-            "bash", "-c", expected_cmd, text=True, stream=True, workdir="/code"
-        )
 
     def test_workflow_push_changes(self, mock_modal_sandbox, mock_process):
         """Test workflow helper: push changes."""

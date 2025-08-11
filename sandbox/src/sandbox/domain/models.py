@@ -7,8 +7,8 @@ class CreateSandboxReq(BaseModel):
     branch: str = "main"
     region: Optional[str] = None
     github_token: Optional[str] = None
-    author_name: Optional[str] = None
-    author_email: Optional[str] = None
+    author_name: str
+    author_email: str
 
 
 class CreateSandboxResp(BaseModel):
