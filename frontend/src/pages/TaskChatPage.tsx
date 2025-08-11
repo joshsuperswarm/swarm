@@ -95,7 +95,7 @@ export function TaskChatPage() {
   };
   
   return (
-    <div className="flex flex-col h-[100dvh]">
+    <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="flex-shrink-0 border-b bg-white sticky top-0 z-30 safe-pt px-3 py-2">
         <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -134,7 +134,7 @@ export function TaskChatPage() {
 
       {/* Scrollable content */}
       <div
-        className="flex-1 overflow-y-auto px-3 py-3 pb-36 md:pb-40"
+        className="overflow-y-auto px-3 py-3 pb-36 md:pb-40"
         onScroll={(e) => {
           const el = e.currentTarget;
           const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 16;
