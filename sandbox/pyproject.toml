@@ -1,5 +1,5 @@
 [project]
-name = "swarm-modal"
+name = "swarm-sandbox"
 version = "0.1.0"
 description = "Modal sandbox environment for Swarm AI agent execution"
 requires-python = ">=3.11"
@@ -14,12 +14,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "black",
-]
+dev = ["black"]
+
+[project.scripts]
+swarm-sandbox = "sandbox.run_shim:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["src/sandbox"]
+
 
 [tool.black]
 line-length = 88
@@ -27,17 +29,7 @@ target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
+  \.eggs | \.git | \.hg | \.mypy_cache | \.tox | \.venv | _build | build | dist
 )/
 '''
 

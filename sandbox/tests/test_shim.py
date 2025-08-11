@@ -6,7 +6,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 # Import the app
-from ..shim import app, SANDBOXES, PROCS
+from sandbox.shim import app, SANDBOXES, PROCS
 
 client = TestClient(app)
 

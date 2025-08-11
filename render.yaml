@@ -26,7 +26,7 @@ services:
         value: 10000
       - key: MODAL_URL
         fromService:
-          name: swarm-modal
+          name: swarm-sandbox
           type: pserv
           property: hostport
     healthCheckPath: /health
@@ -55,12 +55,12 @@ services:
 
   # Modal Python Shim Service (Internal only)
   - type: pserv
-    name: swarm-modal
+    name: swarm-sandbox
     env: python
     plan: starter
-    rootDir: modal
-    buildCommand: pip install -r requirements.txt
-    startCommand: python run_shim.py
+    rootDir: sandbox
+    buildCommand: uv pip install -e .
+    startCommand: uv run swarm-sandbox
     envVars:
       - key: PORT
         value: 8000
@@ -70,5 +70,3 @@ services:
         sync: false
       - key: MODAL_ENVIRONMENT
         value: main
-      - key: PYTHONPATH
-        value: /opt/render/project/src
