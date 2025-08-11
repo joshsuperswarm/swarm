@@ -59,7 +59,7 @@ services:
     env: python
     plan: starter
     rootDir: sandbox
-    buildCommand: uv pip install -e .
+    buildCommand: uv sync --frozen
     startCommand: uv run swarm-sandbox
     envVars:
       - key: PORT
