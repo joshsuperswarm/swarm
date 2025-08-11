@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 # Compatibility shim for backward compatibility with tests and imports
-from shim.web.app import app  # re-export app
-from shim.services.storage import DictProxy
+from modal.web.app import app  # re-export app
+from modal.services.storage import DictProxy
 
 # compatibility exports for tests:
 SANDBOXES = DictProxy(app.state.storage, 'sandboxes')
