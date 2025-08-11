@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
@@ -29,6 +29,14 @@ export function TaskChatPage() {
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
+  
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [showJump, setShowJump] = useState(false);
+  
+  useEffect(() => {
+    // scroll to bottom on new messages
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
   
   if (isLoading || !task) {
     return (
@@ -106,18 +114,34 @@ export function TaskChatPage() {
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 Status
               </span>
-              {status.icon && (
-                <status.icon className="h-3 w-3 text-gray-500" />
+              {status.icon && <status.icon className="h-3 w-3 text-gray-500" />}
+              {status.value === "pr_opened" && task.github_pr_url ? (
+                <a
+                  href={task.github_pr_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  {status.label}
+                </a>
+              ) : (
+                <span className="text-sm text-gray-900">{status.label}</span>
               )}
-              <span className="text-sm text-gray-900">{status.label}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        <div className="space-y-6">
+      <div
+        className="flex-1 overflow-y-auto px-3 py-3 pb-36 md:pb-40"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 16;
+          setShowJump(!atBottom);
+        }}
+      >
+        <div className="mx-auto w-full max-w-3xl space-y-4">
         {messages.length === 0 && !finished && !isSending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
@@ -126,13 +150,16 @@ export function TaskChatPage() {
             </div>
           </div>
         ) : (
-          messages.map((message: MessageWithRun) => (
-            <div
-              key={message.id}
-              className={
-                message.role === "user" ? "flex justify-start" : "flex justify-end"
-              }
-            >
+          messages.map((message: MessageWithRun, idx: number) => {
+            const prevRole = idx > 0 ? messages[idx - 1].role : null;
+            const isGrouped = prevRole === message.role;
+            return (
+              <div
+                key={message.id}
+                className={`${
+                  message.role === "user" ? "flex justify-end" : "flex justify-start"
+                } ${isGrouped ? "mt-1" : "mt-4"}`}
+              >
               <ChatBubble
                 variant={message.role === "user" ? "user" : "assistant"}
               >
@@ -142,7 +169,10 @@ export function TaskChatPage() {
                     <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
                   )}
                 </div>
-                <div className="mt-2 text-xs opacity-70">
+                <div
+                  className="mt-2 text-xs opacity-70"
+                  title={new Date(message.created_at || new Date().toISOString()).toLocaleString()}
+                >
                   {formatTime(message.created_at || new Date().toISOString())}
                 </div>
 
@@ -165,8 +195,9 @@ export function TaskChatPage() {
                   </div>
                 )}
               </ChatBubble>
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
         
         {isSending && (
@@ -183,45 +214,61 @@ export function TaskChatPage() {
             </ChatBubble>
           </div>
         )}
+        
+        <div ref={bottomRef} />
         </div>
       </div>
 
-      {/* Sticky input */}
-      <div className="flex-shrink-0 border-t bg-white px-3 py-2 safe-pb">
-        <div className="flex items-center gap-2 max-w-screen-sm mx-auto">
-          {/* Mode button */}
-          <button
-            onClick={cycleRunMode}
-            className="flex items-center gap-1 px-2 py-2 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition-colors touch-target"
-            title="Shift+Tab to cycle modes"
-          >
-            <span>{getModeConfig(mode).icon}</span>
-            <span className="hidden sm:inline">{getModeConfig(mode).label}</span>
-          </button>
-          
-          {/* Input container */}
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Type your message..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isSending}
-              className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-150 disabled:bg-gray-100 disabled:cursor-not-allowed touch-target"
-            />
-            
-            {/* Send button inside input */}
-            <button 
-              onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isSending}
-              className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-sm bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors duration-150 flex items-center justify-center touch-target"
-              title="Send message"
+      {/* Jump to latest chip */}
+      {showJump && (
+        <div className="fixed bottom-24 md:bottom-28 inset-x-0 z-30">
+          <div className="mx-auto w-full max-w-3xl flex justify-center">
+            <button
+              onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+              className="px-3 py-1.5 rounded-full text-xs border bg-white shadow hover:bg-gray-50"
             >
-              <span className="text-xs">
-                {isSending ? "..." : "→"}
-              </span>
+              Jump to latest ↓
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating composer */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 safe-pb px-3 pb-3">
+        <div className="mx-auto w-full max-w-3xl pointer-events-auto">
+          <div className="rounded-xl md:rounded-2xl border border-gray-200 bg-white/90 backdrop-blur shadow-lg">
+            <div className="flex items-center gap-2 p-2">
+              {/* Mode button */}
+              <button
+                onClick={cycleRunMode}
+                className="flex items-center gap-1 px-2 py-2 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition-colors touch-target"
+                title="Shift+Tab to cycle modes"
+              >
+                <span>{getModeConfig(mode).icon}</span>
+                <span className="hidden sm:inline">{getModeConfig(mode).label}</span>
+              </button>
+
+              {/* Input */}
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder="Type your message…"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isSending}
+                  className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed touch-target"
+                />
+                <button 
+                  onClick={handleSendMessage}
+                  disabled={!inputValue.trim() || isSending}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target"
+                  title="Send message"
+                >
+                  <span className="text-xs">{isSending ? "..." : "→"}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
