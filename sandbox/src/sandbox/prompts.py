@@ -29,7 +29,6 @@ EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."
 # Complete Claude Code prompt template
 CLAUDE_PROMPT_TEMPLATE = """You are working on task {task_id}: {prompt}
 
-Branch policy (deterministic):
 - The repository is ALREADY checked out to the correct branch, provided by the environment variable `SWARM_BRANCH`.
 - Do NOT create, switch, rename, or delete branches.
 - Do NOT run `git checkout` or `git switch`. Make all changes on the current branch only.
@@ -43,11 +42,5 @@ PR_TITLE: <short title>
 PR_BODY:
 <markdown with summary, test notes, risk, rollout/backout>
 
-These markers are required for an automated PR to be created. 
-Do NOT emit any COMMIT_MESSAGE_* markers.
-
-Notes:
-- If you believe the current branch is incorrect, do not try to fix it yourself. Continue on the current branch and describe the issue in PR_BODY under a clearly labeled "Branch note".
-- Keep changes scoped to the task. Avoid unrelated refactors unless they directly support the task."""
-
-# Then, using the GitHub CLI, create a pull request for the branch.
+These markers are required for an automated PR to be created.
+"""
