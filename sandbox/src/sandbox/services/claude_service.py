@@ -10,14 +10,16 @@ from ..utils.logging import get_logger
 from ..adapters.modal_adapter import ModalAdapter
 from .sandbox_service import SandboxService
 from .process_service import ProcessService
+from .git_service import GitService
 
 
 class ClaudeService:
     """Service for Claude Code operations."""
     
-    def __init__(self, sandbox_service: SandboxService, process_service: ProcessService):
+    def __init__(self, sandbox_service: SandboxService, process_service: ProcessService, git_service: GitService):
         self.sandbox_service = sandbox_service
         self.process_service = process_service
+        self.git_service = git_service
         self.logger = get_logger(__name__)
     
     def exec(self, sandbox_id: str, req: ClaudeCodeExecReq) -> ExecResp:
@@ -31,6 +33,14 @@ class ClaudeService:
         
         sb = self.sandbox_service.get(sandbox_id)
         adapter = ModalAdapter(sb, self.logger)
+
+        # -------- 0.  deterministically ensure we're on the right branch --------
+        self.git_service.ensure_branch_checked_out(
+            sandbox_id=sandbox_id,
+            repo_dir=req.repo_path,
+            branch=req.branch,
+            base_ref="origin/main",
+        )
 
         # -------- 1.  Create the Claude prompt with artifact markers ------------
 

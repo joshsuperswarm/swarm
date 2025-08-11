@@ -27,21 +27,27 @@ review file at `.swarm/task-{task_id}-review.md` containing:
 EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."
 
 # Complete Claude Code prompt template
-CLAUDE_PROMPT_TEMPLATE = """Please work on this task {task_id}: {prompt}.
+CLAUDE_PROMPT_TEMPLATE = """You are working on task {task_id}: {prompt}
 
-Before starting work on the task, create a new branch using the `SWARM_BRANCH` environment variable as the name of the branch.
-Once you have completed the task, push the branch to the remote repository.
+Branch policy (deterministic):
+- The repository is ALREADY checked out to the correct branch, provided by the environment variable `SWARM_BRANCH`.
+- Do NOT create, switch, rename, or delete branches.
+- Do NOT run `git checkout` or `git switch`. Make all changes on the current branch only.
+- Commit locally and push to `origin` (upstream is already configured). Do not force-push.
 
 {mode_instructions}
 
-After completing the task, you MUST output the following markers in this exact format:
+After completing the work, you MUST output the following markers EXACTLY in this format:
 
 PR_TITLE: <short title>
 PR_BODY:
 <markdown with summary, test notes, risk, rollout/backout>
 
-The system requires these PR markers to automatically generate pull requests. 
-Do NOT emit COMMIT_MESSAGE_* markers as the system no longer uses them.
-Without the PR markers, the task will fail."""
+These markers are required for an automated PR to be created. 
+Do NOT emit any COMMIT_MESSAGE_* markers.
+
+Notes:
+- If you believe the current branch is incorrect, do not try to fix it yourself. Continue on the current branch and describe the issue in PR_BODY under a clearly labeled "Branch note".
+- Keep changes scoped to the task. Avoid unrelated refactors unless they directly support the task."""
 
 # Then, using the GitHub CLI, create a pull request for the branch.

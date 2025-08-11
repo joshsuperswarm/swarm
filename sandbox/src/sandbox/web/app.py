@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
     sandbox_service = SandboxService(storage, app_modal, swarm_dev_img)
     process_service = ProcessService(storage, sandbox_service)
     git_service = GitService(process_service)
-    claude_service = ClaudeService(sandbox_service, process_service)
+    claude_service = ClaudeService(sandbox_service, process_service, git_service)
     artifact_service = ArtifactService(sandbox_service)
     
     # Attach to app state for dependency injection
