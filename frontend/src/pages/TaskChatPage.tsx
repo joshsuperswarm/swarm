@@ -10,6 +10,7 @@ import { useRunMode } from "@/hooks/useRunMode";
 import { Bot } from 'lucide-react';
 import type { TaskLog } from "@/types/generated/TaskLog";
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
+import type { RunMode } from "@/services/api";
 import { AnimatedTitle } from "@/components/AnimatedTitle";
 import { isTitlePending } from "@/lib/titleState";
 
@@ -25,7 +26,10 @@ export function TaskChatPage() {
   const task = taskDetails?.task;
   const messages = taskDetails?.messages || [];
   const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
-  const { mode, cycleRunMode, getModeConfig } = useRunMode("execute");
+  
+  // Use the mode from current run, fallback to task mode, then default to execute
+  const initialMode = (currentRun?.run?.mode || task?.mode || "execute") as RunMode;
+  const { mode, cycleRunMode, getModeConfig } = useRunMode(initialMode);
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
