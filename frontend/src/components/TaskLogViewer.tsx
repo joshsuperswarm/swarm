@@ -281,14 +281,12 @@ const TaskLogViewerComponent: React.FC<TaskLogViewerProps> = ({ taskId, taskStat
             <div className={`h-2 w-2 rounded-full ${
               isLoading ? 'bg-linear-text-muted' : 
               taskCompleted ? 'bg-linear-accent' :
-              isPolling ? 'bg-linear-accent animate-pulse' : 
               'bg-linear-accent'
             }`} />
             <span className="text-xs text-linear-text-muted font-normal">
               {isLoading ? 'Loading...' : 
                taskCompleted || (taskStatus && ['done', 'failed', 'pr_opened'].includes(taskStatus)) ? `Task completed • ${logs.length} entries` :
-               isPolling ? 'Checking for new logs...' :
-               `${logs.length} log entries • Polling every 3s`}
+               `${logs.length} log entries`}
             </span>
             {!isLoading && (
               <>

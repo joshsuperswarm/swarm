@@ -380,14 +380,12 @@ export function TaskPage() {
                   <div className={`h-2 w-2 rounded-full ${
                     logsState.isLoading ? 'bg-yellow-500' : 
                     logsState.taskCompleted ? 'bg-blue-500' :
-                    logsState.isPolling ? 'bg-green-500 animate-pulse' : 
                     'bg-green-500'
                   }`} />
                   <span className="text-xs text-muted-foreground">
                     {logsState.isLoading ? 'Loading...' : 
                      logsState.taskCompleted || (currentRunStatus && ['done', 'failed', 'pr_opened'].includes(currentRunStatus)) ? `Task completed • ${logsState.logs.length} entries` :
-                     logsState.isPolling ? 'Checking for new logs...' :
-                     `${logsState.logs.length} log entries • Polling every 3s`}
+                     `${logsState.logs.length} log entries`}
                   </span>
                   {logsVisible && !logsState.isLoading && (
                     <>
