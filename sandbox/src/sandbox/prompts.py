@@ -36,7 +36,8 @@ CLAUDE_PROMPT_TEMPLATE = """You are working on task {task_id}: {prompt}
 - The repository is ALREADY checked out to the correct branch, provided by the environment variable `SWARM_BRANCH`.
 - Do NOT create, switch, rename, or delete branches.
 - Do NOT run `git checkout` or `git switch`. Make all changes on the current branch only.
-- Commit locally and push to `origin` (upstream is already configured). Do not force-push.
+- Commit periodically (ideally after each todo).
+- Be sure to ALWAYS push your changes on the branch to the remote origin.
 
 {mode_instructions}
 
