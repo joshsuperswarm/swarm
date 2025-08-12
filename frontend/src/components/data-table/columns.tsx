@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { MoreHorizontal, Zap, FileText, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +19,39 @@ import type { Task } from "@/types"
 import { AnimatedTitle } from "@/components/AnimatedTitle"
 import { isTitlePending } from "@/lib/titleState"
 
-export const createColumns = (): ColumnDef<Task>[] => [
+export const createColumns = (
+  selectedTaskIds?: Set<number>,
+  onSelectionChange?: (taskId: number, selected: boolean) => void
+): ColumnDef<Task>[] => [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected()}
+        onCheckedChange={(value) => {
+          table.toggleAllPageRowsSelected(!!value);
+          const allTaskIds = table.getRowModel().rows.map(row => row.original.task_id);
+          allTaskIds.forEach(taskId => {
+            onSelectionChange?.(taskId, !!value);
+          });
+        }}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={selectedTaskIds?.has(row.original.task_id) || false}
+        onCheckedChange={(value) => {
+          row.toggleSelected(!!value);
+          onSelectionChange?.(row.original.task_id, !!value);
+        }}
+        aria-label="Select row"
+        onClick={(e) => e.stopPropagation()}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "task_id",
     header: "Task",

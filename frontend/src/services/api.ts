@@ -170,4 +170,12 @@ export class ApiService {
       method: 'PUT',
     });
   }
+
+  static async archiveMultipleTasks(token: string, taskIds: number[]): Promise<{ success: boolean; archived_task_ids: number[]; message: string }> {
+    return request('/api/tasks/archive', {
+      token,
+      method: 'PUT',
+      body: { task_ids: taskIds },
+    });
+  }
 }

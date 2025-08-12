@@ -34,7 +34,7 @@ use github::GitHubClient;
 use github_pr::GitHubPRClient;
 use onboarding::{encrypt_secret, ensure_onboarding_complete, get_onboarding_status};
 use models::{
-    AgentTodo, ApiKeysStatus, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
+    AgentTodo, ApiKeysStatus, ArchiveMultipleTasksRequest, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
     GitHubToken, MessageWithRun, OnboardingStatus, RepositoryTS, RepositoryWithTasks, Run, RunWithMeta, 
     SetDefaultRepoRequest, Task, TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, 
     UpdateApiKeysRequest, User, UserWithDefaultRepo,
@@ -459,6 +459,7 @@ async fn main() -> AppResult<()> {
         .route("/api/tasks/:id/messages", get(get_task_messages))
         .route("/api/tasks/:id/messages", post(post_task_message))
         .route("/api/tasks/:id/archive", put(archive_task))
+        .route("/api/tasks/archive", put(archive_multiple_tasks))
         .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
@@ -1889,6 +1890,37 @@ async fn archive_task(
         }
         Err(e) => {
             tracing::error!("Error archiving task {}: {}", task_id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn archive_multiple_tasks(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Json(payload): Json<ArchiveMultipleTasksRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let db_user = get_or_create_user(&app_state.database, &user)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
+
+    // Verify tasks belong to user and archive them
+    match app_state.database.archive_multiple_tasks(&payload.task_ids, db_user.id).await {
+        Ok(archived_ids) => Ok(Json(json!({
+            "success": true,
+            "archived_task_ids": archived_ids,
+            "message": format!("Successfully archived {} task(s)", archived_ids.len())
+        }))),
+        Err(e) => {
+            tracing::error!("Error archiving multiple tasks: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

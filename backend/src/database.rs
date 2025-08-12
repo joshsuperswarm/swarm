@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
     GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, RunWithMeta, Task,
-    TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, TaskWithRunDB, User,
+    TaskDetails, TaskId, TaskLog, TaskLogsPaginated, TaskWithRun, TaskWithRunDB, User,
 };
 use sqlx::PgPool;
 
@@ -319,6 +319,18 @@ impl Database {
             .fetch_optional(&self.pool)
             .await?;
         Ok(result)
+    }
+
+    pub async fn archive_multiple_tasks(&self, task_ids: &[i32], user_id: i32) -> AppResult<Vec<i32>> {
+        let result = sqlx::query_file_as!(
+            TaskId,
+            "sql/archive_multiple_tasks.sql", 
+            task_ids, 
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(result.into_iter().map(|r| r.id).collect())
     }
 
     // Task log operations

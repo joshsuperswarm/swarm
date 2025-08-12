@@ -7,7 +7,7 @@ import { createColumns } from '@/components/data-table/columns';
 import { DataTable } from '@/components/data-table/data-table';
 import { useAuth } from '@clerk/clerk-react';
 import PricingScreen from '@/pages/PricingPage';
-import { useTasksQuery, useArchiveTaskMutation } from '@/services/queries';
+import { useTasksQuery, useArchiveTaskMutation, useArchiveMultipleTasksMutation } from '@/services/queries';
 import { ApiService } from '@/services/api';
 import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
 import { useModalStore } from '@/store/modalStore';
@@ -20,9 +20,11 @@ export function TasksPage() {
   const navigate = useNavigate();
   const { data: rawTasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
   const { openCreateTask, createTaskOpen } = useModalStore();
   const { has, isLoaded } = useAuth();
   const archiveMutation = useArchiveTaskMutation();
+  const archiveMultipleMutation = useArchiveMultipleTasksMutation();
   
   // Reverse the array so newest appears at top but j/k navigation works correctly
   const tasks = useMemo(() => [...rawTasks].reverse(), [rawTasks]);
@@ -38,6 +40,12 @@ export function TasksPage() {
     } else {
       setSelectedIndex(0);
     }
+    // Clear selection when tasks change (e.g., after archiving)
+    setSelectedTaskIds(prevSelected => {
+      const currentTaskIds = new Set(tasks.map(t => t.task_id));
+      const filteredSelection = new Set([...prevSelected].filter(id => currentTaskIds.has(id)));
+      return filteredSelection;
+    });
   }, [tasks]);
 
   // Derive selectedTask from selectedIndex
@@ -45,9 +53,34 @@ export function TasksPage() {
     return tasks.length > 0 ? tasks[selectedIndex] : null;
   }, [tasks, selectedIndex]);
 
-  // Archive handler
+  // Handle task selection changes
+  const handleSelectionChange = (taskId: number, selected: boolean) => {
+    setSelectedTaskIds(prev => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(taskId);
+      } else {
+        newSet.delete(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  // Archive handler - archives selected tasks if any, otherwise current task
   const handleArchive = () => {
-    if (currentSelectedTask) {
+    if (selectedTaskIds.size > 0) {
+      // Archive multiple selected tasks
+      archiveMultipleMutation.mutate(Array.from(selectedTaskIds), {
+        onSuccess: () => {
+          setSelectedTaskIds(new Set()); // Clear selection
+          // Adjust selectedIndex if needed
+          if (selectedIndex >= tasks.length - selectedTaskIds.size && selectedIndex > 0) {
+            setSelectedIndex(Math.max(0, selectedIndex - selectedTaskIds.size));
+          }
+        }
+      });
+    } else if (currentSelectedTask) {
+      // Archive current selected task (keyboard navigation fallback)
       archiveMutation.mutate(currentSelectedTask.task_id, {
         onSuccess: () => {
           // Adjust selectedIndex if we archived the last task
@@ -64,8 +97,8 @@ export function TasksPage() {
 
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {
-    return createColumns();
-  }, []);
+    return createColumns(selectedTaskIds, handleSelectionChange);
+  }, [selectedTaskIds]);
 
   // Handle Enter key to navigate to task detail
   useEffect(() => {
@@ -159,6 +192,24 @@ export function TasksPage() {
               className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
             >
               Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Selection indicator */}
+      {selectedTaskIds.size > 0 && (
+        <div className="mb-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <span className="text-sm text-blue-800">
+            {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-blue-600">Press 'E' to archive selected tasks</span>
+            <button
+              onClick={() => setSelectedTaskIds(new Set())}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              Clear selection
             </button>
           </div>
         </div>

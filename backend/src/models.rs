@@ -3,6 +3,16 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use ts_rs::TS;
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct TaskId {
+    pub id: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveMultipleTasksRequest {
+    pub task_ids: Vec<i32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
 #[ts(export)]
 pub struct User {
