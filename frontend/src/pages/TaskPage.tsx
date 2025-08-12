@@ -6,7 +6,7 @@ import { TaskLogViewer } from '@/components/TaskLogViewer';
 import { TodoList } from '@/components/TodoList';
 import { statuses } from '@/data/data';
 import { useTasksQuery, useTaskDetailsQuery, useTaskTodosQuery } from '@/services/queries';
-import { Copy, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { Copy, ChevronDown, ChevronUp, Check, ArrowLeft } from 'lucide-react';
 import { AnimatedTitle } from '@/components/AnimatedTitle';
 import { isTitlePending } from '@/lib/titleState';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -223,41 +223,43 @@ export function TaskPage() {
     <div className="flex-1 w-full px-3 md:px-6 lg:px-8 py-3 md:py-6 pb-28">
       {/* Sticky header container */}
       <div className="sticky top-0 z-30 -mx-3 md:mx-0 bg-white/95 backdrop-blur border-b safe-pt px-3 py-2 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/')}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            ← Back to Tasks
-          </Button>
-        </div>
-        
-        <div className="flex items-end justify-between gap-4 flex-wrap">
-          <div className="flex items-end gap-4">
-            <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          {/* Left: back arrow + id + title (one line) */}
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => navigate('/')}
+              aria-label="Back to tasks"
+              title="Back to tasks (Esc)"
+              className="h-9 w-9 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+
+            <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-1 rounded shrink-0">
               #{liveTask.id}
             </span>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
-              <AnimatedTitle title={liveTask.title || ""} pending={pendingTitle} status={currentRunStatus} />
+
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+              <AnimatedTitle
+                title={liveTask.title || ""}
+                pending={pendingTitle}
+                status={currentRunStatus}
+              />
             </h1>
           </div>
-          
-          {/* Right side - Status only */}
+
+          {/* Right: status block (unchanged) */}
           <div className="flex items-center gap-4">
             {status && (
               <div className="flex items-center gap-1">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Status
                 </span>
-                {status.icon && (
-                  <status.icon className="h-3 w-3 text-muted-foreground" />
-                )}
+                {status.icon && <status.icon className="h-3 w-3 text-muted-foreground" />}
                 {status.value === "pr_opened" && liveTask.github_pr_url ? (
-                  <a 
-                    href={liveTask.github_pr_url} 
-                    target="_blank" 
+                  <a
+                    href={liveTask.github_pr_url}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:underline"
                   >
@@ -269,7 +271,6 @@ export function TaskPage() {
               </div>
             )}
           </div>
-          
         </div>
       </div>
 
