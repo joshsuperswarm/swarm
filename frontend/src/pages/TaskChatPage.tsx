@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { CollapsedLogViewer } from "@/components/CollapsedLogViewer";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
@@ -168,12 +169,21 @@ export function TaskChatPage() {
                 variant={message.role === "user" ? "user" : "assistant"}
                 fullWidth={message.role === "assistant"}
               >
-                <div className="whitespace-pre-wrap break-words">
-                  {message.content}
-                  {message.metadata?.pending && (
-                    <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-                  )}
-                </div>
+                {message.role === "assistant" ? (
+                  <div>
+                    <MarkdownRenderer content={message.content} />
+                    {message.metadata?.pending && (
+                      <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap break-words">
+                    {message.content}
+                    {message.metadata?.pending && (
+                      <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                    )}
+                  </div>
+                )}
                 <div
                   className="mt-2 text-xs opacity-70"
                   title={new Date(message.created_at || new Date().toISOString()).toLocaleString()}
