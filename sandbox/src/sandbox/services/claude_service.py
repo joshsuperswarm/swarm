@@ -76,8 +76,8 @@ class ClaudeService:
             )
 
         # -------- 3.  build environment -----------------------------------------
-        # Check if this is a continuation session by looking for existing Claude Code session
-        is_continuation_session = self._check_existing_claude_session(sandbox_id, req.repo_path)
+        # Use the reuse_session flag from the backend request
+        is_continuation_session = req.reuse_session
 
         if req.mode == "plan":
             # Plan mode: export only API keys, no GitHub token or Git environment
@@ -87,8 +87,12 @@ class ClaudeService:
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
             
-            # Plan mode uses read-only permission mode with Opus model
-            claude_args = "claude -p --permission-mode plan --model opus --output-format stream-json --verbose"
+            # Plan mode uses read-only permission mode, use --continue for session reuse
+            if is_continuation_session:
+                claude_args = "claude --continue -p --permission-mode plan --model opus --output-format stream-json --verbose"
+                self.logger.info("Using --continue flag for plan mode session continuity in task %s", req.task_id)
+            else:
+                claude_args = "claude -p --permission-mode plan --model opus --output-format stream-json --verbose"
         else:
             # Execute/Review modes: full environment
             env_pairs = {
@@ -155,27 +159,3 @@ class ClaudeService:
                 status_code=500, detail=f"Failed to verify Claude Code: {str(e)}"
             )
     
-    def _check_existing_claude_session(self, sandbox_id: str, repo_path: str) -> bool:
-        """Check if there's an existing Claude Code session in this sandbox/repo."""
-        try:
-            sb = self.sandbox_service.get(sandbox_id)
-            
-            # Check for Claude Code memory/session files in the repo directory
-            # Claude Code typically stores session state in .claude/ directory
-            check_cmd = f"test -d {shlex.quote(repo_path)}/.claude && echo 'exists' || echo 'none'"
-            proc = sb.exec("bash", "-c", check_cmd)
-            exit_code = proc.wait()
-            
-            if exit_code == 0:
-                output = proc.stdout.read().strip()
-                session_exists = output == 'exists'
-                if session_exists:
-                    self.logger.info("Found existing Claude Code session in %s", repo_path)
-                return session_exists
-            else:
-                self.logger.debug("Could not check for existing Claude Code session, exit code: %s", exit_code)
-                return False
-                
-        except Exception as e:
-            self.logger.warning("Error checking for existing Claude Code session: %s", str(e))
-            return False

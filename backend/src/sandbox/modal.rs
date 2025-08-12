@@ -373,6 +373,7 @@ impl ModalProvider {
         author_name: &str,
         author_email: &str,
         mode: &str,
+        reuse_session: bool,
     ) -> SandboxResult<String> {
         info!(
             "Executing Claude Code via modal shim in sandbox {} for task {}",
@@ -390,7 +391,8 @@ impl ModalProvider {
             "branch": branch,
             "author_name": author_name,
             "author_email": author_email,
-            "mode": mode
+            "mode": mode,
+            "reuse_session": reuse_session
         });
 
         // Make HTTP request to modal shim for Claude Code execution
@@ -784,6 +786,7 @@ impl SandboxProvider for ModalProvider {
                 author_name,
                 author_email,
                 mode,
+                false, // New sandbox, not reusing session
             )
             .await?;
 
@@ -890,6 +893,45 @@ impl SandboxProvider for ModalProvider {
                 e
             ))),
         }
+    }
+
+    async fn exec_claude_code_on_sandbox(
+        &self,
+        sandbox_id: &str,
+        repo_url: &str,
+        prompt: &str,
+        task_id: i32,
+        github_token: &str,
+        anthropic_api_key: &str,
+        openai_api_key: Option<&str>,
+        branch: &str,
+        author_name: &str,
+        author_email: &str,
+        mode: &str,
+        reuse_session: bool,
+    ) -> SandboxResult<String> {
+        info!("Executing Claude Code on existing sandbox {} for task {}", sandbox_id, task_id);
+        
+        // Get repo info for Claude Code execution
+        let repo_name = Self::extract_repo_name(repo_url)?;
+        let repo_path = format!("/home/swarm/{}", repo_name);
+
+        // Launch Claude Code with the task
+        self.exec_claude_code(
+            sandbox_id,
+            &repo_path,
+            prompt,
+            task_id,
+            github_token,
+            anthropic_api_key,
+            openai_api_key,
+            branch,
+            author_name,
+            author_email,
+            mode,
+            reuse_session,
+        )
+        .await
     }
 
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()> {

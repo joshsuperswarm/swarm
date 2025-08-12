@@ -1,6 +1,6 @@
 use crate::claude;
 use crate::models::Task;
-use crate::sandbox::SandboxProvider;
+use crate::sandbox::{SandboxProvider, SandboxInfo};
 use crate::AppState;
 use anyhow::Result;
 use tracing::instrument;
@@ -227,13 +227,13 @@ pub async fn run_full_task_pipeline(
     }
 
     // Check for existing active sandbox for this task
-    let sandbox_info = if let Some(existing) = find_reusable_session(&app_state, task.id, &branch).await? {
+    let (sandbox_info, is_reused) = if let Some(existing) = find_reusable_session(&app_state, task.id, &branch).await? {
         tracing::info!("Reusing existing sandbox {} for task {}", existing.id, task.id);
         // Set idle timeout for reused session (extend by 15 minutes)
         if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
             tracing::warn!("Failed to set idle timeout for reused session: {}", e);
         }
-        existing
+        (existing, true)
     } else {
         // Create new sandbox as current logic
         match app_state
@@ -258,7 +258,7 @@ pub async fn run_full_task_pipeline(
                 if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
                     tracing::warn!("Failed to set idle timeout for new session: {}", e);
                 }
-                info
+                (info, false)
             }
             Err(e) => {
                 tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
@@ -268,17 +268,59 @@ pub async fn run_full_task_pipeline(
         }
     };
 
+    // If we're reusing a sandbox, we need to launch Claude Code with the new task
+    let final_sandbox_info = if is_reused {
+        // Launch Claude Code on the existing sandbox
+        match app_state
+            .sandbox
+            .exec_claude_code_on_sandbox(
+                &sandbox_info.id,
+                &repo_url,
+                &prompt,
+                task.id,
+                &github_token,
+                &anthropic_api_key,
+                openai_api_key_opt.as_deref(),
+                &branch,
+                &author_name,
+                &author_email,
+                mode,
+                true, // reuse_session = true for reused sandboxes
+            )
+            .await
+        {
+            Ok(proc_id) => {
+                tracing::info!("Launched Claude Code on reused sandbox {} with proc_id {}", sandbox_info.id, proc_id);
+                SandboxInfo {
+                    id: sandbox_info.id,
+                    hostname: sandbox_info.hostname,
+                    status: sandbox_info.status,
+                    session_id: "modal".to_string(), // Modal doesn't use sessions, use placeholder
+                    command_id: proc_id,             // Use proc_id as command_id
+                    branch: branch.to_string(),
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to launch Claude Code on reused sandbox {}: {}", sandbox_info.id, e);
+                let _ = app_state.database.update_run_status(run.id, "failed").await;
+                return Err(anyhow::anyhow!("Failed to launch Claude Code on reused sandbox: {}", e));
+            }
+        }
+    } else {
+        sandbox_info
+    };
+
     // Update run with sandbox information (keeping status as spinning)
     match app_state
         .database
-        .update_run_sandbox(run.id, &sandbox_info.id, &sandbox_info.hostname)
+        .update_run_sandbox(run.id, &final_sandbox_info.id, &final_sandbox_info.hostname)
         .await
     {
         Ok(_) => {
             tracing::info!(
                 "Updated run {} with sandbox {} info",
                 run.id,
-                sandbox_info.id
+                final_sandbox_info.id
             );
         }
         Err(e) => {
@@ -291,7 +333,7 @@ pub async fn run_full_task_pipeline(
     // Store command IDs for log streaming
     if let Err(e) = app_state
         .database
-        .update_run_command_ids(run.id, &sandbox_info.session_id, &sandbox_info.command_id)
+        .update_run_command_ids(run.id, &final_sandbox_info.session_id, &final_sandbox_info.command_id)
         .await
     {
         tracing::error!("Error storing command IDs for run {}: {}", run.id, e);
@@ -302,7 +344,7 @@ pub async fn run_full_task_pipeline(
     tracing::info!(
         "Task {} pipeline completed successfully - sandbox {} ready for execution",
         task.id,
-        sandbox_info.id
+        final_sandbox_info.id
     );
 
     Ok(())

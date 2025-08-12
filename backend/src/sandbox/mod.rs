@@ -74,6 +74,24 @@ pub trait SandboxProvider: Send + Sync {
 
     // push_changes method removed - branches are now created and pushed by the agent during execution
 
+    /// Execute Claude Code on an existing sandbox
+    #[allow(clippy::too_many_arguments)]
+    async fn exec_claude_code_on_sandbox(
+        &self,
+        sandbox_id: &str,
+        repo_url: &str,
+        prompt: &str,
+        task_id: i32,
+        github_token: &str,
+        anthropic_api_key: &str,
+        openai_api_key: Option<&str>,
+        branch: &str,
+        author_name: &str,
+        author_email: &str,
+        mode: &str,
+        reuse_session: bool,
+    ) -> SandboxResult<String>;
+
     /// Delete a sandbox
     async fn delete_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
 }
