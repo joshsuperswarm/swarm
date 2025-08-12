@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { OnboardingService } from '@/services/onboarding';
 import { ApiService } from '@/services/api';
 import { useBackendApi } from '@/services/auth';
+import { useUserStore } from '@/store/userStore';
 import { OnboardingLayout } from './OnboardingLayout';
 import type { RepositoryWithTasks } from '@/types/generated/RepositoryWithTasks';
 
@@ -16,6 +17,7 @@ export function DefaultRepoSelector() {
   
   const navigate = useNavigate();
   const api = useBackendApi();
+  const { refreshUserProfile } = useUserStore();
 
   useEffect(() => {
     const loadRepositories = async () => {
@@ -49,6 +51,9 @@ export function DefaultRepoSelector() {
           repository_id: selectedRepoId,
         });
       });
+      
+      // Refresh user profile to get the updated default repository
+      await api(token => refreshUserProfile(token));
       
       // Navigate to main app
       navigate('/', { replace: true });
