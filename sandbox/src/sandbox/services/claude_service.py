@@ -163,16 +163,17 @@ class ClaudeService:
             # Check for Claude Code memory/session files in the repo directory
             # Claude Code typically stores session state in .claude/ directory
             check_cmd = f"test -d {shlex.quote(repo_path)}/.claude && echo 'exists' || echo 'none'"
-            result = sb.exec("bash", "-c", check_cmd).wait()
+            proc = sb.exec("bash", "-c", check_cmd)
+            exit_code = proc.wait()
             
-            if result.exit_code == 0:
-                output = result.stdout.strip()
+            if exit_code == 0:
+                output = proc.stdout.read().strip()
                 session_exists = output == 'exists'
                 if session_exists:
                     self.logger.info("Found existing Claude Code session in %s", repo_path)
                 return session_exists
             else:
-                self.logger.debug("Could not check for existing Claude Code session: %s", result.stderr)
+                self.logger.debug("Could not check for existing Claude Code session, exit code: %s", exit_code)
                 return False
                 
         except Exception as e:

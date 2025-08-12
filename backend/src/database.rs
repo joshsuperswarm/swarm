@@ -1027,7 +1027,7 @@ impl Database {
             r#"
             SELECT branch FROM runs 
             WHERE task_id = $1 AND mode = $2 
-            AND status IN ('spinning', 'running', 'done')
+            AND status = 'pr_opened'
             ORDER BY created_at DESC 
             LIMIT 1
             "#,
@@ -1050,7 +1050,7 @@ impl Database {
             FROM runs 
             WHERE task_id = $1 AND branch = $2 
             AND sandbox_id IS NOT NULL 
-            AND status IN ('spinning', 'running')
+            AND status IN ('done', 'pr_opened')
             AND (idle_timeout_at IS NULL OR idle_timeout_at > NOW())
             ORDER BY created_at DESC 
             LIMIT 1

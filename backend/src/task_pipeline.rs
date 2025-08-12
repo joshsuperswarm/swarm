@@ -135,15 +135,23 @@ pub async fn run_full_task_pipeline(
         }
     };
 
-    // Generate concise title
-    let title = claude::generate_title(description, &anthropic_api_key)
-        .await
-        .unwrap_or_else(|_| "Untitled task".into());
-
-    app_state
-        .database
-        .update_task_title(task.id, &title)
-        .await?;
+    // Only generate title if task doesn't have one (first run)
+    let title = if task.title.trim().is_empty() {
+        let generated_title = claude::generate_title(description, &anthropic_api_key)
+            .await
+            .unwrap_or_else(|_| "Untitled task".into());
+        
+        app_state
+            .database
+            .update_task_title(task.id, &generated_title)
+            .await?;
+        
+        tracing::info!("Generated title for task {}: {}", task.id, generated_title);
+        generated_title
+    } else {
+        tracing::info!("Task {} already has title: {}", task.id, task.title);
+        task.title.clone()
+    };
 
     // Determine branch name with reuse logic
     let branch = determine_branch_for_task(&app_state, task.id, mode).await?;
@@ -330,41 +338,63 @@ async fn find_reusable_session(
     task_id: i32, 
     branch: &str,
 ) -> Result<Option<crate::sandbox::SandboxInfo>> {
+    tracing::info!("Searching for reusable session for task {} on branch '{}'", task_id, branch);
+    
     if let Some(existing_run) = app_state
         .database
         .find_active_session_for_task(task_id, branch)
         .await?
     {
+        tracing::info!("Found existing run {} for task {} with status '{}' and sandbox_id: {:?}", 
+            existing_run.id, task_id, existing_run.status.as_deref().unwrap_or("None"), existing_run.sandbox_id);
+        
         // Verify the session is still valid
         if let (Some(sandbox_id), Some(hostname)) = (&existing_run.sandbox_id, &existing_run.sandbox_hostname) {
+            tracing::info!("Run {} has valid sandbox_id '{}' and hostname '{}'", existing_run.id, sandbox_id, hostname);
+            
             // Check if sandbox is still alive via provider
             if let Some(modal_url) = &app_state.config.modal_url {
+                tracing::info!("Checking sandbox {} status via Modal provider", sandbox_id);
                 let modal = crate::sandbox::modal::ModalProvider::new(
                     modal_url.clone(),
                     app_state.config.modal_region.clone(),
                 );
                 
-                if let Ok(status) = modal.get_sandbox_status(sandbox_id).await {
-                    match status {
-                        crate::sandbox::SandboxStatus::Running => {
-                            tracing::info!("Found reusable session for task {}: sandbox {}", task_id, sandbox_id);
-                            return Ok(Some(crate::sandbox::SandboxInfo {
-                                id: sandbox_id.clone(),
-                                hostname: hostname.clone(),
-                                status,
-                                session_id: existing_run.session_id.clone().unwrap_or_default(),
-                                command_id: existing_run.command_id.clone().unwrap_or_default(),
-                                branch: branch.to_string(),
-                            }));
-                        }
-                        _ => {
-                            tracing::warn!("Existing sandbox {} is not running (status: {:?}), creating new session", sandbox_id, status);
+                match modal.get_sandbox_status(sandbox_id).await {
+                    Ok(status) => {
+                        tracing::info!("Sandbox {} status check returned: {:?}", sandbox_id, status);
+                        match status {
+                            crate::sandbox::SandboxStatus::Running => {
+                                tracing::info!("✓ Found reusable session for task {}: sandbox {} is running", task_id, sandbox_id);
+                                return Ok(Some(crate::sandbox::SandboxInfo {
+                                    id: sandbox_id.clone(),
+                                    hostname: hostname.clone(),
+                                    status,
+                                    session_id: existing_run.session_id.clone().unwrap_or_default(),
+                                    command_id: existing_run.command_id.clone().unwrap_or_default(),
+                                    branch: branch.to_string(),
+                                }));
+                            }
+                            _ => {
+                                tracing::warn!("✗ Existing sandbox {} is not running (status: {:?}), cannot reuse", sandbox_id, status);
+                            }
                         }
                     }
+                    Err(e) => {
+                        tracing::warn!("✗ Failed to check sandbox {} status: {}, cannot reuse", sandbox_id, e);
+                    }
                 }
+            } else {
+                tracing::warn!("✗ No Modal URL configured, cannot check sandbox status for reuse");
             }
+        } else {
+            tracing::warn!("✗ Run {} missing sandbox_id or hostname (sandbox_id: {:?}, hostname: {:?}), cannot reuse", 
+                existing_run.id, existing_run.sandbox_id, existing_run.sandbox_hostname);
         }
+    } else {
+        tracing::info!("✗ No existing active session found for task {} on branch '{}'", task_id, branch);
     }
     
+    tracing::info!("No reusable session available for task {} on branch '{}', will create new sandbox", task_id, branch);
     Ok(None)
 }

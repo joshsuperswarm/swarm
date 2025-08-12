@@ -345,17 +345,9 @@ async fn handle_task_success(
         );
     }
 
-    // Delete the sandbox after PR is created
-    tracing::info!("Deleting sandbox {} after PR creation", sandbox_id);
-    if let Err(e) = app_state.sandbox.delete_sandbox(sandbox_id).await {
-        tracing::warn!(
-            "⚠ Failed to delete sandbox {} after PR creation: {}",
-            sandbox_id,
-            e
-        );
-    } else {
-        tracing::info!("✓ Sandbox {} deleted after PR creation", sandbox_id);
-    }
+    // Note: Sandbox cleanup is handled by idle timeout management (15-minute timeout)
+    // This allows for session reuse if there are subsequent runs on the same task
+    tracing::info!("✓ PR created for task {}, sandbox {} will be cleaned up by idle timeout", task_id, sandbox_id);
 
     Ok(())
 }
