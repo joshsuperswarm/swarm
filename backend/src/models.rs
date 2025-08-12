@@ -155,6 +155,7 @@ pub struct Run {
     pub commit_body: Option<String>,
     pub final_message_md: Option<String>,
     pub mode: String,
+    pub idle_timeout_at: Option<DateTime<Utc>>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }

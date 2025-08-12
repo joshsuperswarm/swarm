@@ -501,7 +501,7 @@ impl Database {
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
-            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at FROM runs WHERE id = $1",
+            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at FROM runs WHERE id = $1",
             run_id
         )
         .fetch_optional(&self.pool)
@@ -575,7 +575,7 @@ impl Database {
             UPDATE runs
                SET status = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             status
@@ -597,7 +597,7 @@ impl Database {
             UPDATE runs
                SET session_id = $2, command_id = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             session,
@@ -620,7 +620,7 @@ impl Database {
             UPDATE runs
                SET commit_title = $2, commit_body = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             commit_title,
@@ -638,7 +638,7 @@ impl Database {
             UPDATE runs
                SET final_message_md = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             md
@@ -655,7 +655,7 @@ impl Database {
             UPDATE runs
                SET branch = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             branch
@@ -677,7 +677,7 @@ impl Database {
             UPDATE runs
                SET sandbox_id = $2, sandbox_hostname = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             sandbox_id,
@@ -694,7 +694,7 @@ impl Database {
             r#"
             INSERT INTO runs (task_id, mode, status, created_at, updated_at)
             VALUES ($1, $2, 'pending', NOW(), NOW())
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
             "#,
             task_id,
             mode,
@@ -780,6 +780,7 @@ impl Database {
                         commit_body: row.commit_body,
                         final_message_md: None, // This is assembled separately
                         mode: mode,
+                        idle_timeout_at: None,
                         created_at: row.run_created_at,
                         updated_at: row.run_updated_at,
                     };
@@ -1018,6 +1019,115 @@ impl Database {
         .await?;
 
         Ok(task)
+    }
+
+    // Session persistence methods for Task 112
+    pub async fn get_existing_branch_for_task(&self, task_id: i32, mode: &str) -> AppResult<Option<String>> {
+        let result = sqlx::query_scalar!(
+            r#"
+            SELECT branch FROM runs 
+            WHERE task_id = $1 AND mode = $2 
+            AND status IN ('spinning', 'running', 'done')
+            ORDER BY created_at DESC 
+            LIMIT 1
+            "#,
+            task_id,
+            mode
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result.flatten())
+    }
+
+    pub async fn find_active_session_for_task(&self, task_id: i32, branch: &str) -> AppResult<Option<Run>> {
+        let run = sqlx::query_as!(
+            Run,
+            r#"
+            SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, 
+                   branch, status, commit_title, commit_body, final_message_md, mode, 
+                   idle_timeout_at, created_at, updated_at
+            FROM runs 
+            WHERE task_id = $1 AND branch = $2 
+            AND sandbox_id IS NOT NULL 
+            AND status IN ('spinning', 'running')
+            AND (idle_timeout_at IS NULL OR idle_timeout_at > NOW())
+            ORDER BY created_at DESC 
+            LIMIT 1
+            "#,
+            task_id,
+            branch
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(run)
+    }
+
+    pub async fn update_run_idle_timeout(&self, run_id: i32, timeout_minutes: i32) -> AppResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE runs 
+            SET idle_timeout_at = NOW() + INTERVAL '1 minute' * $2, updated_at = NOW()
+            WHERE id = $1
+            "#,
+            run_id,
+            timeout_minutes as f64
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_runs_approaching_timeout(&self, minutes_warning: i32) -> AppResult<Vec<Run>> {
+        let runs = sqlx::query_as!(
+            Run,
+            r#"
+            SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, 
+                   branch, status, commit_title, commit_body, final_message_md, mode, 
+                   idle_timeout_at, created_at, updated_at
+            FROM runs 
+            WHERE idle_timeout_at IS NOT NULL 
+            AND idle_timeout_at BETWEEN NOW() AND NOW() + INTERVAL '1 minute' * $1
+            AND status IN ('spinning', 'running')
+            "#,
+            minutes_warning as f64
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(runs)
+    }
+
+    pub async fn get_expired_sessions(&self) -> AppResult<Vec<Run>> {
+        let runs = sqlx::query_as!(
+            Run,
+            r#"
+            SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, 
+                   branch, status, commit_title, commit_body, final_message_md, mode, 
+                   idle_timeout_at, created_at, updated_at
+            FROM runs 
+            WHERE idle_timeout_at IS NOT NULL 
+            AND idle_timeout_at < NOW()
+            AND status IN ('spinning', 'running')
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(runs)
+    }
+
+    pub async fn clear_run_idle_timeout(&self, run_id: i32) -> AppResult<()> {
+        sqlx::query!(
+            "UPDATE runs SET idle_timeout_at = NULL, updated_at = NOW() WHERE id = $1",
+            run_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
 

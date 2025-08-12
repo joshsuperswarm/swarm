@@ -57,6 +57,13 @@ pub async fn run(app_state: AppState) {
             error!("poller cycle error: {e}");
         }
 
+        // Handle idle timeout management every 2 minutes (12 cycles)
+        if cycle_count % 12 == 0 {
+            if let Err(e) = handle_idle_timeouts(&app_state).await {
+                error!("idle timeout handling error: {e}");
+            }
+        }
+
         let elapsed = cycle_start.elapsed();
         if elapsed.as_millis() > 100 {
             warn!(
@@ -394,6 +401,13 @@ async fn finalize_success(
 
     app_state.database.update_run_status(run_id, "done").await?;
 
+    // Set idle timeout instead of immediate cleanup for session persistence
+    if let Err(e) = app_state.database.update_run_idle_timeout(run_id, 15).await {
+        warn!("Failed to set idle timeout for completed run {}: {}", run_id, e);
+    } else {
+        info!("Set 15-minute idle timeout for completed run {}", run_id);
+    }
+
     // Skip PR creation for plan mode
     if run_mode == "plan" {
         info!("task {task_id} → done (plan mode, skipping PR creation)");
@@ -427,5 +441,65 @@ async fn mark_failed(
         .update_run_status(run_id, "failed")
         .await?;
     provider.delete_sandbox(sandbox_id).await.ok();
+    Ok(())
+}
+
+/// Handle idle timeout management for session persistence
+async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
+    let provider = match provider_from_config(&app_state.config) {
+        Some(p) => p,
+        None => {
+            debug!("no sandbox provider configured – skipping idle timeout handling");
+            return Ok(());
+        }
+    };
+
+    // Get runs that are approaching timeout (within 3 minutes)
+    let approaching_timeout = app_state
+        .database
+        .get_runs_approaching_timeout(3)
+        .await?;
+
+    for run in approaching_timeout {
+        if let Some(_sandbox_id) = &run.sandbox_id {
+            debug!("Run {} approaching timeout in 3 minutes", run.id);
+            // Could send keepalive ping here if needed
+        }
+    }
+
+    // Get expired sessions and clean them up
+    let expired_sessions = app_state
+        .database
+        .get_expired_sessions()
+        .await?;
+
+    let expired_count = expired_sessions.len();
+    for run in expired_sessions {
+        if let Some(sandbox_id) = &run.sandbox_id {
+            info!("Session for run {} has expired, cleaning up sandbox {}", run.id, sandbox_id);
+            
+            // Mark run as failed and cleanup sandbox
+            if let Err(e) = app_state.database.update_run_status(run.id, "failed").await {
+                error!("Failed to update run {} status to failed: {}", run.id, e);
+            }
+
+            // Clear the idle timeout
+            if let Err(e) = app_state.database.clear_run_idle_timeout(run.id).await {
+                error!("Failed to clear idle timeout for run {}: {}", run.id, e);
+            }
+
+            // Delete the sandbox
+            if let Err(e) = provider.delete_sandbox(sandbox_id).await {
+                error!("Failed to delete expired sandbox {}: {}", sandbox_id, e);
+            } else {
+                info!("Successfully cleaned up expired sandbox {}", sandbox_id);
+            }
+        }
+    }
+
+    if expired_count > 0 {
+        info!("Cleaned up {} expired sessions", expired_count);
+    }
+
     Ok(())
 }

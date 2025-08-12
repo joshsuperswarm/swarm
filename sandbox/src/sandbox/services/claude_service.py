@@ -76,6 +76,9 @@ class ClaudeService:
             )
 
         # -------- 3.  build environment -----------------------------------------
+        # Check if this is a continuation session by looking for existing Claude Code session
+        is_continuation_session = self._check_existing_claude_session(sandbox_id, req.repo_path)
+
         if req.mode == "plan":
             # Plan mode: export only API keys, no GitHub token or Git environment
             env_pairs = {
@@ -99,8 +102,12 @@ class ClaudeService:
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
             
-            # Execute/Review modes use existing dangerous permissions
-            claude_args = "claude -p --dangerously-skip-permissions --verbose --output-format stream-json"
+            # Execute/Review modes: use --continue for session reuse
+            if is_continuation_session:
+                claude_args = "claude --continue -p --dangerously-skip-permissions --verbose --output-format stream-json"
+                self.logger.info("Using --continue flag for session continuity in task %s", req.task_id)
+            else:
+                claude_args = "claude -p --dangerously-skip-permissions --verbose --output-format stream-json"
 
         env_setup = " && ".join(
             f"export {k}={shlex.quote(v)}" for k, v in env_pairs.items()
@@ -147,3 +154,27 @@ class ClaudeService:
             raise HTTPException(
                 status_code=500, detail=f"Failed to verify Claude Code: {str(e)}"
             )
+    
+    def _check_existing_claude_session(self, sandbox_id: str, repo_path: str) -> bool:
+        """Check if there's an existing Claude Code session in this sandbox/repo."""
+        try:
+            sb = self.sandbox_service.get(sandbox_id)
+            
+            # Check for Claude Code memory/session files in the repo directory
+            # Claude Code typically stores session state in .claude/ directory
+            check_cmd = f"test -d {shlex.quote(repo_path)}/.claude && echo 'exists' || echo 'none'"
+            result = sb.exec("bash", "-c", check_cmd).wait()
+            
+            if result.exit_code == 0:
+                output = result.stdout.strip()
+                session_exists = output == 'exists'
+                if session_exists:
+                    self.logger.info("Found existing Claude Code session in %s", repo_path)
+                return session_exists
+            else:
+                self.logger.debug("Could not check for existing Claude Code session: %s", result.stderr)
+                return False
+                
+        except Exception as e:
+            self.logger.warning("Error checking for existing Claude Code session: %s", str(e))
+            return False

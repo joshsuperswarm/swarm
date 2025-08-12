@@ -1,5 +1,6 @@
 use crate::claude;
 use crate::models::Task;
+use crate::sandbox::SandboxProvider;
 use crate::AppState;
 use anyhow::Result;
 use tracing::instrument;
@@ -144,8 +145,8 @@ pub async fn run_full_task_pipeline(
         .update_task_title(task.id, &title)
         .await?;
 
-    // Generate branch name and author info - fail if GitHub username or email not available
-    let branch = format!("swarm/task-{}", task.id);
+    // Determine branch name with reuse logic
+    let branch = determine_branch_for_task(&app_state, task.id, mode).await?;
     let author_name = match user.github_username.clone() {
         Some(username) => username,
         None => {
@@ -217,30 +218,45 @@ pub async fn run_full_task_pipeline(
         tracing::info!("task {} / run {} → spinning", task.id, run.id);
     }
 
-    let sandbox_info = match app_state
-        .sandbox
-        .start_sandbox(
-            task.id,
-            &repo_url,
-            &github_token,
-            &prompt,
-            &anthropic_api_key,
-            openai_api_key_opt.as_deref(),
-            &branch,
-            &author_name,
-            &author_email,
-            mode,
-        )
-        .await
-    {
-        Ok(info) => {
-            tracing::info!("Started sandbox {} for task {}", info.id, task.id);
-            info
+    // Check for existing active sandbox for this task
+    let sandbox_info = if let Some(existing) = find_reusable_session(&app_state, task.id, &branch).await? {
+        tracing::info!("Reusing existing sandbox {} for task {}", existing.id, task.id);
+        // Set idle timeout for reused session (extend by 15 minutes)
+        if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
+            tracing::warn!("Failed to set idle timeout for reused session: {}", e);
         }
-        Err(e) => {
-            tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
-            let _ = app_state.database.update_run_status(run.id, "failed").await;
-            return Err(anyhow::anyhow!("Failed to start sandbox: {}", e));
+        existing
+    } else {
+        // Create new sandbox as current logic
+        match app_state
+            .sandbox
+            .start_sandbox(
+                task.id,
+                &repo_url,
+                &github_token,
+                &prompt,
+                &anthropic_api_key,
+                openai_api_key_opt.as_deref(),
+                &branch,
+                &author_name,
+                &author_email,
+                mode,
+            )
+            .await
+        {
+            Ok(info) => {
+                tracing::info!("Started new sandbox {} for task {}", info.id, task.id);
+                // Set initial idle timeout for new session (15 minutes)
+                if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
+                    tracing::warn!("Failed to set idle timeout for new session: {}", e);
+                }
+                info
+            }
+            Err(e) => {
+                tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
+                let _ = app_state.database.update_run_status(run.id, "failed").await;
+                return Err(anyhow::anyhow!("Failed to start sandbox: {}", e));
+            }
         }
     };
 
@@ -282,4 +298,79 @@ pub async fn run_full_task_pipeline(
     );
 
     Ok(())
+}
+
+/// Determine branch name for task with reuse logic
+/// For "execute" mode: Reuse existing branch if available and PR not merged
+/// For "plan" mode: Always create new branch (separate planning workflow)  
+/// Fallback: Generate new branch if none exists
+async fn determine_branch_for_task(
+    app_state: &AppState,
+    task_id: i32,
+    mode: &str,
+) -> Result<String> {
+    if mode == "plan" {
+        // Plan mode always gets new branch
+        return Ok(format!("swarm/task-{}", task_id));
+    }
+    
+    // For execute mode, try to reuse existing branch
+    if let Ok(Some(existing_branch)) = app_state
+        .database
+        .get_existing_branch_for_task(task_id, mode)
+        .await
+    {
+        tracing::info!("Reusing existing branch '{}' for task {}", existing_branch, task_id);
+        return Ok(existing_branch);
+    }
+
+    // Fallback: generate new branch
+    let new_branch = format!("swarm/task-{}", task_id);
+    tracing::info!("Creating new branch '{}' for task {}", new_branch, task_id);
+    Ok(new_branch)
+}
+
+/// Check for existing active sandbox for this task and branch
+async fn find_reusable_session(
+    app_state: &AppState, 
+    task_id: i32, 
+    branch: &str,
+) -> Result<Option<crate::sandbox::SandboxInfo>> {
+    if let Some(existing_run) = app_state
+        .database
+        .find_active_session_for_task(task_id, branch)
+        .await?
+    {
+        // Verify the session is still valid
+        if let (Some(sandbox_id), Some(hostname)) = (&existing_run.sandbox_id, &existing_run.sandbox_hostname) {
+            // Check if sandbox is still alive via provider
+            if let Some(modal_url) = &app_state.config.modal_url {
+                let modal = crate::sandbox::modal::ModalProvider::new(
+                    modal_url.clone(),
+                    app_state.config.modal_region.clone(),
+                );
+                
+                if let Ok(status) = modal.get_sandbox_status(sandbox_id).await {
+                    match status {
+                        crate::sandbox::SandboxStatus::Running => {
+                            tracing::info!("Found reusable session for task {}: sandbox {}", task_id, sandbox_id);
+                            return Ok(Some(crate::sandbox::SandboxInfo {
+                                id: sandbox_id.clone(),
+                                hostname: hostname.clone(),
+                                status,
+                                session_id: existing_run.session_id.clone().unwrap_or_default(),
+                                command_id: existing_run.command_id.clone().unwrap_or_default(),
+                                branch: branch.to_string(),
+                            }));
+                        }
+                        _ => {
+                            tracing::warn!("Existing sandbox {} is not running (status: {:?}), creating new session", sandbox_id, status);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(None)
 }
