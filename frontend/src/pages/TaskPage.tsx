@@ -230,7 +230,7 @@ export function TaskPage() {
               onClick={() => navigate('/')}
               aria-label="Back to tasks"
               title="Back to tasks (Esc)"
-              className="h-9 w-9 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+              className="h-9 w-9 flex items-center justify-center rounded-md bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
