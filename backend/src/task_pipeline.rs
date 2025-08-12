@@ -2,7 +2,6 @@ use crate::claude;
 use crate::models::Task;
 use crate::AppState;
 use anyhow::Result;
-use chrono::Utc;
 use tracing::instrument;
 
 /// Runs the full task pipeline in a detached tokio task
@@ -146,7 +145,7 @@ pub async fn run_full_task_pipeline(
         .await?;
 
     // Generate branch name and author info - fail if GitHub username or email not available
-    let branch = format!("swarm/task-{}-{}", task.id, Utc::now().format("%Y%m%d%H%M"));
+    let branch = format!("swarm/task-{}", task.id);
     let author_name = match user.github_username.clone() {
         Some(username) => username,
         None => {

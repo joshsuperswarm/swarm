@@ -24,7 +24,7 @@ async fn test_pr_flow_database_integration() {
     .expect("Failed to create test task");
 
     // Test updating task with branch (simulated by adding to PR URL for now)
-    let test_branch = format!("swarm/task-{}-202501071600", test_task_id);
+    let test_branch = format!("swarm/task-{}", test_task_id);
 
     // Test updating task with PR URL and status
     let test_pr_url = "https://github.com/test-owner/test-repo/pull/123";
