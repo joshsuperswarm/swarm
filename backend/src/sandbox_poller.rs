@@ -259,14 +259,20 @@ async fn wait_for_final_message(
             .await;
     }
 
-    let run = app_state.database.get_run_by_id(run_id).await?
+    let run = app_state
+        .database
+        .get_run_by_id(run_id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
 
     let final_md = run.final_message_md.clone().unwrap_or_default();
 
     if final_md.trim().is_empty() {
         tracing::error!("Run {} has no final message; cannot synthesize PR", run_id);
-        app_state.database.update_run_status(run_id, "failed").await?;
+        app_state
+            .database
+            .update_run_status(run_id, "failed")
+            .await?;
         return Err(anyhow::anyhow!("No final message to synthesize PR from"));
     }
 
@@ -280,29 +286,41 @@ async fn wait_for_final_message(
     }
 
     // Get task to get user_id
-    let task = app_state.database.get_task_by_id_raw(task_id).await?
+    let task = app_state
+        .database
+        .get_task_by_id_raw(task_id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("Task {} not found", task_id))?;
 
     // Get user's stored API keys
-    let (anthropic_api_key_opt, _) =
-        crate::onboarding::get_decrypted_api_keys_for_user(&app_state.database, &app_state.config, task.user_id).await?;
-    let api_key = anthropic_api_key_opt
-        .ok_or_else(|| anyhow::anyhow!("No Anthropic API key for user"))?;
-    
+    let (anthropic_api_key_opt, _) = crate::onboarding::get_decrypted_api_keys_for_user(
+        &app_state.database,
+        &app_state.config,
+        task.user_id,
+    )
+    .await?;
+    let api_key =
+        anthropic_api_key_opt.ok_or_else(|| anyhow::anyhow!("No Anthropic API key for user"))?;
+
     match crate::claude::synthesize_pr_from_agent_output(&final_md, &api_key).await {
         Ok((pr_title, pr_body)) => {
             // Save PR artifacts to task
-            app_state.database
+            app_state
+                .database
                 .set_task_pr_artifacts(task_id, Some(pr_title.clone()), Some(pr_body.clone()))
                 .await?;
 
             // Also set a commit title/body (short form)
             let commit_title = pr_title.chars().take(72).collect::<String>();
-            app_state.database
+            app_state
+                .database
                 .set_run_artifacts(run_id, Some(commit_title), None)
                 .await?;
 
-            info!("Successfully synthesized PR for task {} from final message", task_id);
+            info!(
+                "Successfully synthesized PR for task {} from final message",
+                task_id
+            );
 
             return finalize_success(
                 app_state, provider, run_id, task_id, sandbox_id, command_id, &run.mode,
@@ -311,7 +329,10 @@ async fn wait_for_final_message(
         }
         Err(e) => {
             tracing::error!("PR synthesis failed for task {}: {}", task_id, e);
-            app_state.database.update_run_status(run_id, "failed").await?;
+            app_state
+                .database
+                .update_run_status(run_id, "failed")
+                .await?;
             return Err(anyhow::anyhow!("PR synthesis failed: {}", e));
         }
     }
@@ -328,9 +349,45 @@ async fn finalize_success(
 ) -> anyhow::Result<()> {
     info!("task {task_id} finalizing success");
 
-    // Fetch comment artifacts after successful completion for plan and review modes
-    // Only fetch artifacts for plan and review modes - execute mode doesn't generate artifacts
-    if run_mode == "plan" || run_mode == "review" {
+    // Handle artifacts based on run mode
+    if run_mode == "plan" {
+        // For plan mode, use final_message_md from the run instead of fetching file artifacts
+        let run = app_state
+            .database
+            .get_run_by_id(run_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
+
+        if let Some(final_md) = run.final_message_md.as_deref() {
+            // Create a SHA256 hash for the plan content
+            use ring::digest;
+            let digest_bytes = digest::digest(&digest::SHA256, final_md.as_bytes());
+            let sha = digest_bytes
+                .as_ref()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>();
+
+            if let Err(e) = app_state
+                .database
+                .upsert_message(task_id, run_id, "plan", final_md, &sha, "assistant")
+                .await
+            {
+                warn!("Failed to store plan artifact for task {}: {}", task_id, e);
+            } else {
+                info!(
+                    "Successfully stored plan artifact for task {} from final message",
+                    task_id
+                );
+            }
+        } else {
+            warn!(
+                "Plan run {} has no final_message_md; skipping message upsert",
+                run_id
+            );
+        }
+    } else if run_mode == "review" {
+        // Review mode still uses file artifacts
         match provider.fetch_artifact(sandbox_id, task_id, run_mode).await {
             Ok((body_md, sha)) => {
                 if let Err(e) = app_state
