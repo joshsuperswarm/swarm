@@ -74,8 +74,9 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
               {children}
             </pre>
           ),
-          code: ({ inline, children }) =>
-            inline ? (
+          code: ({ children, ...props }) => {
+            const isInline = !props.className?.includes('language-');
+            return isInline ? (
               <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono">
                 {children}
               </code>
@@ -83,7 +84,8 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
               <code className="text-gray-800 font-mono text-sm leading-relaxed">
                 {children}
               </code>
-            ),
+            );
+          },
           
           // Blockquotes - clean, minimal
           blockquote: ({ children }) => (

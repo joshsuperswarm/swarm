@@ -28,8 +28,8 @@ export function TaskChatPage() {
   const messages = taskDetails?.messages || [];
   const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
   
-  // Use the mode from current run, fallback to task mode, then default to execute
-  const initialMode = (currentRun?.run?.mode || task?.mode || "execute") as RunMode;
+  // Use the mode from current run, fallback to default execute mode
+  const initialMode = (currentRun?.run?.mode || "execute") as RunMode;
   const { mode, cycleRunMode, getModeConfig } = useRunMode(initialMode);
   
   // Chat input state

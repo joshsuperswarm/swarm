@@ -117,12 +117,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     setLoading(true);
     onCreateTask(sanitizedData);
 
-    // Reset form
-    setFormData({
+    // Reset form but preserve mode preference
+    setFormData(prev => ({
       description: '',
       repositoryId: null,
-      mode: 'execute'
-    });
+      mode: prev.mode
+    }));
 
     setLoading(false);
   };
