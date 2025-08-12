@@ -92,8 +92,15 @@ export function TasksPage() {
     }
   };
 
+  // Handle toggle selection for current task
+  const handleToggleSelect = () => {
+    if (currentSelectedTask) {
+      handleSelectionChange(currentSelectedTask.task_id, !selectedTaskIds.has(currentSelectedTask.task_id));
+    }
+  };
+
   // Use custom hotkeys hook for j/k navigation and archive
-  useTaskHotkeys(tasks.length, selectedIndex, setSelectedIndex, handleArchive);
+  useTaskHotkeys(tasks.length, selectedIndex, setSelectedIndex, handleArchive, handleToggleSelect);
 
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {
@@ -197,23 +204,6 @@ export function TasksPage() {
         </div>
       )}
 
-      {/* Selection indicator */}
-      {selectedTaskIds.size > 0 && (
-        <div className="mb-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <span className="text-sm text-blue-800">
-            {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-blue-600">Press 'E' to archive selected tasks</span>
-            <button
-              onClick={() => setSelectedTaskIds(new Set())}
-              className="text-xs text-blue-600 hover:text-blue-800 underline"
-            >
-              Clear selection
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main content */}
       <div className="flex-1 min-w-0">

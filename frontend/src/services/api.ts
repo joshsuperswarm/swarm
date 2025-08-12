@@ -175,7 +175,7 @@ export class ApiService {
     return request('/api/tasks/archive', {
       token,
       method: 'PUT',
-      body: { task_ids: taskIds },
+      body: JSON.stringify({ task_ids: taskIds }),
     });
   }
 }

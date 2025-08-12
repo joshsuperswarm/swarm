@@ -4,7 +4,8 @@ export function useTaskHotkeys(
   tasksLength: number,
   selectedIndex: number,
   setSelectedIndex: (i: number) => void,
-  onArchive?: () => void
+  onArchive?: () => void,
+  onToggleSelect?: () => void
 ) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -25,9 +26,14 @@ export function useTaskHotkeys(
         e.preventDefault();
         onArchive?.();
       }
+
+      if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault();
+        onToggleSelect?.();
+      }
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tasksLength, selectedIndex, setSelectedIndex, onArchive]);
+  }, [tasksLength, selectedIndex, setSelectedIndex, onArchive, onToggleSelect]);
 }
