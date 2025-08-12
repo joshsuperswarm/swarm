@@ -988,6 +988,37 @@ impl Database {
 
         Ok(result.and_then(|r| r.onboarding_completed).unwrap_or(false))
     }
+
+    // PR polling operations
+    pub async fn get_tasks_needing_pr_polling(&self) -> AppResult<Vec<Task>> {
+        let tasks = sqlx::query_as!(
+            Task,
+            r#"SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at 
+               FROM tasks 
+               WHERE status = 'pr_opened' 
+               AND github_pr_url IS NOT NULL
+               AND is_archived = false"#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        
+        Ok(tasks)
+    }
+
+    pub async fn update_task_to_pr_merged(&self, task_id: i32) -> AppResult<Task> {
+        let task = sqlx::query_as!(
+            Task,
+            r#"UPDATE tasks 
+               SET status = 'pr_merged', updated_at = NOW()
+               WHERE id = $1 
+               RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at"#,
+            task_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(task)
+    }
 }
 
 #[cfg(test)]

@@ -210,6 +210,57 @@ impl GitHubPRClient {
                 }))
         }
     }
+
+    /// Check if a pull request has been merged
+    pub async fn is_merged(&self, owner: &str, repo: &str, pr_number: u64) -> Result<bool> {
+        tracing::debug!("Checking merge status for PR #{} in {}/{}", pr_number, owner, repo);
+        
+        match self.octocrab.pulls(owner, repo).get(pr_number).await {
+            Ok(pr) => {
+                let is_merged = pr.merged_at.is_some();
+                tracing::debug!(
+                    "PR #{} in {}/{} merge status: {}",
+                    pr_number,
+                    owner,
+                    repo,
+                    if is_merged { "merged" } else { "not merged" }
+                );
+                Ok(is_merged)
+            }
+            Err(e) => {
+                tracing::error!("Failed to check PR merge status for #{} in {}/{}: {}", pr_number, owner, repo, e);
+                Err(e.into())
+            }
+        }
+    }
+
+    /// Parse PR URL to extract owner, repo, and PR number
+    pub fn parse_pr_url(pr_url: &str) -> Result<(String, String, u64)> {
+        tracing::debug!("Parsing PR URL: {}", pr_url);
+        
+        let url = url::Url::parse(pr_url)
+            .map_err(|e| anyhow::anyhow!("Invalid PR URL: {}", e))?;
+        
+        if url.host_str() != Some("github.com") {
+            return Err(anyhow::anyhow!("PR URL must be from github.com"));
+        }
+        
+        let path_segments: Vec<&str> = url.path_segments()
+            .ok_or_else(|| anyhow::anyhow!("Invalid PR URL path"))?
+            .collect();
+        
+        if path_segments.len() < 4 || path_segments[2] != "pull" {
+            return Err(anyhow::anyhow!("PR URL must be in format: https://github.com/owner/repo/pull/number"));
+        }
+        
+        let owner = path_segments[0].to_string();
+        let repo = path_segments[1].to_string();
+        let pr_number = path_segments[3].parse::<u64>()
+            .map_err(|e| anyhow::anyhow!("Invalid PR number: {}", e))?;
+        
+        tracing::debug!("Parsed PR URL - owner: {}, repo: {}, number: {}", owner, repo, pr_number);
+        Ok((owner, repo, pr_number))
+    }
 }
 
 #[cfg(test)]
@@ -225,15 +276,9 @@ mod tests {
             description: Some("Test description".to_string()),
             status: Some("running".to_string()),
             github_pr_url: None,
-            github_branch: None,
-            sandbox_id: None,
-            sandbox_hostname: None,
-            session_id: None,
-            command_id: None,
-            commit_title: None,
-            commit_body: None,
             pr_title: None,
             pr_body: None,
+            is_archived: false,
             created_at: None,
             updated_at: None,
         }
@@ -302,5 +347,23 @@ mod tests {
             expected_url,
             "https://github.com/test-owner/test-repo/pull/42"
         );
+    }
+
+    #[test]
+    fn test_parse_pr_url() {
+        // Test valid PR URL parsing
+        let url = "https://github.com/owner/repo/pull/123";
+        let result = GitHubPRClient::parse_pr_url(url);
+        assert!(result.is_ok());
+        let (owner, repo, pr_number) = result.unwrap();
+        assert_eq!(owner, "owner");
+        assert_eq!(repo, "repo");
+        assert_eq!(pr_number, 123);
+
+        // Test invalid URLs
+        assert!(GitHubPRClient::parse_pr_url("invalid-url").is_err());
+        assert!(GitHubPRClient::parse_pr_url("https://gitlab.com/owner/repo/pull/123").is_err());
+        assert!(GitHubPRClient::parse_pr_url("https://github.com/owner/repo/issues/123").is_err());
+        assert!(GitHubPRClient::parse_pr_url("https://github.com/owner/repo/pull/abc").is_err());
     }
 }

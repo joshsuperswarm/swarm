@@ -209,7 +209,7 @@ export function TaskPage() {
   }
 
   const status = statuses.find((s) => s.value === currentRunStatus);
-  const showLogsEligible = ['spinning', 'running', 'done', 'failed', 'pr_opened'].includes(
+  const showLogsEligible = ['spinning', 'running', 'done', 'failed', 'pr_opened', 'pr_merged'].includes(
     currentRunStatus ?? ''
   );
 
@@ -262,6 +262,16 @@ export function TaskPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:underline"
+                  >
+                    {status.label}
+                  </a>
+                ) : status.value === "pr_merged" && liveTask.github_pr_url ? (
+                  <a
+                    href={liveTask.github_pr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-green-600 hover:underline"
+                    title="PR was merged on GitHub"
                   >
                     {status.label}
                   </a>
@@ -384,7 +394,7 @@ export function TaskPage() {
                   }`} />
                   <span className="text-xs text-muted-foreground">
                     {logsState.isLoading ? 'Loading...' : 
-                     logsState.taskCompleted || (currentRunStatus && ['done', 'failed', 'pr_opened'].includes(currentRunStatus)) ? `Task completed • ${logsState.logs.length} entries` :
+                     logsState.taskCompleted || (currentRunStatus && ['done', 'failed', 'pr_opened', 'pr_merged'].includes(currentRunStatus)) ? `Task completed • ${logsState.logs.length} entries` :
                      `${logsState.logs.length} log entries`}
                   </span>
                   {logsVisible && !logsState.isLoading && (

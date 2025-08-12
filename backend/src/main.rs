@@ -22,6 +22,7 @@ mod github;
 mod github_pr;
 mod models;
 mod onboarding;
+mod pr_status_poller;
 mod sandbox;
 mod sandbox_poller;
 mod task_pipeline;
@@ -39,6 +40,7 @@ use models::{
     SetDefaultRepoRequest, Task, TaskDetails, TaskLog, TaskLogsPaginated, TaskWithRun, 
     UpdateApiKeysRequest, User, UserWithDefaultRepo,
 };
+use pr_status_poller::PrStatusPoller;
 use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
 use ts_rs::TS;
@@ -437,6 +439,14 @@ async fn main() -> AppResult<()> {
     let poller_app_state = app_state.clone();
     tokio::spawn(async move {
         sandbox_poller::run(poller_app_state).await;
+    });
+
+    // Start PR status poller (non-blocking)
+    let pr_poller_db = Arc::new(app_state.database.clone());
+    let pr_poller_token = config.github_token.clone();
+    tokio::spawn(async move {
+        let pr_poller = PrStatusPoller::new(pr_poller_db, pr_poller_token.as_deref());
+        pr_poller.start_polling().await;
     });
 
     let app = Router::new()

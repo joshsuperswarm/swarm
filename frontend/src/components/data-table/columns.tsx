@@ -146,6 +146,27 @@ export const createColumns = (
         )
       }
 
+      // If status is "pr_merged" and we have a PR URL, make it clickable with green styling
+      if (status.value === "pr_merged" && task.github_pr_url) {
+        return (
+          <div className="flex w-[80px] md:w-[100px] items-center">
+            {status.icon && (
+              <status.icon className="mr-1 h-3 w-3 text-green-600" />
+            )}
+            <a 
+              href={task.github_pr_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] md:text-xs text-green-600 hover:underline"
+              onClick={(e) => e.stopPropagation()} // Prevent row click
+              title="PR was merged on GitHub"
+            >
+              {status.label}
+            </a>
+          </div>
+        )
+      }
+
       return (
         <div className="flex w-[80px] md:w-[100px] items-center">
           {status.icon && (
