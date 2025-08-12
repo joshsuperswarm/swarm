@@ -4,4 +4,4 @@
 ALTER TABLE runs ADD COLUMN idle_timeout_at TIMESTAMPTZ;
 
 -- Create index for efficient timeout queries
-CREATE INDEX CONCURRENTLY idx_runs_idle_timeout_at ON runs (idle_timeout_at) WHERE idle_timeout_at IS NOT NULL;
+CREATE INDEX idx_runs_idle_timeout_at ON runs (idle_timeout_at) WHERE idle_timeout_at IS NOT NULL;

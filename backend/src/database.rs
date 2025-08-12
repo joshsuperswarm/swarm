@@ -1080,25 +1080,6 @@ impl Database {
         Ok(())
     }
 
-    pub async fn get_runs_approaching_timeout(&self, minutes_warning: i32) -> AppResult<Vec<Run>> {
-        let runs = sqlx::query_as!(
-            Run,
-            r#"
-            SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, 
-                   branch, status, commit_title, commit_body, final_message_md, mode, 
-                   idle_timeout_at, created_at, updated_at
-            FROM runs 
-            WHERE idle_timeout_at IS NOT NULL 
-            AND idle_timeout_at BETWEEN NOW() AND NOW() + INTERVAL '1 minute' * $1
-            AND status IN ('spinning', 'running')
-            "#,
-            minutes_warning as f64
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(runs)
-    }
 
     pub async fn get_expired_sessions(&self) -> AppResult<Vec<Run>> {
         let runs = sqlx::query_as!(

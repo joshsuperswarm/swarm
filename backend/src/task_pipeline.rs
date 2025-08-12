@@ -301,20 +301,14 @@ pub async fn run_full_task_pipeline(
 }
 
 /// Determine branch name for task with reuse logic
-/// For "execute" mode: Reuse existing branch if available and PR not merged
-/// For "plan" mode: Always create new branch (separate planning workflow)  
+/// All modes (execute, plan, review): Reuse existing branch if available and PR not merged
 /// Fallback: Generate new branch if none exists
 async fn determine_branch_for_task(
     app_state: &AppState,
     task_id: i32,
     mode: &str,
 ) -> Result<String> {
-    if mode == "plan" {
-        // Plan mode always gets new branch
-        return Ok(format!("swarm/task-{}", task_id));
-    }
-    
-    // For execute mode, try to reuse existing branch
+    // Try to reuse existing branch for all modes
     if let Ok(Some(existing_branch)) = app_state
         .database
         .get_existing_branch_for_task(task_id, mode)

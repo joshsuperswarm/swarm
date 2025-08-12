@@ -454,19 +454,6 @@ async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
         }
     };
 
-    // Get runs that are approaching timeout (within 3 minutes)
-    let approaching_timeout = app_state
-        .database
-        .get_runs_approaching_timeout(3)
-        .await?;
-
-    for run in approaching_timeout {
-        if let Some(_sandbox_id) = &run.sandbox_id {
-            debug!("Run {} approaching timeout in 3 minutes", run.id);
-            // Could send keepalive ping here if needed
-        }
-    }
-
     // Get expired sessions and clean them up
     let expired_sessions = app_state
         .database
