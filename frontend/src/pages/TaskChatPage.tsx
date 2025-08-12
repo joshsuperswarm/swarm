@@ -249,24 +249,26 @@ export function TaskChatPage() {
               </button>
 
               {/* Input */}
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  placeholder="Type your message…"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isSending}
-                  className="w-full px-3 py-2 pr-10 rounded-md border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed touch-target"
-                />
-                <button 
-                  onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isSending}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target"
-                  title="Send message"
-                >
-                  <span className="text-xs">{isSending ? "..." : "→"}</span>
-                </button>
+              <div className="flex-1">
+                <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-blue-500 transition-colors">
+                  <input
+                    type="text"
+                    placeholder="Type your message…"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isSending}
+                    className="flex-1 px-3 py-2 text-gray-900 placeholder:text-gray-500 bg-transparent focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!inputValue.trim() || isSending}
+                    className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target"
+                    title="Send message"
+                  >
+                    <span className="text-xs">{isSending ? "..." : "→"}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
