@@ -162,6 +162,7 @@ export function TaskChatPage() {
               >
               <ChatBubble
                 variant={message.role === "user" ? "user" : "assistant"}
+                fullWidth={message.role === "assistant"}
               >
                 <div className="whitespace-pre-wrap break-words">
                   {message.content}
