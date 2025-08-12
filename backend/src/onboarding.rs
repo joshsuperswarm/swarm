@@ -148,7 +148,7 @@ pub async fn get_onboarding_status(db: &PgPool, user_id: i32) -> AppResult<Onboa
     // Determine step
     let step = if onboarding_completed {
         None
-    } else if !has_anthropic && !has_openai {
+    } else if !has_anthropic {
         Some("api-keys".to_string())
     } else if !has_default_repo {
         Some("default-repo".to_string())
