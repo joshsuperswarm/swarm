@@ -7,10 +7,10 @@ import { createColumns } from '@/components/data-table/columns';
 import { DataTable } from '@/components/data-table/data-table';
 import { useAuth } from '@clerk/clerk-react';
 import PricingScreen from '@/pages/PricingPage';
-import { useTasksQuery, useUserProfileQuery, useCreateTaskMutation } from '@/services/queries';
-import { ApiService, type RunMode } from '@/services/api';
+import { useTasksQuery } from '@/services/queries';
+import { ApiService } from '@/services/api';
 import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
-import { CreateTaskModal } from '@/components/CreateTaskModal';
+import { useModalStore } from '@/store/modalStore';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 // Memoize DataTable outside component to ensure stable reference
@@ -19,11 +19,8 @@ const MemoizedDataTable = React.memo(DataTable<TaskWithRun, unknown>); // defaul
 export function TasksPage() {
   const navigate = useNavigate();
   const { data: rawTasks = [], isFetching, error } = useTasksQuery();
-  const { data: userProfile } = useUserProfileQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isModalOpen, setModalOpen] = useState(false);
-  const createTask = useCreateTaskMutation();
-  const defaultRepo = userProfile?.default_repo ?? null;
+  const { openCreateTask, createTaskOpen } = useModalStore();
   const { has, isLoaded } = useAuth();
   
   // Reverse the array so newest appears at top but j/k navigation works correctly
@@ -87,18 +84,11 @@ export function TasksPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentSelectedTask, navigate]);
 
-  // Global hotkeys for modal
-  useHotkeys('esc', () => {
-    if (isModalOpen) {
-      setModalOpen(false);
-    }
-  }, {
-    enabled: isModalOpen
-  });
-
-  // Create task with 'c' key
+  // Create task with 'c' key - guard against opening multiple times
   useHotkeys('c', () => {
-    setModalOpen(true);
+    if (!createTaskOpen) {
+      openCreateTask();
+    }
   });
 
   // Prefetch cache warm-up effect
@@ -135,30 +125,6 @@ export function TasksPage() {
     return <PricingScreen />;
   }
 
-  // Handle task creation
-  const handleCreateTask = async (taskData: {
-    description: string;
-    repositoryId: number | null;
-    mode: RunMode;
-  }) => {
-    try {
-      if (!taskData.repositoryId) {
-        throw new Error('Repository is required');
-      }
-      
-      await createTask.mutateAsync({
-        description: taskData.description,
-        repository_id: taskData.repositoryId,
-        mode: taskData.mode,
-      });
-      setModalOpen(false);
-      // Note: React Query will automatically invalidate and refetch tasks
-    } catch (err) {
-      console.error("Failed to create task:", err);
-      // TODO: Show error notification to user
-      setModalOpen(false);
-    }
-  };
 
   return (
     <div className="relative flex-1 min-w-0 overflow-hidden px-3 py-3 md:px-4 md:py-4 pb-24">
@@ -193,12 +159,6 @@ export function TasksPage() {
         />
       </div>
 
-      <CreateTaskModal
-        isOpen={isModalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreateTask={handleCreateTask}
-        defaultRepository={defaultRepo}
-      />
     </div>
   );
 }

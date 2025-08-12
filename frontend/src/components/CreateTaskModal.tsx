@@ -91,44 +91,16 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     return () => document.body.classList.remove('body-lock');
   }, [isOpen]);
 
-  // Focus trap for accessibility and run mode cycling
+  // Add a mount guard (dev aid)
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-        return;
+    if (import.meta.env.DEV) {
+      const others = document.querySelectorAll('[data-create-task-modal="true"]');
+      if (others.length > 1) {
+        console.warn('CreateTaskModal mounted more than once!', others);
       }
-      
-      if (e.key === 'Tab') {
-        // Handle Shift+Tab for mode cycling
-        if (e.shiftKey) {
-          e.preventDefault();
-          cycleRunMode();
-          return;
-        }
-
-        const modal = modalRef.current;
-        if (!modal) return;
-
-        const focusableElements = modal.querySelectorAll(
-          'input, textarea, button, [tabindex]:not([tabindex="-1"])'
-        );
-        const firstElement = focusableElements[0] as HTMLElement;
-        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
-
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, cycleRunMode]);
+    }
+  }, [isOpen]);
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -167,13 +139,41 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center p-0 md:p-4 z-50">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center p-0 md:p-4 z-50"
+      data-create-task-modal="true"
+      // Key handling at the container; do not let it bubble to window
+      onKeyDownCapture={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          // Some environments need this to be extra safe:
+          if (e.nativeEvent && 'stopImmediatePropagation' in e.nativeEvent && typeof e.nativeEvent.stopImmediatePropagation === 'function') {
+            e.nativeEvent.stopImmediatePropagation();
+          }
+          onClose();
+        }
+        
+        // Handle Shift+Tab for mode cycling
+        if (e.key === 'Tab' && e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          cycleRunMode();
+        }
+      }}
+      // Close on overlay click, but not when clicking content
+      onClick={(e) => {
+        if (e.currentTarget === e.target) onClose();
+      }}
+      role="presentation"
+    >
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-task-title"
         className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 w-full h-[100dvh] md:h-auto md:max-w-2xl rounded-t-2xl md:rounded-lg p-4 safe-pt safe-pb overflow-auto"
+        // prevent clicks from closing
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
           <h2 id="create-task-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Task</h2>

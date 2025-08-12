@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { UserButton, useAuth, useUser } from '@clerk/clerk-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
@@ -7,6 +7,7 @@ import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService, type RunMode } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
+import { useModalStore } from './store/modalStore'
 import { useCreateTaskMutation } from '@/services/queries'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { Edit } from 'lucide-react'
@@ -14,10 +15,10 @@ import swarmLogo from './assets/swarm-logo.png'
 import './App.css'
 
 function App() {
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const { isSignedIn, isLoaded } = useAuth()
   const { user } = useUser()
   const { user: userData, loadUserProfile, clearUserProfile } = useUserStore()
+  const { createTaskOpen, openCreateTask, closeCreateTask } = useModalStore()
   const createTask = useCreateTaskMutation()
   const api = useBackendApi()
   const { onboardingStatus, isLoading: onboardingLoading } = useOnboarding()
@@ -42,12 +43,12 @@ function App() {
         mode: taskData.mode,
       });
 
-      setIsCreateModalOpen(false);
+      closeCreateTask();
       // Note: React Query will automatically invalidate and refetch tasks
     } catch (err) {
       console.error("Failed to create task:", err);
       // TODO: Show error notification to user
-      setIsCreateModalOpen(false);
+      closeCreateTask();
     }
   };
 
@@ -111,18 +112,11 @@ function App() {
     })()
   }, [isSignedIn, user, loadUserProfile, clearUserProfile, api])
 
-  // Global hotkeys
-  useHotkeys('esc', () => {
-    if (isCreateModalOpen) {
-      setIsCreateModalOpen(false);
-    }
-  }, {
-    enabled: isCreateModalOpen
-  });
-
-  // Create task with 'c' key
+  // Global hotkeys - guard against opening multiple times
   useHotkeys('c', () => {
-    setIsCreateModalOpen(true);
+    if (!createTaskOpen) {
+      openCreateTask();
+    }
   });
 
   if (!isLoaded || (isSignedIn && onboardingLoading)) {
@@ -157,7 +151,11 @@ function App() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => {
+                  if (!createTaskOpen) {
+                    openCreateTask();
+                  }
+                }}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 title="Create new task (c)"
               >
@@ -172,8 +170,8 @@ function App() {
       </div>
 
       <CreateTaskModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        isOpen={createTaskOpen}
+        onClose={closeCreateTask}
         onCreateTask={handleTaskCreated}
         defaultRepository={defaultRepository}
       />
