@@ -153,17 +153,6 @@ export const useTaskDetailsQuery = (taskId: number, enabled: boolean = true) => 
   })
 }
 
-/* USER PROFILE */
-export const useUserProfileQuery = () => {
-  const { data: jwt, isSuccess } = useBackendJwtQuery()
-  return useQuery({
-    queryKey: ['user-profile'],
-    enabled: isSuccess,
-    queryFn: () => ApiService.getUserProfile(jwt!),
-    staleTime: 60_000, // 1 minute
-  })
-}
-
 /* CREATE */
 export const useCreateTaskMutation = () => {
   const qc = useQueryClient()
