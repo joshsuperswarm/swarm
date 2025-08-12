@@ -21,6 +21,7 @@ export function TasksPage() {
   const { data: rawTasks = [], isFetching, error } = useTasksQuery();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [initialRefetchDone, setInitialRefetchDone] = useState(false);
   const { openCreateTask, createTaskOpen } = useModalStore();
   const { has, isLoaded } = useAuth();
   const archiveMutation = useArchiveTaskMutation();
@@ -32,6 +33,36 @@ export function TasksPage() {
   /* warm the cache for the first N tasks so detail pages feel instant */
   const qc = useQueryClient();
   const { data: jwt } = useBackendJwtQuery();
+
+  // Force a network refetch of tasks on first mount
+  useEffect(() => {
+    // Invalidate first so TanStack won't reuse potentially stale persisted data
+    qc.invalidateQueries({ queryKey: ['tasks'] });
+    // Kick an immediate refetch (don't wait for focus)
+    qc.refetchQueries({ queryKey: ['tasks'], type: 'active' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When isFetching flips false the first time *after* mount, we consider it fresh
+  useEffect(() => {
+    if (!isFetching) setInitialRefetchDone(true);
+  }, [isFetching]);
+
+  // Refetch when the tab becomes visible / window gains focus
+  useEffect(() => {
+    const onFocusOrVisible = () => {
+      qc.refetchQueries({ queryKey: ['tasks'], type: 'active' });
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') onFocusOrVisible();
+    };
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [qc]);
   
   // Keep selectedIndex within bounds when tasks change
   React.useEffect(() => {
@@ -146,9 +177,12 @@ export function TasksPage() {
     }
   });
 
-  // Prefetch cache warm-up effect
+  // Use this to show skeleton instead of possibly-stale data
+  const showInitialSkeleton = !initialRefetchDone && (rawTasks?.length ?? 0) === 0;
+
+  // Prefetch cache warm-up effect - delay until we know the task list is fresh
   useEffect(() => {
-    if (!jwt || tasks.length === 0) return;
+    if (!jwt || tasks.length === 0 || !initialRefetchDone) return;
 
     const prefetchCount = 20; // <= tweak if desired
     tasks.slice(0, prefetchCount).forEach((t) => {
@@ -165,10 +199,10 @@ export function TasksPage() {
         queryKey: ['task-logs', t.task_id],
         queryFn: () =>
           ApiService.getTaskLogs(jwt, t.task_id).then((r) => r.logs),
-        staleTime: Infinity,
+        staleTime: 5 * 60 * 1000,
       });
     });
-  }, [tasks, jwt, qc]);
+  }, [tasks, jwt, qc, initialRefetchDone]);
 
   if (!isLoaded) {
     return <div>Loading...</div>;
@@ -210,7 +244,7 @@ export function TasksPage() {
         <MemoizedDataTable
           data={tasks}
           columns={columns}
-          loading={isFetching && tasks.length === 0}
+          loading={showInitialSkeleton || (isFetching && tasks.length === 0)}
           highlightedRow={String(currentSelectedTask?.task_id ?? '')}
         />
       </div>
