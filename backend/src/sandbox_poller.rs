@@ -340,84 +340,55 @@ async fn wait_for_final_message(
 
 async fn finalize_success(
     app_state: &AppState,
-    provider: &dyn SandboxProvider,
+    _provider: &dyn SandboxProvider,
     run_id: i32,
     task_id: i32,
-    sandbox_id: &str,
+    _sandbox_id: &str,
     _command_id: &str,
     run_mode: &str,
 ) -> anyhow::Result<()> {
     info!("task {task_id} finalizing success");
 
-    // Handle artifacts based on run mode
-    if run_mode == "plan" {
-        // For plan mode, use final_message_md from the run instead of fetching file artifacts
-        let run = app_state
+    // For all modes, prefer the final_message_md and surface it in chat.
+    let run = app_state
+        .database
+        .get_run_by_id(run_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
+
+    if let Some(final_md) = run
+        .final_message_md
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        use ring::digest;
+        let digest_bytes = digest::digest(&digest::SHA256, final_md.as_bytes());
+        let sha = digest_bytes
+            .as_ref()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>();
+
+        if let Err(e) = app_state
             .database
-            .get_run_by_id(run_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
-
-        if let Some(final_md) = run.final_message_md.as_deref() {
-            // Create a SHA256 hash for the plan content
-            use ring::digest;
-            let digest_bytes = digest::digest(&digest::SHA256, final_md.as_bytes());
-            let sha = digest_bytes
-                .as_ref()
-                .iter()
-                .map(|b| format!("{:02x}", b))
-                .collect::<String>();
-
-            if let Err(e) = app_state
-                .database
-                .upsert_message(task_id, run_id, "plan", final_md, &sha, "assistant")
-                .await
-            {
-                warn!("Failed to store plan artifact for task {}: {}", task_id, e);
-            } else {
-                info!(
-                    "Successfully stored plan artifact for task {} from final message",
-                    task_id
-                );
-            }
-        } else {
+            .upsert_message(task_id, run_id, run_mode, final_md, &sha, "assistant")
+            .await
+        {
             warn!(
-                "Plan run {} has no final_message_md; skipping message upsert",
-                run_id
+                "Failed to upsert final chat for task {} (mode {}): {}",
+                task_id, run_mode, e
+            );
+        } else {
+            info!(
+                "Stored final chat message for task {} (mode {})",
+                task_id, run_mode
             );
         }
-    } else if run_mode == "review" {
-        // Review mode still uses file artifacts
-        match provider.fetch_artifact(sandbox_id, task_id, run_mode).await {
-            Ok((body_md, sha)) => {
-                if let Err(e) = app_state
-                    .database
-                    .upsert_message(task_id, run_id, run_mode, &body_md, &sha, "assistant")
-                    .await
-                {
-                    warn!(
-                        "Failed to store {} artifact for task {}: {}",
-                        run_mode, task_id, e
-                    );
-                } else {
-                    info!(
-                        "Successfully stored {} artifact for task {}",
-                        run_mode, task_id
-                    );
-                }
-            }
-            Err(e) => {
-                // Log but don't fail the task - artifacts are optional
-                info!(
-                    "No {} artifact found for task {} or fetch failed: {}",
-                    run_mode, task_id, e
-                );
-            }
-        }
     } else {
-        info!(
-            "Skipping artifact fetch for {} mode - no artifacts expected",
-            run_mode
+        warn!(
+            "Run {} (mode {}) has empty final_message_md at finalize_success",
+            run_id, run_mode
         );
     }
 
