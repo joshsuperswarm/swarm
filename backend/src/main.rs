@@ -458,6 +458,7 @@ async fn main() -> AppResult<()> {
         .route("/api/tasks/:id/todos", get(get_task_todos))
         .route("/api/tasks/:id/messages", get(get_task_messages))
         .route("/api/tasks/:id/messages", post(post_task_message))
+        .route("/api/tasks/:id/archive", put(archive_task))
         .layer(middleware::from_fn(clerk_middleware))
         .layer(cors)
         .with_state(app_state);
@@ -1856,4 +1857,39 @@ async fn post_task_message(
     });
 
     Ok(Json(response))
+}
+
+async fn archive_task(
+    CurrentUser(user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+) -> Result<Json<Value>, StatusCode> {
+    let db_user = get_or_create_user(&app_state.database, &user)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check onboarding completion
+    if let Err(e) = ensure_onboarding_complete(&app_state.database.pool, db_user.id).await {
+        match e {
+            AppError::Forbidden(_) => return Err(StatusCode::FORBIDDEN),
+            _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
+
+    // Verify task belongs to user and archive it
+    match app_state.database.archive_task(task_id, db_user.id).await {
+        Ok(Some(_)) => Ok(Json(json!({
+            "success": true,
+            "task_id": task_id,
+            "message": "Task archived successfully"
+        }))),
+        Ok(None) => {
+            // Task not found or user doesn't have permission
+            Err(StatusCode::NOT_FOUND)
+        }
+        Err(e) => {
+            tracing::error!("Error archiving task {}: {}", task_id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }

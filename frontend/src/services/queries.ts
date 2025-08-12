@@ -191,3 +191,17 @@ export const useSendMessageMutation = (taskId: number) => {
     },
   })
 }
+
+export const useArchiveTaskMutation = () => {
+  const qc = useQueryClient()
+  const { data: jwt } = useBackendJwtQuery()
+  
+  return useMutation({
+    mutationFn: (taskId: number) => 
+      ApiService.archiveTask(jwt!, taskId),
+    onSuccess: () => {
+      // Invalidate tasks to refetch without the archived task
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}

@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 export function useTaskHotkeys(
   tasksLength: number,
   selectedIndex: number,
-  setSelectedIndex: (i: number) => void
+  setSelectedIndex: (i: number) => void,
+  onArchive?: () => void
 ) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -19,9 +20,14 @@ export function useTaskHotkeys(
         e.preventDefault();
         setSelectedIndex(Math.max(selectedIndex - 1, 0));
       }
+
+      if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        onArchive?.();
+      }
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tasksLength, selectedIndex, setSelectedIndex]);
+  }, [tasksLength, selectedIndex, setSelectedIndex, onArchive]);
 }

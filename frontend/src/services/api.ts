@@ -163,4 +163,11 @@ export class ApiService {
       body: JSON.stringify(body),
     });
   }
+
+  static async archiveTask(token: string, taskId: number): Promise<{ success: boolean; task_id: number; message: string }> {
+    return request(`/api/tasks/${taskId}/archive`, {
+      token,
+      method: 'PUT',
+    });
+  }
 }

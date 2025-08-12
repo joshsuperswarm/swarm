@@ -7,7 +7,7 @@ import { createColumns } from '@/components/data-table/columns';
 import { DataTable } from '@/components/data-table/data-table';
 import { useAuth } from '@clerk/clerk-react';
 import PricingScreen from '@/pages/PricingPage';
-import { useTasksQuery } from '@/services/queries';
+import { useTasksQuery, useArchiveTaskMutation } from '@/services/queries';
 import { ApiService } from '@/services/api';
 import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
 import { useModalStore } from '@/store/modalStore';
@@ -22,6 +22,7 @@ export function TasksPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { openCreateTask, createTaskOpen } = useModalStore();
   const { has, isLoaded } = useAuth();
+  const archiveMutation = useArchiveTaskMutation();
   
   // Reverse the array so newest appears at top but j/k navigation works correctly
   const tasks = useMemo(() => [...rawTasks].reverse(), [rawTasks]);
@@ -44,8 +45,22 @@ export function TasksPage() {
     return tasks.length > 0 ? tasks[selectedIndex] : null;
   }, [tasks, selectedIndex]);
 
-  // Use custom hotkeys hook for j/k navigation
-  useTaskHotkeys(tasks.length, selectedIndex, setSelectedIndex);
+  // Archive handler
+  const handleArchive = () => {
+    if (currentSelectedTask) {
+      archiveMutation.mutate(currentSelectedTask.task_id, {
+        onSuccess: () => {
+          // Adjust selectedIndex if we archived the last task
+          if (selectedIndex >= tasks.length - 1 && selectedIndex > 0) {
+            setSelectedIndex(selectedIndex - 1);
+          }
+        }
+      });
+    }
+  };
+
+  // Use custom hotkeys hook for j/k navigation and archive
+  useTaskHotkeys(tasks.length, selectedIndex, setSelectedIndex, handleArchive);
 
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {

@@ -313,6 +313,13 @@ impl Database {
         Ok(task)
     }
 
+    pub async fn archive_task(&self, task_id: i32, user_id: i32) -> AppResult<Option<i32>> {
+        let result = sqlx::query_file_scalar!("sql/archive_task.sql", task_id, user_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(result)
+    }
+
     // Task log operations
     pub async fn insert_task_log(
         &self,
