@@ -73,16 +73,31 @@ class ClaudeService:
             )
 
         # -------- 3.  build environment -----------------------------------------
-        env_pairs = {
-            "GITHUB_TOKEN": req.github_token,
-            "ANTHROPIC_API_KEY": req.anthropic_api_key,
-            "SWARM_TASK_ID": str(req.task_id),
-            "SWARM_BRANCH": req.branch,
-            "GIT_AUTHOR_NAME": req.author_name,
-            "GIT_AUTHOR_EMAIL": req.author_email,
-        }
-        if req.openai_api_key:
-            env_pairs["OPENAI_API_KEY"] = req.openai_api_key
+        if req.mode == "plan":
+            # Plan mode: export only API keys, no GitHub token or Git environment
+            env_pairs = {
+                "ANTHROPIC_API_KEY": req.anthropic_api_key,
+            }
+            if req.openai_api_key:
+                env_pairs["OPENAI_API_KEY"] = req.openai_api_key
+            
+            # Plan mode uses read-only permission mode
+            claude_args = "claude -p --permission-mode plan --output-format stream-json --verbose"
+        else:
+            # Execute/Review modes: full environment
+            env_pairs = {
+                "GITHUB_TOKEN": req.github_token,
+                "ANTHROPIC_API_KEY": req.anthropic_api_key,
+                "SWARM_TASK_ID": str(req.task_id),
+                "SWARM_BRANCH": req.branch,
+                "GIT_AUTHOR_NAME": req.author_name,
+                "GIT_AUTHOR_EMAIL": req.author_email,
+            }
+            if req.openai_api_key:
+                env_pairs["OPENAI_API_KEY"] = req.openai_api_key
+            
+            # Execute/Review modes use existing dangerous permissions
+            claude_args = "claude -p --dangerously-skip-permissions --verbose --output-format stream-json"
 
         env_setup = " && ".join(
             f"export {k}={shlex.quote(v)}" for k, v in env_pairs.items()
@@ -95,7 +110,7 @@ class ClaudeService:
             export PATH="{PATH_EXPORT}"
             export DATABASE_URL="{DB_URL}"
             cd {shlex.quote(req.repo_path)}
-            cat {shlex.quote(prompt_path)} | claude -p --dangerously-skip-permissions --verbose --output-format stream-json
+            cat {shlex.quote(prompt_path)} | {claude_args}
         """
         )
 

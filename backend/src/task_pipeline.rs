@@ -102,13 +102,23 @@ pub async fn run_full_task_pipeline(
     let github_token = match app_state.database.get_github_token(user.id).await {
         Ok(Some(token)) => token.access_token,
         Ok(None) => {
-            tracing::error!(
-                "No GitHub token available for user {} in task {}",
-                user.id,
-                task.id
-            );
-            let _ = app_state.database.update_run_status(run.id, "failed").await;
-            return Err(anyhow::anyhow!("No GitHub token available"));
+            if mode == "plan" {
+                // Plan mode doesn't need GitHub token, use empty string
+                tracing::info!(
+                    "No GitHub token available for user {} in plan task {}, proceeding anyway",
+                    user.id,
+                    task.id
+                );
+                String::new()
+            } else {
+                tracing::error!(
+                    "No GitHub token available for user {} in task {}",
+                    user.id,
+                    task.id
+                );
+                let _ = app_state.database.update_run_status(run.id, "failed").await;
+                return Err(anyhow::anyhow!("No GitHub token available"));
+            }
         }
         Err(e) => {
             tracing::error!("Error fetching GitHub token for user {}: {}", user.id, e);
@@ -145,25 +155,45 @@ pub async fn run_full_task_pipeline(
     let author_name = match user.github_username.clone() {
         Some(username) => username,
         None => {
-            tracing::error!(
-                "No GitHub username available for user {} in task {}",
-                user.id,
-                task.id
-            );
-            let _ = app_state.database.update_run_status(run.id, "failed").await;
-            return Err(anyhow::anyhow!("No GitHub username available"));
+            if mode == "plan" {
+                // Plan mode doesn't need GitHub username, use placeholder
+                tracing::info!(
+                    "No GitHub username available for user {} in plan task {}, using placeholder",
+                    user.id,
+                    task.id
+                );
+                "plan-user".to_string()
+            } else {
+                tracing::error!(
+                    "No GitHub username available for user {} in task {}",
+                    user.id,
+                    task.id
+                );
+                let _ = app_state.database.update_run_status(run.id, "failed").await;
+                return Err(anyhow::anyhow!("No GitHub username available"));
+            }
         }
     };
     let author_email = match user.email.clone() {
         Some(email) => email,
         None => {
-            tracing::error!(
-                "No email available for user {} in task {}",
-                user.id,
-                task.id
-            );
-            let _ = app_state.database.update_run_status(run.id, "failed").await;
-            return Err(anyhow::anyhow!("No email available"));
+            if mode == "plan" {
+                // Plan mode doesn't need email, use placeholder
+                tracing::info!(
+                    "No email available for user {} in plan task {}, using placeholder",
+                    user.id,
+                    task.id
+                );
+                "plan-user@example.com".to_string()
+            } else {
+                tracing::error!(
+                    "No email available for user {} in task {}",
+                    user.id,
+                    task.id
+                );
+                let _ = app_state.database.update_run_status(run.id, "failed").await;
+                return Err(anyhow::anyhow!("No email available"));
+            }
         }
     };
 

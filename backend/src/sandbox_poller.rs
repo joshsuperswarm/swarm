@@ -270,6 +270,15 @@ async fn wait_for_final_message(
         return Err(anyhow::anyhow!("No final message to synthesize PR from"));
     }
 
+    // Skip PR synthesis for plan mode
+    if run.mode == "plan" {
+        info!("Skipping PR synthesis for plan mode task {}", task_id);
+        return finalize_success(
+            app_state, provider, run_id, task_id, sandbox_id, command_id, &run.mode,
+        )
+        .await;
+    }
+
     // Get task to get user_id
     let task = app_state.database.get_task_by_id_raw(task_id).await?
         .ok_or_else(|| anyhow::anyhow!("Task {} not found", task_id))?;
@@ -357,14 +366,19 @@ async fn finalize_success(
 
     app_state.database.update_run_status(run_id, "done").await?;
 
-    // Spawn handle_task_success for PR creation
-    info!("task {task_id} → done, spawning PR creation");
-    let app_state_clone = app_state.clone();
-    tokio::spawn(async move {
-        if let Err(e) = crate::handle_task_success(app_state_clone, task_id).await {
-            error!("Error handling task {} success: {}", task_id, e);
-        }
-    });
+    // Skip PR creation for plan mode
+    if run_mode == "plan" {
+        info!("task {task_id} → done (plan mode, skipping PR creation)");
+    } else {
+        // Spawn handle_task_success for PR creation
+        info!("task {task_id} → done, spawning PR creation");
+        let app_state_clone = app_state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = crate::handle_task_success(app_state_clone, task_id).await {
+                error!("Error handling task {} success: {}", task_id, e);
+            }
+        });
+    }
 
     Ok(())
 }
