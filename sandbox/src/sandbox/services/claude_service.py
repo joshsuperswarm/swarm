@@ -44,17 +44,20 @@ class ClaudeService:
 
         # -------- 1.  Create the Claude prompt with artifact markers ------------
 
-        # Generate mode-specific instructions
+        # Generate mode-specific prompt
         if req.mode == "plan":
-            mode_instructions = PLAN_MODE_INSTRUCTIONS.format(task_id=req.task_id)
-        elif req.mode == "review":
-            mode_instructions = REVIEW_MODE_INSTRUCTIONS.format(task_id=req.task_id)
-        else:  # execute mode
-            mode_instructions = EXECUTE_MODE_INSTRUCTIONS
+            # Plan mode: use only plan mode instructions, no template overhead
+            claude_prompt = f"You are working on task {req.task_id}: {req.prompt}\n\n{PLAN_MODE_INSTRUCTIONS.format(task_id=req.task_id)}"
+        else:
+            # Execute/Review modes: use full template with mode-specific instructions
+            if req.mode == "review":
+                mode_instructions = REVIEW_MODE_INSTRUCTIONS.format(task_id=req.task_id)
+            else:  # execute mode
+                mode_instructions = EXECUTE_MODE_INSTRUCTIONS
 
-        claude_prompt = CLAUDE_PROMPT_TEMPLATE.format(
-            task_id=req.task_id, prompt=req.prompt, mode_instructions=mode_instructions
-        )
+            claude_prompt = CLAUDE_PROMPT_TEMPLATE.format(
+                task_id=req.task_id, prompt=req.prompt, mode_instructions=mode_instructions
+            )
 
         # -------- 2.  write prompt file -----------------------------------------
         prompt_id = str(uuid.uuid4())
