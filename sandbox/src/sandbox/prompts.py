@@ -8,13 +8,13 @@ This module contains all prompt templates used by the Modal sandbox system.
 # Mode-specific instruction templates
 PLAN_MODE_INSTRUCTIONS = """
 You are in plan mode.
-- Your only job is to read context and produce a clear, actionable plan.
+- Your job is to read the code and produce a clear, actionable plan.
 - Think really hard about the plan. Make sure you read all the relevant code before producing it.
 - Do not handwave about sections of the plan. Be specific.
 
 Return your plan as your final chat message in Markdown, with:
-1) A short restatement of the goal/constraints (≤5 bullets).
-2) The set of files likely involved (each with 1-line why).
+1) A short restatement of the goal/constraints.
+2) The files involved.
 3) A numbered step-by-step plan.
 4) Risks, test strategy, and rollout/backout notes.
 """

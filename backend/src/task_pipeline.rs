@@ -102,23 +102,13 @@ pub async fn run_full_task_pipeline(
     let github_token = match app_state.database.get_github_token(user.id).await {
         Ok(Some(token)) => token.access_token,
         Ok(None) => {
-            if mode == "plan" {
-                // Plan mode doesn't need GitHub token, use empty string
-                tracing::info!(
-                    "No GitHub token available for user {} in plan task {}, proceeding anyway",
-                    user.id,
-                    task.id
-                );
-                String::new()
-            } else {
-                tracing::error!(
-                    "No GitHub token available for user {} in task {}",
-                    user.id,
-                    task.id
-                );
-                let _ = app_state.database.update_run_status(run.id, "failed").await;
-                return Err(anyhow::anyhow!("No GitHub token available"));
-            }
+            tracing::error!(
+                "No GitHub token available for user {} in task {}",
+                user.id,
+                task.id
+            );
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
+            return Err(anyhow::anyhow!("No GitHub token available"));
         }
         Err(e) => {
             tracing::error!("Error fetching GitHub token for user {}: {}", user.id, e);
@@ -129,7 +119,12 @@ pub async fn run_full_task_pipeline(
 
     // Get user's stored API keys
     let (anthropic_api_key_opt, openai_api_key_opt) =
-        crate::onboarding::get_decrypted_api_keys_for_user(&app_state.database, &app_state.config, user.id).await?;
+        crate::onboarding::get_decrypted_api_keys_for_user(
+            &app_state.database,
+            &app_state.config,
+            user.id,
+        )
+        .await?;
 
     let anthropic_api_key = match anthropic_api_key_opt {
         Some(k) => k,
@@ -177,23 +172,13 @@ pub async fn run_full_task_pipeline(
     let author_email = match user.email.clone() {
         Some(email) => email,
         None => {
-            if mode == "plan" {
-                // Plan mode doesn't need email, use placeholder
-                tracing::info!(
-                    "No email available for user {} in plan task {}, using placeholder",
-                    user.id,
-                    task.id
-                );
-                "plan-user@example.com".to_string()
-            } else {
-                tracing::error!(
-                    "No email available for user {} in task {}",
-                    user.id,
-                    task.id
-                );
-                let _ = app_state.database.update_run_status(run.id, "failed").await;
-                return Err(anyhow::anyhow!("No email available"));
-            }
+            tracing::error!(
+                "No email available for user {} in task {}",
+                user.id,
+                task.id
+            );
+            let _ = app_state.database.update_run_status(run.id, "failed").await;
+            return Err(anyhow::anyhow!("No email available"));
         }
     };
 
