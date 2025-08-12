@@ -84,8 +84,8 @@ class ClaudeService:
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
             
-            # Plan mode uses read-only permission mode
-            claude_args = "claude -p --permission-mode plan --output-format stream-json --verbose"
+            # Plan mode uses read-only permission mode with Opus model
+            claude_args = "claude -p --permission-mode plan --model opus --output-format stream-json --verbose"
         else:
             # Execute/Review modes: full environment
             env_pairs = {
