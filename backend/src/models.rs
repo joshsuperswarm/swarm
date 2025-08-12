@@ -115,6 +115,7 @@ pub struct Task {
     pub github_pr_url: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
+    pub is_archived: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -181,6 +182,7 @@ pub struct TaskWithRunDB {
     pub mode: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
+    pub is_archived: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub github_pr_url: Option<String>,
@@ -207,6 +209,7 @@ pub struct TaskWithRun {
     pub mode: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
+    pub is_archived: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub github_pr_url: Option<String>,

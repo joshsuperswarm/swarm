@@ -29,10 +29,11 @@ SELECT DISTINCT ON (r.task_id)
        r.mode,         -- run mode (plan/execute/review)
        t.pr_title,     -- PR artifacts from task
        t.pr_body,      -- PR artifacts from task
+       t.is_archived,
        r.created_at,
        r.updated_at,
        t.github_pr_url -- still lives on task
 FROM   tasks t
 JOIN   runs  r ON r.task_id = t.id
-WHERE  t.user_id = $1
+WHERE  t.user_id = $1 AND t.is_archived = FALSE
 ORDER  BY r.task_id, r.created_at DESC;

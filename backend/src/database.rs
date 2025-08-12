@@ -233,6 +233,7 @@ impl Database {
                 mode: row.mode,
                 pr_title: row.pr_title,
                 pr_body: row.pr_body,
+                is_archived: row.is_archived,
                 created_at: row.created_at,
                 updated_at: row.updated_at,
                 github_pr_url: row.github_pr_url,
@@ -245,7 +246,7 @@ impl Database {
 
     /// ⚠ INTERNAL – call only after ensure_task_owner().
     pub async fn get_task_by_id_raw(&self, task_id: i32) -> AppResult<Option<Task>> {
-        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at FROM tasks WHERE id = $1", task_id)
+        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at FROM tasks WHERE id = $1", task_id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -281,7 +282,7 @@ impl Database {
     pub async fn update_task_pr_url(&self, task_id: i32, pr_url: &str) -> AppResult<Task> {
         let task = sqlx::query_as!(
             Task,
-            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at",
+            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at",
             pr_url,
             task_id
         )
@@ -302,7 +303,7 @@ impl Database {
             UPDATE tasks 
             SET pr_title = $2, pr_body = $3, updated_at = NOW()
             WHERE id = $1
-            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, created_at, updated_at
+            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at
             "#,
             task_id,
             pr_title,
