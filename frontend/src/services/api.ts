@@ -21,11 +21,6 @@ export interface Message {
   run?: Run;
 }
 
-interface HealthResponse {
-  status: string;
-  message: string;
-  timestamp: string;
-}
 
 interface CreateTaskRequest {
   description: string;
@@ -66,10 +61,6 @@ async function request<T>(endpoint: string, { token, ...init }: RequestInit & { 
 
 export class ApiService {
 
-  // Public endpoints
-  static async healthCheck(): Promise<HealthResponse> {
-    return request<HealthResponse>('/health', {});
-  }
 
   // Authenticated endpoints
   static async getUserProfile(token: string): Promise<UserWithDefaultRepo> {

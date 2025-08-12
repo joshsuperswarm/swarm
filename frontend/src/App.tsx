@@ -52,19 +52,6 @@ function App() {
     }
   };
 
-  // Test backend connection on app load
-  useEffect(() => {
-    const testConnection = async () => {
-      try {
-        const health = await ApiService.healthCheck()
-        console.log('Backend connection successful:', health)
-      } catch (error) {
-        console.error('Backend connection failed:', error)
-      }
-    }
-    
-    testConnection()
-  }, [])
 
   // Handle Clerk authentication and GitHub token storage
   useEffect(() => {
