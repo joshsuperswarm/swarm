@@ -234,6 +234,53 @@ impl GitHubPRClient {
         }
     }
 
+    /// Add a comment to a pull request
+    pub async fn add_pr_comment(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+        comment_body: &str,
+    ) -> Result<String> {
+        tracing::info!(
+            "Adding comment to PR #{} in {}/{}",
+            pr_number,
+            owner,
+            repo
+        );
+
+        let comment = self
+            .octocrab
+            .issues(owner, repo)
+            .create_comment(pr_number, comment_body)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to add comment to PR #{} in {}/{}: {}",
+                    pr_number,
+                    owner,
+                    repo,
+                    e
+                );
+                anyhow::anyhow!("Failed to add comment to PR: {}", e)
+            })?;
+
+        let comment_url = format!(
+            "https://github.com/{}/{}/pull/{}#issuecomment-{}",
+            owner, repo, pr_number, comment.id
+        );
+
+        tracing::info!(
+            "Successfully added comment to PR #{} in {}/{}: {}",
+            pr_number,
+            owner,
+            repo,
+            comment_url
+        );
+
+        Ok(comment_url)
+    }
+
     /// Parse PR URL to extract owner, repo, and PR number
     pub fn parse_pr_url(pr_url: &str) -> Result<(String, String, u64)> {
         tracing::debug!("Parsing PR URL: {}", pr_url);
