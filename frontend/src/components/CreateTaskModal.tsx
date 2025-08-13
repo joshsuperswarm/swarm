@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Zap, FileText, Search, Brain } from 'lucide-react';
+import { X, Zap, Brain } from 'lucide-react';
+import { RunModeButton } from '@/components/RunModeButton';
 import type { RunMode, ClaudeModel } from '@/services/api';
 import type { RepositoryTS } from '@/types/generated/RepositoryTS';
 
@@ -52,16 +53,6 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     setFormData(prev => ({ ...prev, mode: runModes[nextIndex] }));
   };
 
-  const getModeConfig = (mode: RunMode) => {
-    switch (mode) {
-      case 'execute':
-        return { icon: Zap, label: 'Execute', color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700', description: 'Execute changes immediately' };
-      case 'plan':
-        return { icon: FileText, label: 'Plan', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', description: 'Create a plan only' };
-      case 'review':
-        return { icon: Search, label: 'Review', color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700', description: 'Review and analyze code' };
-    }
-  };
   
   // Model cycling
   const models: ClaudeModel[] = ['sonnet', 'opus'];
@@ -236,15 +227,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mode:</span>
-              <button
-                type="button"
+              <RunModeButton
+                mode={formData.mode}
                 onClick={cycleRunMode}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium border transition-colors touch-target ${getModeConfig(formData.mode).color}`}
-                title={`${getModeConfig(formData.mode).description} (Shift+Tab to cycle)`}
-              >
-                {React.createElement(getModeConfig(formData.mode).icon, { size: 14 })}
-                {getModeConfig(formData.mode).label}
-              </button>
+                size="md"
+                showLabel={true}
+              />
             </div>
             
             <div className="flex items-center gap-2">

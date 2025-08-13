@@ -4,6 +4,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { RunModeButton } from "@/components/RunModeButton";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery, useTasksQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
@@ -66,7 +67,7 @@ export function TaskChatPage() {
   
   // Use the mode from current run, fallback to default execute mode
   const initialMode = (currentRun?.run?.mode || "execute") as RunMode;
-  const { mode, cycleRunMode, getModeConfig } = useRunMode(initialMode);
+  const { mode, cycleRunMode } = useRunMode(initialMode);
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
@@ -338,14 +339,13 @@ export function TaskChatPage() {
           <div className="rounded-xl md:rounded-2xl border border-gray-200 bg-white/90 backdrop-blur shadow-lg">
             <div className="flex items-center gap-2 p-2">
               {/* Mode button */}
-              <button
+              <RunModeButton
+                mode={mode}
                 onClick={cycleRunMode}
-                className="flex items-center gap-1 px-2 py-2 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition-colors touch-target"
+                size="sm"
+                showLabel={true}
                 title="Shift+Tab to cycle modes"
-              >
-                <span>{getModeConfig(mode).icon}</span>
-                <span className="hidden sm:inline">{getModeConfig(mode).label}</span>
-              </button>
+              />
 
               {/* Model button */}
               <button
