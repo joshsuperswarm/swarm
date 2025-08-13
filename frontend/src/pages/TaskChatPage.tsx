@@ -6,7 +6,7 @@ import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { RunModeButton } from "@/components/RunModeButton";
 import { statuses } from "@/data/data";
-import { useTaskDetailsQuery, useTasksQuery } from "@/services/queries";
+import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
@@ -36,6 +36,7 @@ export function TaskChatPage() {
   // Get all tasks for j/k navigation
   const { data: allTasks = [] } = useTasksQuery();
   const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId);
+  const archiveMutation = useArchiveTaskMutation();
   
   // Extract data from unified response
   const task = taskDetails?.task;
@@ -63,6 +64,16 @@ export function TaskChatPage() {
     if (nextIndex !== currentTaskIndex && tasks[nextIndex]) {
       navigate(`/tasks/${tasks[nextIndex].task_id}`);
     }
+  };
+  
+  // Archive task handler
+  const handleArchive = () => {
+    archiveMutation.mutate(taskId, {
+      onSuccess: () => {
+        // Navigate back to tasks list after archiving
+        navigate('/');
+      }
+    });
   };
   
   // Use the mode from current run, fallback to default execute mode
@@ -128,6 +139,13 @@ export function TaskChatPage() {
   
   useHotkeys('k', () => {
     navigateToTask('prev');
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e)
+  });
+  
+  // Archive task hotkey
+  useHotkeys('e', () => {
+    handleArchive();
   }, {
     ignoreEventWhen: (e) => !keyFilter(e)
   });
