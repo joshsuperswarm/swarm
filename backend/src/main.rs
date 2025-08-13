@@ -1410,7 +1410,7 @@ async fn get_tasks(
             // If include=todos is specified, fetch todos for each task
             if query.include.as_deref() == Some("todos") {
                 for task_run in &mut task_runs {
-                    match app_state.database.get_agent_todos(task_run.task_id).await {
+                    match app_state.database.get_agent_todos().await {
                         Ok(todos) => {
                             // Limit to 20 todos per task and only include non-completed or recently updated ones
                             let filtered_todos: Vec<_> = todos
@@ -1800,7 +1800,7 @@ async fn get_task_todos(
 
     let todos = app_state
         .database
-        .get_agent_todos(task_id)
+        .get_agent_todos()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

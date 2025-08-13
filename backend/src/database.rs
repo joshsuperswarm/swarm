@@ -500,35 +500,18 @@ impl Database {
         Ok(logs)
     }
 
-    pub async fn get_agent_todos(&self, task_id: i32) -> AppResult<Vec<AgentTodo>> {
+    pub async fn get_agent_todos(&self) -> AppResult<Vec<AgentTodo>> {
         let rows = sqlx::query_as!(
             AgentTodo,
             r#"SELECT todo_id, content, priority, status, updated_at
                FROM agent_todos
-               WHERE task_id = $1
-               ORDER BY updated_at"#,
-            task_id
+               ORDER BY updated_at DESC"#
         )
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
     }
 
-    pub async fn get_agent_todos_for_user(
-        &self,
-        task_id: i32,
-        user_id: i32,
-    ) -> AppResult<Vec<AgentTodo>> {
-        let rows = sqlx::query_file_as!(
-            AgentTodo,
-            "sql/get_agent_todos_for_user.sql",
-            task_id,
-            user_id
-        )
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
-    }
 
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
@@ -552,8 +535,8 @@ impl Database {
     }
 
     pub async fn assemble_run_meta(&self, run: &Run) -> AppResult<RunWithMeta> {
-        // Get todos for this task
-        let todos = self.get_agent_todos(run.task_id).await?;
+        // Get todos
+        let todos = self.get_agent_todos().await?;
 
         // Get all log lines for this run
         let rows = sqlx::query!(
@@ -600,8 +583,8 @@ impl Database {
     }
 
     pub async fn assemble_run_meta_without_logs(&self, run: &Run) -> AppResult<RunWithMeta> {
-        // Get todos for this task
-        let todos = self.get_agent_todos(run.task_id).await?;
+        // Get todos
+        let todos = self.get_agent_todos().await?;
 
         // Don't load logs - use empty logs structure
         Ok(RunWithMeta {
