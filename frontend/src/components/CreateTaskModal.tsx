@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Zap, FileText, Search } from 'lucide-react';
-import type { RunMode } from '@/services/api';
+import type { RunMode, ClaudeModel } from '@/services/api';
 import type { RepositoryTS } from '@/types/generated/RepositoryTS';
+import { ModelSelector } from './ModelSelector';
 
 interface CreateTaskData {
   description: string;
   repositoryId: number | null;
   mode: RunMode;
+  model: ClaudeModel;
 }
 
 interface CreateTaskFormData {
   description: string;
   repositoryId: number | null;
   mode: RunMode;
+  model: ClaudeModel;
 }
 
 interface CreateTaskModalProps {
@@ -32,7 +35,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const [formData, setFormData] = useState<CreateTaskFormData>({
     description: '',
     repositoryId: null,
-    mode: 'execute'
+    mode: 'execute',
+    model: 'sonnet'
   });
   
   const [loading, setLoading] = useState(false);
@@ -226,6 +230,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Shift+Tab to cycle</div>
           </div>
+
+          {/* Model Selector */}
+          <ModelSelector
+            model={formData.model}
+            onModelChange={(model) => setFormData(prev => ({ ...prev, model }))}
+          />
 
           <div className="space-y-1">
             <textarea

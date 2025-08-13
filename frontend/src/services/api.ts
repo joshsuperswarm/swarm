@@ -10,6 +10,7 @@ import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export type RunMode = 'execute' | 'plan' | 'review';
+export type ClaudeModel = 'sonnet' | 'opus';
 
 export interface Message {
   id: number;
@@ -26,6 +27,7 @@ interface CreateTaskRequest {
   description: string;
   repository_id: number;
   mode: RunMode;
+  model?: ClaudeModel;
 }
 
 interface TaskLog {
@@ -146,7 +148,7 @@ export class ApiService {
   static async postTaskMessage(
     token: string,
     taskId: number,
-    body: { content: string; mode?: RunMode }
+    body: { content: string; mode?: RunMode; model?: ClaudeModel }
   ): Promise<{ message: Message; run: Run }> {
     return request(`/api/tasks/${taskId}/messages`, {
       token,

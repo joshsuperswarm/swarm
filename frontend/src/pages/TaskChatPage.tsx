@@ -1,18 +1,19 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { ModelSelector } from "@/components/ModelSelector";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery, useTasksQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
-import { Bot, ArrowLeft } from 'lucide-react';
+import { Bot, ArrowLeft, Settings } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
-import type { RunMode } from "@/services/api";
+import type { RunMode, ClaudeModel } from "@/services/api";
 import { AnimatedTitle } from "@/components/AnimatedTitle";
 import { isTitlePending } from "@/lib/titleState";
 
@@ -70,6 +71,20 @@ export function TaskChatPage() {
   
   // Chat input state
   const [inputValue, setInputValue] = useState("");
+  
+  // Model selection state with localStorage persistence
+  const [model, setModel] = useState<ClaudeModel>(() => {
+    const saved = localStorage.getItem('taskChatModel');
+    return (saved === 'sonnet' || saved === 'opus') ? saved : 'sonnet';
+  });
+  
+  // Model selector visibility state
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  
+  // Save model preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('taskChatModel', model);
+  }, [model]);
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -133,6 +148,7 @@ export function TaskChatPage() {
       await sendMessage({
         content: inputValue.trim(),
         mode,
+        model,
       });
       setInputValue("");
     } catch (error) {
@@ -306,6 +322,16 @@ export function TaskChatPage() {
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 safe-pb px-3 pb-3">
         <div className="mx-auto w-full max-w-3xl pointer-events-auto">
           <div className="rounded-xl md:rounded-2xl border border-gray-200 bg-white/90 backdrop-blur shadow-lg">
+            {/* Model selector (shows when settings button is clicked) */}
+            {showModelSelector && (
+              <div className="border-b border-gray-200 p-3">
+                <ModelSelector
+                  model={model}
+                  onModelChange={setModel}
+                />
+              </div>
+            )}
+            
             <div className="flex items-center gap-2 p-2">
               {/* Mode button */}
               <button
@@ -315,6 +341,20 @@ export function TaskChatPage() {
               >
                 <span>{getModeConfig(mode).icon}</span>
                 <span className="hidden sm:inline">{getModeConfig(mode).label}</span>
+              </button>
+
+              {/* Settings button to toggle model selector */}
+              <button
+                onClick={() => setShowModelSelector(!showModelSelector)}
+                className={`flex items-center px-2 py-2 rounded-md text-xs font-medium border transition-colors touch-target ${
+                  showModelSelector
+                    ? 'bg-blue-100 border-blue-200 text-blue-700'
+                    : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                }`}
+                title="Model settings"
+              >
+                <Settings size={14} />
+                <span className="hidden sm:inline ml-1">{model === 'opus' ? 'Opus' : 'Sonnet'}</span>
               </button>
 
               {/* Input */}
