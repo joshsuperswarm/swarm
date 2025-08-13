@@ -46,6 +46,11 @@ export function ChatBubble({ variant, children, fullWidth = false, content }: Ch
     });
   };
 
+  // For assistant messages, use the old simple display
+  if (variant === 'assistant') {
+    return <div className={`${base} ${styles[variant]}`}>{children}</div>;
+  }
+
   const shouldShowExpandCollapse = content && content.split('\n').length > 10;
   const shouldCollapse = shouldShowExpandCollapse && !isExpanded;
 
@@ -74,7 +79,7 @@ export function ChatBubble({ variant, children, fullWidth = false, content }: Ch
     );
   }
 
-  // Expanded view with copy and collapse controls
+  // Expanded view with copy and collapse controls (for user and error messages only)
   return (
     <div className={`${base} ${styles[variant]} relative group`}>
       <div className="whitespace-pre-wrap leading-relaxed">
