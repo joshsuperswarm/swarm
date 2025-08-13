@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Zap, FileText, Search } from 'lucide-react';
+import { X, Zap, FileText, Search, Brain } from 'lucide-react';
 import type { RunMode, ClaudeModel } from '@/services/api';
 import type { RepositoryTS } from '@/types/generated/RepositoryTS';
-import { ModelSelector } from './ModelSelector';
 
 interface CreateTaskData {
   description: string;
@@ -64,6 +63,24 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     }
   };
   
+  // Model cycling
+  const models: ClaudeModel[] = ['sonnet', 'opus'];
+  
+  const cycleModel = () => {
+    const currentIndex = models.indexOf(formData.model);
+    const nextIndex = (currentIndex + 1) % models.length;
+    setFormData(prev => ({ ...prev, model: models[nextIndex] }));
+  };
+  
+  const getModelConfig = (model: ClaudeModel) => {
+    switch (model) {
+      case 'sonnet':
+        return { icon: Zap, label: 'Sonnet', color: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700', description: 'Fast and cost-effective' };
+      case 'opus':
+        return { icon: Brain, label: 'Opus', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', description: 'Advanced reasoning (5x cost)' };
+    }
+  };
+  
   // Initialize repository when modal opens or when default changes
   useEffect(() => {
     if (isOpen && defaultRepository && !formData.repositoryId) {
@@ -121,11 +138,12 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     setLoading(true);
     onCreateTask(sanitizedData);
 
-    // Reset form but preserve mode preference
+    // Reset form but preserve mode and model preference
     setFormData(prev => ({
       description: '',
       repositoryId: null,
-      mode: prev.mode
+      mode: prev.mode,
+      model: prev.model
     }));
 
     setLoading(false);
@@ -214,8 +232,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             </div>
           )}
 
-          {/* Run Mode Button */}
-          <div className="flex items-center justify-between">
+          {/* Run Mode and Model Buttons */}
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mode:</span>
               <button
@@ -228,14 +246,20 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                 {getModeConfig(formData.mode).label}
               </button>
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Shift+Tab to cycle</div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Model:</span>
+              <button
+                type="button"
+                onClick={cycleModel}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium border transition-colors touch-target ${getModelConfig(formData.model).color}`}
+                title={getModelConfig(formData.model).description}
+              >
+                {React.createElement(getModelConfig(formData.model).icon, { size: 14 })}
+                {getModelConfig(formData.model).label}
+              </button>
+            </div>
           </div>
-
-          {/* Model Selector */}
-          <ModelSelector
-            model={formData.model}
-            onModelChange={(model) => setFormData(prev => ({ ...prev, model }))}
-          />
 
           <div className="space-y-1">
             <textarea

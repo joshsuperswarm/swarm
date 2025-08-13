@@ -13,11 +13,11 @@ export const useSendTaskMessage = (taskId: number) => {
     Error,
     SendMessagePayload                               // variables
   >({
-    mutationFn: ({ content, mode }) => {
+    mutationFn: ({ content, mode, model }) => {
       if (!jwt) {
         throw new Error('Authentication required');
       }
-      return ApiService.postTaskMessage(jwt, taskId, { content, mode });
+      return ApiService.postTaskMessage(jwt, taskId, { content, mode, model });
     },
     onMutate: async () => {
       // Cancel any outgoing refetches so they don't overwrite the real update

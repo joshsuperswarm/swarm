@@ -20,6 +20,7 @@ export interface ApiRun {
 export interface SendMessagePayload {
   content: string;
   mode?: 'execute' | 'plan' | 'review';
+  model?: 'sonnet' | 'opus';
 }
 
 export interface SendMessageResponse {

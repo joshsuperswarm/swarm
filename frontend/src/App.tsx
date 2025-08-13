@@ -4,7 +4,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
 import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
-import { ApiService, type RunMode } from './services/api'
+import { ApiService, type RunMode, type ClaudeModel } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useUserStore } from './store/userStore'
 import { useModalStore } from './store/modalStore'
@@ -30,6 +30,7 @@ function App() {
     description: string;
     repositoryId: number | null;
     mode: RunMode;
+    model: ClaudeModel;
   }) => {
     try {
       if (!taskData.repositoryId) {
@@ -41,6 +42,7 @@ function App() {
         description: taskData.description,
         repository_id: taskData.repositoryId,
         mode: taskData.mode,
+        model: taskData.model,
       });
 
       closeCreateTask();
