@@ -40,12 +40,4 @@ CLAUDE_PROMPT_TEMPLATE = """You are working on task {task_id}: {prompt}
 - Be sure to ALWAYS push your changes on the branch to the remote origin.
 
 {mode_instructions}
-
-After completing the work, you MUST output the following markers EXACTLY in this format:
-
-PR_TITLE: <short title>
-PR_BODY:
-<markdown with summary, test notes, risk, rollout/backout>
-
-These markers are required for an automated PR to be created.
 """
