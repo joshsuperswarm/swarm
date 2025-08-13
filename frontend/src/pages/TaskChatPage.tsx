@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
-import { CollapsedLogViewer } from "@/components/CollapsedLogViewer";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { Bot } from 'lucide-react';
-import type { TaskLog } from "@/types/generated/TaskLog";
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { RunMode } from "@/services/api";
 import { AnimatedTitle } from "@/components/AnimatedTitle";
@@ -203,16 +201,6 @@ export function TaskChatPage() {
                   <div className="mt-3 space-y-3">
                     {message.run.todos?.length > 0 && (
                       <CollapsedTodoList todos={message.run.todos} />
-                    )}
-                    {message.run.logs?.entries?.length > 0 && (
-                      <CollapsedLogViewer
-                        taskId={taskId}
-                        logs={message.run.logs.entries.map((l: TaskLog) =>
-                          typeof l.log_line === "string"
-                            ? l.log_line
-                            : JSON.stringify(l.log_line),
-                        )}
-                      />
                     )}
                   </div>
                 )}

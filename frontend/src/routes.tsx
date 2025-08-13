@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { TasksPage } from '@/components/TasksPage';
 import { TaskPage } from '@/pages/TaskPage';
 import { TaskChatPage } from '@/pages/TaskChatPage';
+import { TaskLogsPage } from '@/pages/TaskLogsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import PricingScreen from '@/pages/PricingPage';
 import { ApiKeysForm } from '@/components/onboarding/ApiKeysForm';
@@ -21,6 +22,8 @@ export function Router({ isSignedIn }: RouterProps) {
           <Route path="/tasks/:id" element={<TaskChatPage />} />
           {/* Explicit chat route still works */}
           <Route path="/tasks/:id/chat" element={<TaskChatPage />} />
+          {/* Logs debugging page */}
+          <Route path="/tasks/:id/logs" element={<TaskLogsPage />} />
           {/* Legacy page accessible via /task/:id/old */}
           <Route path="/task/:id/old" element={<TaskPage />} />
           <Route path="/onboarding/api-keys" element={<ApiKeysForm />} />

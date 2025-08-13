@@ -468,6 +468,37 @@ impl Database {
         Ok(logs)
     }
 
+    /// ⚠ INTERNAL – call only after ensure_task_owner().
+    /// Returns the most recent logs for a task (for debugging purposes)
+    pub async fn get_recent_task_logs(&self, task_id: i32, limit: i32) -> AppResult<Vec<TaskLog>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
+            FROM task_logs
+            WHERE task_id = $1
+            ORDER BY id DESC
+            LIMIT $2
+            "#,
+            task_id,
+            limit as i64
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let logs = rows
+            .into_iter()
+            .map(|row| TaskLog {
+                id: row.id as i32,
+                task_id: row.task_id.expect("task_id should not be null"),
+                run_id: row.run_id,
+                log_line: row.log_line,
+                created_at: row.created_at,
+            })
+            .collect();
+
+        Ok(logs)
+    }
+
     pub async fn get_agent_todos(&self, task_id: i32) -> AppResult<Vec<AgentTodo>> {
         let rows = sqlx::query_as!(
             AgentTodo,

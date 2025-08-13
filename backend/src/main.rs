@@ -1735,10 +1735,10 @@ async fn get_task_logs(
                 }
             }
         }
-        None => match app_state.database.get_task_logs_raw(task_id).await {
+        None => match app_state.database.get_recent_task_logs(task_id, 20).await {
             Ok(logs) => logs,
             Err(e) => {
-                tracing::error!("Error fetching all logs for task {}: {}", task_id, e);
+                tracing::error!("Error fetching recent logs for task {}: {}", task_id, e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         },
