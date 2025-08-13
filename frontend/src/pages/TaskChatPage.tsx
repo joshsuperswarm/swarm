@@ -37,10 +37,17 @@ export function TaskChatPage() {
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [showJump, setShowJump] = useState(false);
+  const isInitialLoad = useRef(true);
   
   useEffect(() => {
-    // scroll to bottom on new messages
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Use instant scroll for initial load, smooth scroll for new messages
+    const behavior = isInitialLoad.current ? "instant" : "smooth";
+    bottomRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
+    
+    // Mark initial load as complete
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+    }
   }, [messages.length]);
   
   if (isLoading || !task) {
