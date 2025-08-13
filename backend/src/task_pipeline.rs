@@ -228,17 +228,22 @@ pub async fn run_full_task_pipeline(
 
     // Check for existing active sandbox for this task
     let (sandbox_info, is_reused) =
-        if let Some(existing) = find_reusable_session(&app_state, task.id, &branch).await? {
+        if let Some((existing_sandbox, old_run_id)) = find_reusable_session(&app_state, task.id, &branch).await? {
             tracing::info!(
-                "Reusing existing sandbox {} for task {}",
-                existing.id,
+                "Reusing existing sandbox {} from run {} for task {}",
+                existing_sandbox.id,
+                old_run_id,
                 task.id
             );
-            // Set idle timeout for reused session (extend by 15 minutes)
-            if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
-                tracing::warn!("Failed to set idle timeout for reused session: {}", e);
+            // Clear idle timeout on the OLD run to prevent it from cleaning up the sandbox
+            if let Err(e) = app_state.database.clear_run_idle_timeout(old_run_id).await {
+                tracing::warn!("Failed to clear idle timeout on old run {}: {}", old_run_id, e);
             }
-            (existing, true)
+            // Set idle timeout for NEW run (extend by 15 minutes)
+            if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
+                tracing::warn!("Failed to set idle timeout for new run: {}", e);
+            }
+            (existing_sandbox, true)
         } else {
             // Create new sandbox as current logic
             match app_state
@@ -399,11 +404,12 @@ async fn determine_branch_for_task(
 }
 
 /// Check for existing active sandbox for this task and branch
+/// Returns (SandboxInfo, run_id) if a reusable session is found
 async fn find_reusable_session(
     app_state: &AppState,
     task_id: i32,
     branch: &str,
-) -> Result<Option<crate::sandbox::SandboxInfo>> {
+) -> Result<Option<(crate::sandbox::SandboxInfo, i32)>> {
     tracing::info!(
         "Searching for reusable session for task {} on branch '{}'",
         task_id,
@@ -456,14 +462,17 @@ async fn find_reusable_session(
                                     task_id,
                                     sandbox_id
                                 );
-                                return Ok(Some(crate::sandbox::SandboxInfo {
-                                    id: sandbox_id.clone(),
-                                    hostname: hostname.clone(),
-                                    status,
-                                    session_id: existing_run.session_id.clone().unwrap_or_default(),
-                                    command_id: existing_run.command_id.clone().unwrap_or_default(),
-                                    branch: branch.to_string(),
-                                }));
+                                return Ok(Some((
+                                    crate::sandbox::SandboxInfo {
+                                        id: sandbox_id.clone(),
+                                        hostname: hostname.clone(),
+                                        status,
+                                        session_id: existing_run.session_id.clone().unwrap_or_default(),
+                                        command_id: existing_run.command_id.clone().unwrap_or_default(),
+                                        branch: branch.to_string(),
+                                    },
+                                    existing_run.id,
+                                )));
                             }
                             _ => {
                                 tracing::warn!("✗ Existing sandbox {} is not running (status: {:?}), cannot reuse", sandbox_id, status);
