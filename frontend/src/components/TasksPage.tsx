@@ -28,7 +28,11 @@ export function TasksPage() {
   const archiveMultipleMutation = useArchiveMultipleTasksMutation();
   
   // Reverse the array so newest appears at top but j/k navigation works correctly
-  const tasks = useMemo(() => [...rawTasks].reverse(), [rawTasks]);
+  const tasks = useMemo(() => {
+    // drop anything marked archived (supports either a boolean or a status)
+    const unarchived = (rawTasks || []).filter((t: any) => !t.archived && t.status !== 'archived');
+    return [...unarchived].reverse();
+  }, [rawTasks]);
   
   /* warm the cache for the first N tasks so detail pages feel instant */
   const qc = useQueryClient();
@@ -103,6 +107,10 @@ export function TasksPage() {
       // Archive multiple selected tasks
       archiveMultipleMutation.mutate(Array.from(selectedTaskIds), {
         onSuccess: () => {
+          const toDrop = new Set(selectedTaskIds);
+          qc.setQueryData(['tasks'], (prev: any[] | undefined) =>
+            Array.isArray(prev) ? prev.filter(t => !toDrop.has(t.task_id)) : prev
+          );
           setSelectedTaskIds(new Set()); // Clear selection
           // Adjust selectedIndex if needed
           if (selectedIndex >= tasks.length - selectedTaskIds.size && selectedIndex > 0) {
@@ -114,6 +122,9 @@ export function TasksPage() {
       // Archive current selected task (keyboard navigation fallback)
       archiveMutation.mutate(currentSelectedTask.task_id, {
         onSuccess: () => {
+          qc.setQueryData(['tasks'], (prev: any[] | undefined) =>
+            Array.isArray(prev) ? prev.filter(t => t.task_id !== currentSelectedTask.task_id) : prev
+          );
           // Adjust selectedIndex if we archived the last task
           if (selectedIndex >= tasks.length - 1 && selectedIndex > 0) {
             setSelectedIndex(selectedIndex - 1);
@@ -178,7 +189,7 @@ export function TasksPage() {
   });
 
   // Use this to show skeleton instead of possibly-stale data
-  const showInitialSkeleton = !initialRefetchDone && (rawTasks?.length ?? 0) === 0;
+  const showInitialSkeleton = !initialRefetchDone;
 
   // Prefetch cache warm-up effect - delay until we know the task list is fresh
   useEffect(() => {
