@@ -996,8 +996,8 @@ impl Database {
             Task,
             r#"SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at 
                FROM tasks 
-               WHERE status = 'pr_opened' 
-               AND github_pr_url IS NOT NULL
+               WHERE github_pr_url IS NOT NULL
+               AND status != 'pr_merged'
                AND is_archived = false"#
         )
         .fetch_all(&self.pool)

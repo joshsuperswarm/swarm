@@ -330,6 +330,15 @@ async fn handle_task_success(
         tracing::error!("Error updating task {} PR URL: {}", task_id, e);
     }
 
+    // Update task status to pr_opened
+    if let Err(e) = app_state
+        .database
+        .update_task_status(task_id, "pr_opened", Some(&pr_url))
+        .await
+    {
+        tracing::error!("Error updating task {} status to pr_opened: {}", task_id, e);
+    }
+
     // Update run status to pr_opened
     if let Err(e) = app_state
         .database
@@ -434,10 +443,10 @@ async fn main() -> AppResult<()> {
     });
 
     // Start PR status poller (non-blocking)
+    tracing::info!("Booting PR status poller…");
     let pr_poller_db = Arc::new(app_state.database.clone());
-    let pr_poller_token = config.github_token.clone();
     tokio::spawn(async move {
-        let pr_poller = PrStatusPoller::new(pr_poller_db, pr_poller_token.as_deref());
+        let pr_poller = PrStatusPoller::new(pr_poller_db, None);
         pr_poller.start_polling().await;
     });
 

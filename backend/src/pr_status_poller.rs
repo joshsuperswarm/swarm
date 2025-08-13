@@ -7,128 +7,81 @@ use tokio::time::interval;
 
 pub struct PrStatusPoller {
     db: Arc<Database>,
-    github_client: Option<GitHubPRClient>,
     poll_interval: Duration,
 }
 
 impl PrStatusPoller {
-    pub fn new(db: Arc<Database>, github_token: Option<&str>) -> Self {
-        let github_client = github_token.and_then(|token| {
-            match GitHubPRClient::new(token) {
-                Ok(client) => {
-                    tracing::info!("PR status poller initialized with GitHub client");
-                    Some(client)
-                }
-                Err(e) => {
-                    tracing::error!("Failed to initialize GitHub client for PR polling: {}", e);
-                    None
-                }
-            }
-        });
-
+    pub fn new(db: Arc<Database>, _github_token: Option<&str>) -> Self {
+        // ignore the global token entirely
         Self {
             db,
-            github_client,
             poll_interval: Duration::from_secs(10 * 60), // 10 minutes
         }
     }
 
     pub async fn start_polling(&self) {
-        if self.github_client.is_none() {
-            tracing::warn!("PR status poller starting without GitHub token - no polling will occur");
-            return;
+        tracing::info!("Starting PR status poller (interval: {}m)", self.poll_interval.as_secs() / 60);
+
+        // run once immediately so it doesn't look idle
+        if let Err(e) = self.poll_pr_statuses().await {
+            tracing::error!("Initial PR poll failed: {}", e);
         }
 
-        tracing::info!("Starting PR status poller with {} minute interval", self.poll_interval.as_secs() / 60);
         let mut interval_timer = interval(self.poll_interval);
-
         loop {
             interval_timer.tick().await;
-            
             if let Err(e) = self.poll_pr_statuses().await {
-                tracing::error!("Error during PR status polling: {}", e);
+                tracing::error!("PR poll error: {}", e);
             }
         }
     }
 
     async fn poll_pr_statuses(&self) -> Result<()> {
-        let github_client = match &self.github_client {
-            Some(client) => client,
-            None => {
-                tracing::debug!("Skipping PR status poll - no GitHub client");
-                return Ok(());
-            }
-        };
-
-        tracing::debug!("Starting PR status polling cycle");
-        
-        // Get all tasks that need PR status checking
         let tasks = self.db.get_tasks_needing_pr_polling().await?;
-        
         if tasks.is_empty() {
-            tracing::debug!("No tasks found needing PR status polling");
+            tracing::debug!("PR poll: nothing to do");
             return Ok(());
         }
+        tracing::info!("PR poll: {} tasks", tasks.len());
 
-        tracing::info!("Found {} tasks needing PR status polling", tasks.len());
-
-        let mut merged_count = 0;
-        let mut error_count = 0;
+        let mut merged = 0usize;
+        let mut errors = 0usize;
 
         for task in tasks {
-            let pr_url = match &task.github_pr_url {
-                Some(url) => url,
-                None => {
-                    tracing::warn!("Task {} has status 'pr_opened' but no github_pr_url", task.id);
-                    continue;
-                }
+            let Some(pr_url) = &task.github_pr_url else { continue };
+
+            let (owner, repo, number) = match GitHubPRClient::parse_pr_url(pr_url) {
+                Ok(t) => t,
+                Err(e) => { errors += 1; tracing::warn!("Bad PR URL on task {}: {} ({})", task.id, e, pr_url); continue; }
             };
 
-            match GitHubPRClient::parse_pr_url(pr_url) {
-                Ok((owner, repo, pr_number)) => {
-                    tracing::debug!("Checking PR merge status for task {} - {}/{} #{}", task.id, owner, repo, pr_number);
-                    
-                    match github_client.is_merged(&owner, &repo, pr_number).await {
-                        Ok(true) => {
-                            tracing::info!("PR #{} in {}/{} has been merged - updating task {} to pr_merged", pr_number, owner, repo, task.id);
-                            
-                            match self.db.update_task_to_pr_merged(task.id).await {
-                                Ok(_) => {
-                                    merged_count += 1;
-                                    tracing::info!("Successfully updated task {} status to pr_merged", task.id);
-                                }
-                                Err(e) => {
-                                    error_count += 1;
-                                    tracing::error!("Failed to update task {} to pr_merged: {}", task.id, e);
-                                }
-                            }
-                        }
-                        Ok(false) => {
-                            tracing::debug!("PR #{} in {}/{} is not yet merged (task {})", pr_number, owner, repo, task.id);
-                        }
-                        Err(e) => {
-                            error_count += 1;
-                            tracing::error!("Failed to check PR merge status for task {}: {}", task.id, e);
-                        }
+            // 🔑 fetch the correct user's token for this task
+            let token = match self.db.get_github_token(task.user_id).await? {
+                Some(t) => t.access_token,
+                None => { tracing::warn!("No GitHub token for user {} (task {})", task.user_id, task.id); continue; }
+            };
+
+            let client = match GitHubPRClient::new(&token) {
+                Ok(c) => c,
+                Err(e) => { errors += 1; tracing::error!("Make client failed for task {}: {}", task.id, e); continue; }
+            };
+
+            match client.is_merged(&owner, &repo, number).await {
+                Ok(true) => {
+                    if let Err(e) = self.db.update_task_to_pr_merged(task.id).await {
+                        errors += 1; tracing::error!("Mark merged failed for task {}: {}", task.id, e);
+                    } else {
+                        merged += 1; tracing::info!("Task {} PR merged (#{})", task.id, number);
                     }
                 }
-                Err(e) => {
-                    error_count += 1;
-                    tracing::error!("Failed to parse PR URL for task {}: {} - URL: {}", task.id, e, pr_url);
-                }
+                Ok(false) => { /* not merged yet */ }
+                Err(e) => { errors += 1; tracing::error!("Check merged failed (task {}): {}", task.id, e); }
             }
         }
 
-        if merged_count > 0 || error_count > 0 {
-            tracing::info!(
-                "PR status polling complete: {} tasks updated to merged, {} errors",
-                merged_count,
-                error_count
-            );
-        } else {
-            tracing::debug!("PR status polling complete: no status changes");
+        if merged > 0 || errors > 0 {
+            tracing::info!("PR poll: {} merged, {} errors", merged, errors);
         }
-
         Ok(())
     }
 }
@@ -151,17 +104,13 @@ mod tests {
         
         let db = Arc::new(Database::new(pool));
         
-        // Test creating poller without token
+        // Test creating poller without token (should work now)
         let poller_no_token = PrStatusPoller::new(db.clone(), None);
-        assert!(poller_no_token.github_client.is_none());
+        assert_eq!(poller_no_token.poll_interval.as_secs(), 10 * 60);
         
-        // Test creating poller with invalid token  
-        let poller_invalid_token = PrStatusPoller::new(db.clone(), Some("invalid_token"));
-        // Note: This might still create a client as the GitHub client constructor doesn't validate the token
-        
-        // Test creating poller with test token
+        // Test creating poller with token (should ignore it)
         let poller_with_token = PrStatusPoller::new(db.clone(), Some("ghp_test_token"));
-        assert!(poller_with_token.github_client.is_some());
+        assert_eq!(poller_with_token.poll_interval.as_secs(), 10 * 60);
     }
     
     #[tokio::test]
