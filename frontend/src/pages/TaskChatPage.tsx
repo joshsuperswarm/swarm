@@ -207,7 +207,7 @@ export function TaskChatPage() {
       {/* Scrollable content */}
       <div
         ref={containerRef}
-        className="overflow-y-auto px-3 py-3 pb-36 md:pb-40"
+        className="flex-1 min-h-0 overflow-y-auto px-3 py-3 pb-36 md:pb-40"
         onScroll={onScroll}
       >
         <div className="mx-auto w-full max-w-3xl space-y-4">
