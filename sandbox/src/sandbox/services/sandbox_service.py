@@ -49,6 +49,9 @@ class SandboxService:
             # Always configure git user settings (author is now required)
             self._configure_git(sb, req)
 
+            # Setup development tools (pre-commit hooks, etc.)
+            self._setup_dev_tools(sb, req)
+
             # Run backend/scripts/start_postgres_and_migrate.sh
             self._bootstrap_postgres(sb, req)
 
@@ -285,6 +288,31 @@ class SandboxService:
             self.logger.warning(
                 f"Failed to configure git during startup: {git_config_error}"
             )
+            # Don't fail sandbox creation - this is not critical
+    
+    def _setup_dev_tools(self, sb: modal.Sandbox, req: CreateSandboxReq):
+        """Setup development tools like pre-commit hooks."""
+        try:
+            # Extract repo name from URL for folder name
+            repo_name = req.repo_url.rstrip("/").split("/")[-1]
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+                
+            setup_script_path = f"/home/swarm/{repo_name}/scripts/setup.sh"
+            
+            # Run the setup script to install pre-commit hooks
+            setup_proc = sb.exec(
+                "su", "-", "swarm", "-c", f"cd /home/swarm/{repo_name} && chmod +x {setup_script_path} && {setup_script_path}"
+            )
+            
+            setup_exit_code = setup_proc.wait()
+            if setup_exit_code == 0:
+                self.logger.info("Development tools setup completed successfully")
+            else:
+                self.logger.warning(f"Development tools setup failed with exit code {setup_exit_code}")
+                
+        except Exception as setup_error:
+            self.logger.warning(f"Failed to setup development tools: {setup_error}")
             # Don't fail sandbox creation - this is not critical
     
     def _bootstrap_postgres(self, sb: modal.Sandbox, req: CreateSandboxReq):
