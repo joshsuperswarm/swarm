@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { useHotkeys } from 'react-hotkeys-hook';
 import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
@@ -15,7 +16,16 @@ import { isTitlePending } from "@/lib/titleState";
 
 export function TaskChatPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const taskId = parseInt(id || "0", 10);
+
+  // Key filter to ignore hotkeys when user is typing
+  const keyFilter = (keyboardEvent: KeyboardEvent) => {
+    const target = keyboardEvent.target as HTMLElement;
+    const tagName = target.tagName.toLowerCase();
+    const isContentEditable = target.contentEditable === "true";
+    return !(tagName === "input" || tagName === "textarea" || isContentEditable);
+  };
   
   // Use unified task details query
   const { data: taskDetails, isLoading } = useTaskDetailsQuery(taskId);
@@ -47,6 +57,13 @@ export function TaskChatPage() {
       isInitialLoad.current = false;
     }
   }, [messages.length]);
+  
+  // Navigation hotkeys
+  useHotkeys('esc', () => {
+    navigate('/');
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e)
+  });
   
   if (isLoading || !task) {
     return (
