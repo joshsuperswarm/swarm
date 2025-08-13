@@ -39,23 +39,6 @@ pub async fn run_full_task_pipeline(
     };
     tracing::info!("Using run {} for task {}", run.id, task.id);
 
-    // Create placeholder assistant message for this run
-    if let Err(e) = app_state
-        .database
-        .upsert_message(task.id, run.id, mode, "", "", "assistant")
-        .await
-    {
-        tracing::error!(
-            "Failed to create placeholder assistant message for task {}: {}",
-            task.id,
-            e
-        );
-        let _ = app_state.database.update_run_status(run.id, "failed").await;
-        return Err(anyhow::anyhow!(
-            "Failed to create placeholder assistant message: {}",
-            e
-        ));
-    }
 
     // Get the user from the task
     let user = match app_state.database.get_user_by_id(task.user_id).await {
