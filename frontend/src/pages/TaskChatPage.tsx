@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { ChatBubble } from "@/components/ChatBubble";
@@ -8,6 +8,7 @@ import { statuses } from "@/data/data";
 import { useTaskDetailsQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
+import { useStickToBottom } from "@/hooks/useStickToBottom";
 import { Bot } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { RunMode } from "@/services/api";
@@ -44,19 +45,15 @@ export function TaskChatPage() {
   const [inputValue, setInputValue] = useState("");
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const [showJump, setShowJump] = useState(false);
-  const isInitialLoad = useRef(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const { onScroll, showJump, jumpToLatest } = useStickToBottom({
+    containerRef,
+    bottomRef,
+    itemCount: messages.length,
+    threshold: 16,
+  });
   
-  useEffect(() => {
-    // Use instant scroll for initial load, smooth scroll for new messages
-    const behavior = isInitialLoad.current ? "instant" : "smooth";
-    bottomRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
-    
-    // Mark initial load as complete
-    if (isInitialLoad.current) {
-      isInitialLoad.current = false;
-    }
-  }, [messages.length]);
   
   // Navigation hotkeys
   useHotkeys('esc', () => {
@@ -161,12 +158,9 @@ export function TaskChatPage() {
 
       {/* Scrollable content */}
       <div
+        ref={containerRef}
         className="overflow-y-auto px-3 py-3 pb-36 md:pb-40"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 16;
-          setShowJump(!atBottom);
-        }}
+        onScroll={onScroll}
       >
         <div className="mx-auto w-full max-w-3xl space-y-4">
         {messages.length === 0 && !finished && !isSending ? (
@@ -251,7 +245,7 @@ export function TaskChatPage() {
         <div className="fixed bottom-24 md:bottom-28 inset-x-0 z-30">
           <div className="mx-auto w-full max-w-3xl flex justify-center">
             <button
-              onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+              onClick={jumpToLatest}
               className="px-3 py-1.5 rounded-full text-xs border bg-white shadow hover:bg-gray-50"
             >
               Jump to latest ↓
