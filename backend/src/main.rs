@@ -1735,7 +1735,7 @@ async fn get_task_logs(
                 }
             }
         }
-        None => match app_state.database.get_recent_task_logs(task_id, 20).await {
+        None => match app_state.database.get_recent_task_logs_raw(task_id, 20).await {
             Ok(logs) => logs,
             Err(e) => {
                 tracing::error!("Error fetching recent logs for task {}: {}", task_id, e);

@@ -470,7 +470,7 @@ impl Database {
 
     /// ⚠ INTERNAL – call only after ensure_task_owner().
     /// Returns the most recent logs for a task (for debugging purposes)
-    pub async fn get_recent_task_logs(&self, task_id: i32, limit: i32) -> AppResult<Vec<TaskLog>> {
+    pub async fn get_recent_task_logs_raw(&self, task_id: i32, limit: i32) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
             SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
@@ -594,6 +594,23 @@ impl Database {
                 total_count,
                 has_more: false,
                 cursor,
+            },
+        })
+    }
+
+    pub async fn assemble_run_meta_without_logs(&self, run: &Run) -> AppResult<RunWithMeta> {
+        // Get todos for this task
+        let todos = self.get_agent_todos(run.task_id).await?;
+
+        // Don't load logs - use empty logs structure
+        Ok(RunWithMeta {
+            run: run.clone(),
+            todos,
+            logs: TaskLogsPaginated {
+                entries: Vec::new(),
+                total_count: 0,
+                has_more: false,
+                cursor: None,
             },
         })
     }
@@ -815,7 +832,7 @@ impl Database {
                         created_at: row.run_created_at,
                         updated_at: row.run_updated_at,
                     };
-                    Some(self.assemble_run_meta(&run).await?)
+                    Some(self.assemble_run_meta_without_logs(&run).await?)
                 } else {
                     tracing::warn!(
                         "Run {} has NULL mode, skipping run attachment to message",
