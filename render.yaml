@@ -84,6 +84,7 @@ services:
     rootDir: sandbox
     buildCommand: uv sync --frozen
     startCommand: uv run swarm-sandbox
+    autoDeploy: false
     envVars:
       - key: PORT
         value: 8000
