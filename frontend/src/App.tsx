@@ -115,12 +115,12 @@ function App() {
   }
 
   if (!isSignedIn) {
-    return <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />;
+    return <Router isSignedIn={isSignedIn} />;
   }
 
   // If user hasn't completed onboarding, show onboarding without layout
   if (onboardingStatus && !onboardingStatus.onboarding_completed) {
-    return <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />;
+    return <Router isSignedIn={isSignedIn} />;
   }
 
   return (
@@ -153,7 +153,7 @@ function App() {
           </div>
         </nav>
 
-        <Router isSignedIn={isSignedIn} isLoaded={isLoaded} />
+        <Router isSignedIn={isSignedIn} />
       </div>
 
       <CreateTaskModal

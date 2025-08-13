@@ -9,23 +9,29 @@ import { DefaultRepoSelector } from '@/components/onboarding/DefaultRepoSelector
 
 interface RouterProps {
   isSignedIn: boolean;
-  isLoaded: boolean;
 }
 
 export function Router({ isSignedIn }: RouterProps) {
   return (
     <Routes>
-      <Route path="/pricing" element={<PricingScreen />} />
       {isSignedIn ? (
         <>
           <Route path="/" element={<TasksPage />} />
-          <Route path="/tasks/:id" element={<TaskPage />} />
+          {/* New: Chat page is now the default detail route */}
+          <Route path="/tasks/:id" element={<TaskChatPage />} />
+          {/* Explicit chat route still works */}
           <Route path="/tasks/:id/chat" element={<TaskChatPage />} />
+          {/* Legacy page accessible via /task/:id/old */}
+          <Route path="/task/:id/old" element={<TaskPage />} />
           <Route path="/onboarding/api-keys" element={<ApiKeysForm />} />
           <Route path="/onboarding/default-repo" element={<DefaultRepoSelector />} />
+          <Route path="/pricing" element={<PricingScreen />} />
         </>
       ) : (
-        <Route path="*" element={<LoginPage />} />
+        <>
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/pricing" element={<PricingScreen />} />
+        </>
       )}
     </Routes>
   );
