@@ -5,12 +5,13 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { statuses } from "@/data/data";
-import { useTaskDetailsQuery } from "@/services/queries";
+import { useTaskDetailsQuery, useTasksQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 import { Bot } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
+import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { RunMode } from "@/services/api";
 import { AnimatedTitle } from "@/components/AnimatedTitle";
 import { isTitlePending } from "@/lib/titleState";
@@ -30,12 +31,38 @@ export function TaskChatPage() {
   
   // Use unified task details query
   const { data: taskDetails, isLoading } = useTaskDetailsQuery(taskId);
+  
+  // Get all tasks for j/k navigation
+  const { data: allTasks = [] } = useTasksQuery();
   const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId);
   
   // Extract data from unified response
   const task = taskDetails?.task;
   const messages = taskDetails?.messages || [];
   const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
+  
+  // Prepare task list for navigation (same filtering as TasksPage)
+  const unarchived = allTasks.filter((t: TaskWithRun) => !t.is_archived && t.status !== 'archived');
+  const tasks = [...unarchived].reverse(); // Newest first, same as TasksPage
+  
+  // Find current task index in the list
+  const currentTaskIndex = tasks.findIndex(t => t.task_id === taskId);
+  
+  // Navigate to adjacent task
+  const navigateToTask = (direction: 'next' | 'prev') => {
+    if (tasks.length === 0) return;
+    
+    let nextIndex;
+    if (direction === 'next') {
+      nextIndex = currentTaskIndex < tasks.length - 1 ? currentTaskIndex + 1 : tasks.length - 1;
+    } else {
+      nextIndex = currentTaskIndex > 0 ? currentTaskIndex - 1 : 0;
+    }
+    
+    if (nextIndex !== currentTaskIndex && tasks[nextIndex]) {
+      navigate(`/tasks/${tasks[nextIndex].task_id}`);
+    }
+  };
   
   // Use the mode from current run, fallback to default execute mode
   const initialMode = (currentRun?.run?.mode || "execute") as RunMode;
@@ -58,6 +85,19 @@ export function TaskChatPage() {
   // Navigation hotkeys
   useHotkeys('esc', () => {
     navigate('/');
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e)
+  });
+  
+  // j/k navigation between tasks
+  useHotkeys('j', () => {
+    navigateToTask('next');
+  }, {
+    ignoreEventWhen: (e) => !keyFilter(e)
+  });
+  
+  useHotkeys('k', () => {
+    navigateToTask('prev');
   }, {
     ignoreEventWhen: (e) => !keyFilter(e)
   });
