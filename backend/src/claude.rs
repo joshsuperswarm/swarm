@@ -86,7 +86,7 @@ async fn anthropic_post_with_retry(
 /// Generate a concise task title (≤ 80 chars) with Claude Sonnet 4.
 pub async fn generate_title(desc: &str, api_key: &str) -> Result<String> {
     let user_content = format!(
-        "Return a concise, human-readable task title (≤ 80 characters) for this task description: {}",
+        "Return a concise, human-readable task title (≤ 80 characters) for this task description. Do not include semicolons in the title: {}",
         desc
     );
 
