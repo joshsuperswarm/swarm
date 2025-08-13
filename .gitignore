@@ -3,12 +3,14 @@
 **/*.rs.bk
 *.pdb
 # Keep Cargo.lock for applications
-backend/Cargo.lock
 
 # Node.js / React
 node_modules/
 dist/
 build/
+
+# Backend build artifacts
+backend/build/
 *.log
 npm-debug.log*
 yarn-debug.log*
