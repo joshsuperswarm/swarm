@@ -16,11 +16,10 @@
 //! ---
 
 use crate::{
-    config::Config,
-    sandbox::{self, DynSandbox, SandboxProvider, SandboxStatus},
+    sandbox::{self, SandboxProvider, SandboxStatus},
     AppState,
 };
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, warn};
 
@@ -28,19 +27,7 @@ use tracing::{debug, error, info, warn};
 //  Helper functions
 // ——————————————————————————————————————————————————————————————
 
-// ——————————————————————————————————————————————————————————————
-//  Provider factory (Modal only)
-// ——————————————————————————————————————————————————————————————
-fn provider_from_config(config: &Config) -> Option<DynSandbox> {
-    if let Some(url) = &config.modal_url {
-        Some(Arc::new(sandbox::modal::ModalProvider::new(
-            url.clone(),
-            config.modal_region.clone(),
-        )))
-    } else {
-        None
-    }
-}
+// (Removed) We now use the already-initialized provider from AppState.
 
 // ——————————————————————————————————————————————————————————————
 //  Public entry‑point – spawn this once at boot
@@ -52,6 +39,7 @@ pub async fn run(app_state: AppState) {
     loop {
         let cycle_start = Instant::now();
         cycle_count += 1;
+        info!("poller cycle start: {}", cycle_count);
 
         if let Err(e) = poll_once(&app_state).await {
             error!("poller cycle error: {e}");
@@ -92,14 +80,8 @@ pub async fn run(app_state: AppState) {
 //  One polling cycle
 // ——————————————————————————————————————————————————————————————
 async fn poll_once(app_state: &AppState) -> anyhow::Result<()> {
-    // 1. resolve provider – if none configured just bail early (don't spam DB).
-    let provider = match provider_from_config(&app_state.config) {
-        Some(p) => p,
-        None => {
-            debug!("no sandbox provider configured – skipping poll");
-            return Ok(());
-        }
-    };
+    // 1. use the provider supplied at boot
+    let provider = app_state.sandbox.clone();
 
     // 2. fetch candidate runs (spinning or running)
     let rows = sqlx::query!(
@@ -449,13 +431,7 @@ async fn mark_failed(
 
 /// Handle idle timeout management for session persistence
 async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
-    let provider = match provider_from_config(&app_state.config) {
-        Some(p) => p,
-        None => {
-            debug!("no sandbox provider configured – skipping idle timeout handling");
-            return Ok(());
-        }
-    };
+    let provider = app_state.sandbox.clone();
 
     // Get expired sessions and clean them up
     let expired_sessions = app_state.database.get_expired_sessions().await?;
