@@ -92,7 +92,7 @@ pub async fn generate_title(desc: &str, api_key: &str) -> Result<String> {
 
     let body = json!({
         "model": "claude-sonnet-4-20250514",
-        "max_tokens": 16,
+        "max_tokens": 30,
         "temperature": 0.2,
         "messages": [ { "role": "user", "content": user_content } ]
     });
