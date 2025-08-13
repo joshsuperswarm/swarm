@@ -178,7 +178,7 @@ async fn handle_task(
             )
             .await?;
         } else {
-            mark_failed(app_state, provider, run_id, task_id, &sandbox_id).await?;
+            mark_failed(app_state, provider, run_id, task_id, &sandbox_id, &format!("non-zero exit code: {}", code)).await?;
         }
         return Ok(());
     }
@@ -211,10 +211,10 @@ async fn handle_task(
             }
         }
         SandboxStatus::Stopped => {
-            mark_failed(app_state, provider, run_id, task_id, &sandbox_id).await?
+            mark_failed(app_state, provider, run_id, task_id, &sandbox_id, "sandbox stopped").await?
         }
         SandboxStatus::Failed => {
-            mark_failed(app_state, provider, run_id, task_id, &sandbox_id).await?
+            mark_failed(app_state, provider, run_id, task_id, &sandbox_id, "sandbox failed").await?
         }
         SandboxStatus::Starting => {
             debug!("task {task_id} sandbox still starting");
@@ -416,10 +416,11 @@ async fn mark_failed(
     run_id: i32,
     task_id: i32,
     sandbox_id: &str,
+    reason: &str,
 ) -> anyhow::Result<()> {
     warn!(
-        "run {} / task {} marked failed – cleaning up",
-        run_id, task_id
+        "run {} / task {} marked failed ({}) – cleaning up",
+        run_id, task_id, reason
     );
     app_state
         .database
