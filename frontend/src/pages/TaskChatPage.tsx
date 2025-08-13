@@ -9,7 +9,7 @@ import { useTaskDetailsQuery, useTasksQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
-import { Bot } from 'lucide-react';
+import { Bot, ArrowLeft } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { RunMode } from "@/services/api";
@@ -163,11 +163,19 @@ export function TaskChatPage() {
       {/* Header */}
       <div className="flex-shrink-0 border-b bg-white sticky top-0 z-30 safe-pt px-3 py-2">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => navigate('/')}
+              aria-label="Back to tasks"
+              title="Back to tasks (Esc)"
+              className="h-9 w-9 flex items-center justify-center rounded-md bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded shrink-0">
               #{task.id}
             </span>
-            <h1 className="text-lg md:text-xl font-semibold text-gray-900">
+            <h1 className="text-lg md:text-xl font-semibold text-gray-900 truncate">
               <AnimatedTitle title={task.title || ""} pending={pendingTitle} />
             </h1>
           </div>
