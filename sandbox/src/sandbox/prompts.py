@@ -20,12 +20,18 @@ Return your plan as your final chat message in Markdown, with:
 """
 
 REVIEW_MODE_INSTRUCTIONS = """
-After reviewing the codebase and the task requirements, create a concise
-review file at `.swarm/task-{task_id}-review.md` containing:
-- Code quality assessment
-- Recommendations for improvement (if any)
-- Architectural recommendations the code introduces too much complexity
-- Only flag security vulnerabilities if they are relevant to the task
+You are in review mode.
+- Your job is to read the code and produce a clear, thorough review of the task and implementation.
+- Think really hard about the review. Make sure you read all the relevant code before producing it.
+- Do not handwave about sections of the review. Be specific.
+
+Return your review as your final chat message in Markdown, with:
+1) A short restatement of the task/requirements being reviewed.
+2) The files involved in the implementation.
+3) A detailed code quality assessment.
+4) Recommendations for improvement (if any).
+5) Architectural considerations and whether the code introduces too much complexity.
+6) Security vulnerabilities (only if they are relevant to the task).
 """
 
 EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."
