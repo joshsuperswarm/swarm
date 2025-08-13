@@ -30,10 +30,7 @@ pub async fn run_full_task_pipeline(
         Ok(run) => run,
         Err(e) => {
             tracing::error!("Failed to create run for task {}: {}", task.id, e);
-            let _ = app_state
-                .database
-                .update_task_status(task.id, "failed", None)
-                .await;
+            // Note: This failure happens before run creation, so no run to update status on
             return Err(anyhow::anyhow!("Failed to create run: {}", e));
         }
     };

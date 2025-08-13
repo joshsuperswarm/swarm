@@ -394,13 +394,7 @@ async fn handle_task_success(
         tracing::error!("Error updating task {} PR URL: {}", task_id, e);
     }
 
-    if let Err(e) = app_state
-        .database
-        .update_task_status(task_id, "pr_opened", Some(&pr_url))
-        .await
-    {
-        tracing::error!("Error updating task {} status to pr_opened: {}", task_id, e);
-    }
+    // Note: No longer updating tasks.status - using runs.status as single source of truth
 
     if let Err(e) = app_state
         .database

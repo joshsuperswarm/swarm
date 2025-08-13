@@ -247,13 +247,14 @@ impl Database {
 
     /// ⚠ INTERNAL – call only after ensure_task_owner().
     pub async fn get_task_by_id_raw(&self, task_id: i32) -> AppResult<Option<Task>> {
-        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at FROM tasks WHERE id = $1", task_id)
+        let task = sqlx::query_as!(Task, "SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, pr_merged_at, is_archived, created_at, updated_at FROM tasks WHERE id = $1", task_id)
             .fetch_optional(&self.pool)
             .await?;
 
         Ok(task)
     }
 
+    #[deprecated(note = "Use update_run_status instead - tasks.status is being phased out in favor of runs.status")]
     pub async fn update_task_status(
         &self,
         task_id: i32,
@@ -283,7 +284,7 @@ impl Database {
     pub async fn update_task_pr_url(&self, task_id: i32, pr_url: &str) -> AppResult<Task> {
         let task = sqlx::query_as!(
             Task,
-            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at",
+            "UPDATE tasks SET github_pr_url = $1 WHERE id = $2 RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, pr_merged_at, is_archived, created_at, updated_at",
             pr_url,
             task_id
         )
@@ -304,7 +305,7 @@ impl Database {
             UPDATE tasks 
             SET pr_title = $2, pr_body = $3, updated_at = NOW()
             WHERE id = $1
-            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at
+            RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, pr_merged_at, is_archived, created_at, updated_at
             "#,
             task_id,
             pr_title,
@@ -1040,10 +1041,10 @@ impl Database {
     pub async fn get_tasks_needing_pr_polling(&self) -> AppResult<Vec<Task>> {
         let tasks = sqlx::query_as!(
             Task,
-            r#"SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at 
+            r#"SELECT id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, pr_merged_at, is_archived, created_at, updated_at 
                FROM tasks 
                WHERE github_pr_url IS NOT NULL
-               AND status != 'pr_merged'
+               AND pr_merged_at IS NULL
                AND is_archived = false"#
         )
         .fetch_all(&self.pool)
@@ -1056,9 +1057,9 @@ impl Database {
         let task = sqlx::query_as!(
             Task,
             r#"UPDATE tasks 
-               SET status = 'pr_merged', updated_at = NOW()
+               SET pr_merged_at = NOW(), updated_at = NOW()
                WHERE id = $1 
-               RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, is_archived, created_at, updated_at"#,
+               RETURNING id, user_id, repository_id, title, description, status, github_pr_url, pr_title, pr_body, pr_merged_at, is_archived, created_at, updated_at"#,
             task_id
         )
         .fetch_one(&self.pool)

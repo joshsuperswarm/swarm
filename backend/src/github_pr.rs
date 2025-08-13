@@ -339,6 +339,7 @@ mod tests {
             github_pr_url: None,
             pr_title: None,
             pr_body: None,
+            pr_merged_at: None,
             is_archived: false,
             created_at: None,
             updated_at: None,

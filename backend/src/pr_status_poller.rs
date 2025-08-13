@@ -192,14 +192,10 @@ mod tests {
             .await
             .expect("Failed to create task");
 
-        // Update task to pr_opened with PR URL
-        db.update_task_status(
-            task.id,
-            "pr_opened",
-            Some("https://github.com/testowner/testrepo/pull/123"),
-        )
-        .await
-        .expect("Failed to update task status");
+        // Update task with PR URL (no status update needed - using runs.status as source of truth)
+        db.update_task_pr_url(task.id, "https://github.com/testowner/testrepo/pull/123")
+            .await
+            .expect("Failed to update PR URL");
 
         // Test querying tasks needing PR polling
         let tasks = db
@@ -211,8 +207,8 @@ mod tests {
             .iter()
             .find(|t| t.id == task.id)
             .expect("Task not found");
-        assert_eq!(found_task.status.as_deref(), Some("pr_opened"));
         assert!(found_task.github_pr_url.is_some());
+        assert!(found_task.pr_merged_at.is_none()); // Should not be merged yet
 
         // Clean up
         let _ = sqlx::query!("DELETE FROM tasks WHERE id = $1", task.id)

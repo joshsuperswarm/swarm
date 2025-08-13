@@ -125,6 +125,7 @@ pub struct Task {
     pub github_pr_url: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
+    pub pr_merged_at: Option<DateTime<Utc>>,
     pub is_archived: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
