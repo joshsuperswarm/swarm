@@ -215,74 +215,8 @@ impl ModalSandboxClient {
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct ArtifactCollector {
-    commit_title: Option<String>,
-    commit_body: Option<String>,
-}
 
-impl ArtifactCollector {
-    fn set_commit_title(&mut self, title: &str) {
-        self.commit_title = Some(title.trim().to_string());
-    }
 
-    fn set_commit_body(&mut self, body: &str) {
-        self.commit_body = Some(body.trim().to_string());
-    }
-}
-
-/// Return only the content we actually want to parse:
-/// - Assistant message text (minimal)  
-/// - From `result`, ONLY lines that begin with commit artifact markers.
-fn extract_text_from_json_line(line: &str) -> String {
-    if !line.starts_with('{') {
-        return line.to_string();
-    }
-
-    let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
-        return line.to_string();
-    };
-
-    // Preferred: assistant message text
-    if let Some(text) = val
-        .get("message")
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|item| item.get("text"))
-        .and_then(|t| t.as_str())
-    {
-        return text.to_string();
-    }
-
-    // Fallback: from `result`, pass through ONLY commit artifact-marked lines
-    if let Some(t) = val.get("result").and_then(|r| r.as_str()) {
-        let filtered = t.lines().filter(|l| {
-            let l = l.trim_start();
-            l.starts_with("COMMIT_MESSAGE_TITLE:")
-                || l.starts_with("COMMIT_MESSAGE_BODY:")
-        });
-        return filtered.collect::<Vec<_>>().join("\n");
-    }
-
-    line.to_string()
-}
-
-/// Consume ONE *text* line (already filtered) and update collector.
-fn consume_artifact_line(line: &str, ac: &mut ArtifactCollector) {
-    let l = line.trim();
-
-    if l.starts_with("COMMIT_MESSAGE_TITLE:") {
-        let rest = l.trim_start_matches("COMMIT_MESSAGE_TITLE:").trim();
-        ac.set_commit_title(rest);
-        return;
-    }
-    if l.starts_with("COMMIT_MESSAGE_BODY:") {
-        let rest = l.trim_start_matches("COMMIT_MESSAGE_BODY:").trim();
-        ac.set_commit_body(rest);
-        return;
-    }
-}
 
 impl ModalProvider {
     pub fn new(base_url: String, region: Option<String>) -> Self {
@@ -390,13 +324,6 @@ impl ModalProvider {
             let mut last_assistant_text = String::new();
             let mut last_result_block = String::new();
 
-            // Seed from DB (so repeated pulls accumulate properly)
-            let mut collector = ArtifactCollector::default();
-
-            if let Ok(Some(run)) = db.get_run_by_id(run_id).await {
-                collector.commit_title = run.commit_title;
-                collector.commit_body = run.commit_body;
-            }
 
             let _processed = self
                 .process_modal_log_stream(
@@ -405,7 +332,6 @@ impl ModalProvider {
                     run_id,
                     &combined_output,
                     &mut buffer,
-                    &mut collector,
                     &mut last_assistant_text,
                     &mut last_result_block,
                 )
@@ -426,15 +352,6 @@ impl ModalProvider {
 
             // PR artifacts are now generated via Claude API in sandbox_poller, not parsed here
 
-            // Save commit artifacts to run
-            if let Ok(Some(run_id)) = db.get_latest_run_id_for_task(task_id).await {
-                if let Err(e) = db
-                    .set_run_artifacts(run_id, collector.commit_title, collector.commit_body)
-                    .await
-                {
-                    warn!("Failed to save commit artifacts for run {}: {}", run_id, e);
-                }
-            }
         }
 
         Ok(())
@@ -449,7 +366,6 @@ impl ModalProvider {
         run_id: i32,
         raw_stream: &str,
         buffer: &mut String,
-        collector: &mut ArtifactCollector,
         last_assistant_text: &mut String,
         last_result_block: &mut String,
     ) -> SandboxResult<usize> {
@@ -529,11 +445,6 @@ impl ModalProvider {
                         }
                     }
 
-                    // Artifact extraction (new path)
-                    let text_to_parse = extract_text_from_json_line(&json_str);
-                    for text_line in text_to_parse.lines() {
-                        consume_artifact_line(text_line, collector);
-                    }
                 }
                 Err(e) if e.is_eof() => {
                     // Hit incomplete JSON - break and save remaining data for next iteration
@@ -935,25 +846,24 @@ mod tests {
         let mut last_result_block = String::new();
 
         let result1 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut collector, &mut last_assistant_text, &mut last_result_block)
+            .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut last_assistant_text, &mut last_result_block)
             .await;
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0);
         assert!(!buffer.is_empty());
 
         let result2 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk2, &mut buffer, &mut collector, &mut last_assistant_text, &mut last_result_block)
+            .process_modal_log_stream(&db, task_id, 1, chunk2, &mut buffer, &mut last_assistant_text, &mut last_result_block)
             .await;
         assert!(result2.is_err() || result2.unwrap() == 1);
 
-        // Now feed a small result with markers and ensure collector captures them
+        // Test processing a result line
         let result3 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk3, &mut buffer, &mut collector, &mut last_assistant_text, &mut last_result_block)
+            .process_modal_log_stream(&db, task_id, 1, chunk3, &mut buffer, &mut last_assistant_text, &mut last_result_block)
             .await;
         let _ = result3.is_ok();
 
-        // PR artifacts are no longer parsed from logs, only commit artifacts
-        // This test would need to be updated to test commit artifacts instead
+        // No artifacts are parsed from logs anymore - PR artifacts are generated via Claude API
     }
 
     #[test]
@@ -978,26 +888,4 @@ mod tests {
         assert!(result3.unwrap_err().is_eof());
     }
 
-    #[test]
-    fn test_extract_text_from_result_json() {
-        // Result should be filtered to only commit marker lines (no chatter, no PR markers)
-        let result_json = r#"{"type":"result","subtype":"success","result":"Perfect!\n\nCOMMIT_MESSAGE_TITLE: Add result-branch to log extractor\nCOMMIT_MESSAGE_BODY: Fix backend parsing\nPR_TITLE: Fix parsing\nPR_BODY: The backend stalled\nDONE"}"#;
-
-        let extracted = extract_text_from_json_line(result_json);
-        assert!(extracted.contains("COMMIT_MESSAGE_TITLE:"));
-        assert!(extracted.contains("COMMIT_MESSAGE_BODY:"));
-        assert!(!extracted.contains("PR_TITLE:")); // PR markers no longer parsed
-        assert!(!extracted.contains("PR_BODY:")); // PR markers no longer parsed  
-        assert!(!extracted.contains("Perfect!")); // chatter should be filtered out
-
-        // Assistant message path still works
-        let message_json = r#"{"type":"assistant","message":{"content":[{"text":"Hello world"}]}}"#;
-        let extracted_msg = extract_text_from_json_line(message_json);
-        assert_eq!(extracted_msg, "Hello world");
-
-        // Fallback to original line for plain text
-        let plain_text = "plain text line";
-        let extracted_plain = extract_text_from_json_line(plain_text);
-        assert_eq!(extracted_plain, "plain text line");
-    }
 }
