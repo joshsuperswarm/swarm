@@ -356,28 +356,36 @@ export function TaskChatPage() {
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 safe-pb px-3 pb-3">
         <div className="mx-auto w-full max-w-3xl pointer-events-auto">
           <div className="rounded-xl md:rounded-2xl border border-gray-200 bg-white/90 backdrop-blur shadow-lg">
-            <div className="flex items-center gap-2 p-2">
-              {/* Mode button */}
-              <RunModeButton
-                mode={mode}
-                onClick={cycleRunMode}
-                size="sm"
-                showLabel={true}
-                title="Shift+Tab to cycle modes"
-              />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2">
+              {/* Buttons row on mobile */}
+              <div className="flex gap-2 sm:contents">
+                {/* Mode button */}
+                <div className="flex-1 sm:flex-none">
+                  <RunModeButton
+                    mode={mode}
+                    onClick={cycleRunMode}
+                    size="sm"
+                    showLabel={true}
+                    title="Shift+Tab to cycle modes"
+                    className="w-full justify-center"
+                  />
+                </div>
 
-              {/* Model button */}
-              <button
-                onClick={cycleModel}
-                className={`flex items-center gap-1 px-2 py-2 rounded-md text-xs font-medium border transition-colors touch-target ${getModelConfig(model).color}`}
-                title="Click to cycle models"
-              >
-                {React.createElement(getModelConfig(model).icon, { size: 14 })}
-                <span className="hidden sm:inline">{getModelConfig(model).label}</span>
-              </button>
+                {/* Model button */}
+                <div className="flex-1 sm:flex-none">
+                  <button
+                    onClick={cycleModel}
+                    className={`w-full flex items-center justify-center gap-1 px-2 py-2 rounded-md text-xs font-medium border transition-colors touch-target ${getModelConfig(model).color}`}
+                    title="Click to cycle models"
+                  >
+                    {React.createElement(getModelConfig(model).icon, { size: 14 })}
+                    <span>{getModelConfig(model).label}</span>
+                  </button>
+                </div>
+              </div>
 
-              {/* Input */}
-              <div className="flex-1">
+              {/* Input - full width on mobile */}
+              <div className="flex-1 w-full sm:w-auto">
                 <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-blue-500 transition-colors">
                   <input
                     type="text"
@@ -386,12 +394,12 @@ export function TaskChatPage() {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isSending}
-                    className="flex-1 px-3 py-2 text-gray-900 placeholder:text-gray-500 bg-transparent focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                    className="flex-1 px-3 py-2 text-gray-900 placeholder:text-gray-500 bg-transparent focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 min-w-0"
                   />
                   <button
                     onClick={handleSendMessage}
                     disabled={!inputValue.trim() || isSending}
-                    className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target"
+                    className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target flex-shrink-0"
                     title="Send message"
                   >
                     <span className="text-xs">{isSending ? "..." : "→"}</span>
