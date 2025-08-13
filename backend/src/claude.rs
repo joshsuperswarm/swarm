@@ -21,7 +21,10 @@ fn retry_after_delay(resp: &reqwest::Response) -> Option<Duration> {
     if let Some(v) = resp.headers().get(reqwest::header::RETRY_AFTER) {
         if let Ok(s) = v.to_str() {
             if let Ok(secs) = s.parse::<u64>() {
-                return Some(Duration::from_secs(secs).clamp(Duration::from_millis(500), Duration::from_secs(5)));
+                return Some(
+                    Duration::from_secs(secs)
+                        .clamp(Duration::from_millis(500), Duration::from_secs(5)),
+                );
             }
         }
     }
@@ -48,7 +51,10 @@ async fn anthropic_post_with_retry(
 
         match resp {
             Ok(r) if r.status().is_success() => {
-                return r.json::<serde_json::Value>().await.context("parse anthropic json");
+                return r
+                    .json::<serde_json::Value>()
+                    .await
+                    .context("parse anthropic json");
             }
             Ok(r) => {
                 let status = r.status();

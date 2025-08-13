@@ -403,7 +403,10 @@ async fn finalize_success(
 
     // Set idle timeout instead of immediate cleanup for session persistence
     if let Err(e) = app_state.database.update_run_idle_timeout(run_id, 15).await {
-        warn!("Failed to set idle timeout for completed run {}: {}", run_id, e);
+        warn!(
+            "Failed to set idle timeout for completed run {}: {}",
+            run_id, e
+        );
     } else {
         info!("Set 15-minute idle timeout for completed run {}", run_id);
     }
@@ -455,16 +458,16 @@ async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
     };
 
     // Get expired sessions and clean them up
-    let expired_sessions = app_state
-        .database
-        .get_expired_sessions()
-        .await?;
+    let expired_sessions = app_state.database.get_expired_sessions().await?;
 
     let expired_count = expired_sessions.len();
     for run in expired_sessions {
         if let Some(sandbox_id) = &run.sandbox_id {
-            info!("Session for run {} has expired, cleaning up sandbox {}", run.id, sandbox_id);
-            
+            info!(
+                "Session for run {} has expired, cleaning up sandbox {}",
+                run.id, sandbox_id
+            );
+
             // Mark run as failed and cleanup sandbox
             if let Err(e) = app_state.database.update_run_status(run.id, "failed").await {
                 error!("Failed to update run {} status to failed: {}", run.id, e);

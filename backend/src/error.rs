@@ -82,7 +82,10 @@ impl IntoResponse for AppError {
             }
             AppError::Crypto(ref message) => {
                 tracing::error!("Crypto error: {}", message);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Cryptographic operation failed")
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Cryptographic operation failed",
+                )
             }
             AppError::Forbidden(ref message) => {
                 tracing::warn!("Forbidden access: {}", message);

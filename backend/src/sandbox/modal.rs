@@ -215,9 +215,6 @@ impl ModalSandboxClient {
     }
 }
 
-
-
-
 impl ModalProvider {
     pub fn new(base_url: String, region: Option<String>) -> Self {
         Self {
@@ -324,7 +321,6 @@ impl ModalProvider {
             let mut last_assistant_text = String::new();
             let mut last_result_block = String::new();
 
-
             let _processed = self
                 .process_modal_log_stream(
                     db,
@@ -351,7 +347,6 @@ impl ModalProvider {
             }
 
             // PR artifacts are now generated via Claude API in sandbox_poller, not parsed here
-
         }
 
         Ok(())
@@ -393,13 +388,16 @@ impl ModalProvider {
 
                     // Capture final message content for PR synthesis
                     if modal_log.log_type == "assistant" {
-                        if let Some(text) = modal_log.content
+                        if let Some(text) = modal_log
+                            .content
                             .get("message")
                             .and_then(|m| m.get("content"))
                             .and_then(|c| c.as_array())
                         {
                             for content_item in text {
-                                if let Some(text_content) = content_item.get("text").and_then(|t| t.as_str()) {
+                                if let Some(text_content) =
+                                    content_item.get("text").and_then(|t| t.as_str())
+                                {
                                     if !last_assistant_text.is_empty() {
                                         last_assistant_text.push('\n');
                                     }
@@ -408,7 +406,9 @@ impl ModalProvider {
                             }
                         }
                     } else if modal_log.log_type == "result" {
-                        if let Some(result_content) = modal_log.content.get("result").and_then(|r| r.as_str()) {
+                        if let Some(result_content) =
+                            modal_log.content.get("result").and_then(|r| r.as_str())
+                        {
                             *last_result_block = result_content.to_string();
                         }
                     }
@@ -444,7 +444,6 @@ impl ModalProvider {
                             debug!("Failed to parse todos from log line: {}", e);
                         }
                     }
-
                 }
                 Err(e) if e.is_eof() => {
                     // Hit incomplete JSON - break and save remaining data for next iteration
@@ -743,8 +742,11 @@ impl SandboxProvider for ModalProvider {
         mode: &str,
         reuse_session: bool,
     ) -> SandboxResult<String> {
-        info!("Executing Claude Code on existing sandbox {} for task {}", sandbox_id, task_id);
-        
+        info!(
+            "Executing Claude Code on existing sandbox {} for task {}",
+            sandbox_id, task_id
+        );
+
         // Get repo info for Claude Code execution
         let repo_name = Self::extract_repo_name(repo_url)?;
         let repo_path = format!("/home/swarm/{}", repo_name);
@@ -775,7 +777,6 @@ impl SandboxProvider for ModalProvider {
                 SandboxError::SandboxOperationError(format!("Failed to delete sandbox: {}", e))
             })
     }
-
 }
 
 #[cfg(test)]
@@ -839,27 +840,50 @@ mod tests {
         // JSON object split across chunks should still parse
         let chunk1 = r#"{"type":"assistant","message":{"content":[{"text":"function hello() {\n  console.log(\"world\");\n}"#;
         let chunk2 = r#"}]}}"#;
-        let chunk3 =
-            r#"{"type":"result","subtype":"success","result":"COMMIT_MESSAGE_TITLE: Test commit\n"}"#;
+        let chunk3 = r#"{"type":"result","subtype":"success","result":"COMMIT_MESSAGE_TITLE: Test commit\n"}"#;
 
         let mut last_assistant_text = String::new();
         let mut last_result_block = String::new();
 
         let result1 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk1, &mut buffer, &mut last_assistant_text, &mut last_result_block)
+            .process_modal_log_stream(
+                &db,
+                task_id,
+                1,
+                chunk1,
+                &mut buffer,
+                &mut last_assistant_text,
+                &mut last_result_block,
+            )
             .await;
         assert!(result1.is_ok());
         assert_eq!(result1.unwrap(), 0);
         assert!(!buffer.is_empty());
 
         let result2 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk2, &mut buffer, &mut last_assistant_text, &mut last_result_block)
+            .process_modal_log_stream(
+                &db,
+                task_id,
+                1,
+                chunk2,
+                &mut buffer,
+                &mut last_assistant_text,
+                &mut last_result_block,
+            )
             .await;
         assert!(result2.is_err() || result2.unwrap() == 1);
 
         // Test processing a result line
         let result3 = provider
-            .process_modal_log_stream(&db, task_id, 1, chunk3, &mut buffer, &mut last_assistant_text, &mut last_result_block)
+            .process_modal_log_stream(
+                &db,
+                task_id,
+                1,
+                chunk3,
+                &mut buffer,
+                &mut last_assistant_text,
+                &mut last_result_block,
+            )
             .await;
         let _ = result3.is_ok();
 
@@ -887,5 +911,4 @@ mod tests {
         assert!(result3.is_err());
         assert!(result3.unwrap_err().is_eof());
     }
-
 }

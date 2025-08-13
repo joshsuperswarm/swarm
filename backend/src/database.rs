@@ -321,15 +321,15 @@ impl Database {
         Ok(result)
     }
 
-    pub async fn archive_multiple_tasks(&self, task_ids: &[i32], user_id: i32) -> AppResult<Vec<i32>> {
-        let result = sqlx::query_file_as!(
-            TaskId,
-            "sql/archive_multiple_tasks.sql", 
-            task_ids, 
-            user_id
-        )
-        .fetch_all(&self.pool)
-        .await?;
+    pub async fn archive_multiple_tasks(
+        &self,
+        task_ids: &[i32],
+        user_id: i32,
+    ) -> AppResult<Vec<i32>> {
+        let result =
+            sqlx::query_file_as!(TaskId, "sql/archive_multiple_tasks.sql", task_ids, user_id)
+                .fetch_all(&self.pool)
+                .await?;
         Ok(result.into_iter().map(|r| r.id).collect())
     }
 
@@ -936,7 +936,10 @@ impl Database {
         Ok(())
     }
 
-    pub async fn get_user_api_keys(&self, user_id: i32) -> AppResult<Option<crate::models::UserApiKeys>> {
+    pub async fn get_user_api_keys(
+        &self,
+        user_id: i32,
+    ) -> AppResult<Option<crate::models::UserApiKeys>> {
         let api_keys = sqlx::query_as!(
             crate::models::UserApiKeys,
             "SELECT * FROM user_api_keys WHERE user_id = $1",
@@ -949,7 +952,11 @@ impl Database {
     }
 
     // Onboarding operations
-    pub async fn update_onboarding_step(&self, user_id: i32, step: Option<String>) -> AppResult<()> {
+    pub async fn update_onboarding_step(
+        &self,
+        user_id: i32,
+        step: Option<String>,
+    ) -> AppResult<()> {
         sqlx::query!(
             "UPDATE users SET onboarding_step = $2, updated_at = NOW() WHERE id = $1",
             user_id,
@@ -1002,7 +1009,7 @@ impl Database {
         )
         .fetch_all(&self.pool)
         .await?;
-        
+
         Ok(tasks)
     }
 
@@ -1022,7 +1029,11 @@ impl Database {
     }
 
     // Session persistence methods for Task 112
-    pub async fn get_existing_branch_for_task(&self, task_id: i32, mode: &str) -> AppResult<Option<String>> {
+    pub async fn get_existing_branch_for_task(
+        &self,
+        task_id: i32,
+        mode: &str,
+    ) -> AppResult<Option<String>> {
         let result = sqlx::query_scalar!(
             r#"
             SELECT branch FROM runs 
@@ -1040,7 +1051,11 @@ impl Database {
         Ok(result.flatten())
     }
 
-    pub async fn find_active_session_for_task(&self, task_id: i32, branch: &str) -> AppResult<Option<Run>> {
+    pub async fn find_active_session_for_task(
+        &self,
+        task_id: i32,
+        branch: &str,
+    ) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
             r#"
@@ -1064,7 +1079,11 @@ impl Database {
         Ok(run)
     }
 
-    pub async fn update_run_idle_timeout(&self, run_id: i32, timeout_minutes: i32) -> AppResult<()> {
+    pub async fn update_run_idle_timeout(
+        &self,
+        run_id: i32,
+        timeout_minutes: i32,
+    ) -> AppResult<()> {
         sqlx::query!(
             r#"
             UPDATE runs 
@@ -1079,7 +1098,6 @@ impl Database {
 
         Ok(())
     }
-
 
     pub async fn get_expired_sessions(&self) -> AppResult<Vec<Run>> {
         let runs = sqlx::query_as!(
@@ -1388,7 +1406,7 @@ mod tests {
         let result = db.ensure_task_owner(bob_task.id, alice.id).await;
         assert!(result.is_err());
         match result {
-            Err(AppError::Auth(_)) => {}, // Expected
+            Err(AppError::Auth(_)) => {} // Expected
             _ => panic!("Expected Auth error for cross-user task access"),
         }
 
@@ -1445,7 +1463,7 @@ mod tests {
         let result = db.ensure_repo_owner(bob_repo.id, alice.id).await;
         assert!(result.is_err());
         match result {
-            Err(AppError::Auth(_)) => {}, // Expected
+            Err(AppError::Auth(_)) => {} // Expected
             _ => panic!("Expected Auth error for cross-user repo access"),
         }
 

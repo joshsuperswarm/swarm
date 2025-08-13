@@ -38,13 +38,11 @@ impl Config {
         let kek_b64 = env::var("API_KEYS_KEK_BASE64").map_err(|_| {
             AppError::Internal("API_KEYS_KEK_BASE64 environment variable is required".to_string())
         })?;
-        
-        let kek_bytes = BASE64_ENGINE
-            .decode(&kek_b64)
-            .map_err(|_| {
-                AppError::Internal("API_KEYS_KEK_BASE64 must be valid base64".to_string())
-            })?;
-        
+
+        let kek_bytes = BASE64_ENGINE.decode(&kek_b64).map_err(|_| {
+            AppError::Internal("API_KEYS_KEK_BASE64 must be valid base64".to_string())
+        })?;
+
         let api_keys_kek: [u8; 32] = kek_bytes.try_into().map_err(|_| {
             AppError::Internal("API_KEYS_KEK_BASE64 must decode to exactly 32 bytes".to_string())
         })?;
