@@ -1107,9 +1107,10 @@ impl Database {
                    branch, status, commit_title, commit_body, final_message_md, mode, 
                    idle_timeout_at, created_at, updated_at
             FROM runs 
-            WHERE idle_timeout_at IS NOT NULL 
-            AND idle_timeout_at < NOW()
-            AND status IN ('spinning', 'running')
+            WHERE sandbox_id IS NOT NULL
+              AND idle_timeout_at IS NOT NULL 
+              AND idle_timeout_at < NOW()
+              AND status IN ('done', 'pr_opened')
             "#
         )
         .fetch_all(&self.pool)

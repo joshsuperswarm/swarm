@@ -425,7 +425,13 @@ async fn mark_failed(
         .database
         .update_run_status(run_id, "failed")
         .await?;
-    provider.delete_sandbox(sandbox_id).await.ok();
+    
+    // Delete sandbox and clear idle timeout on success
+    if provider.delete_sandbox(sandbox_id).await.is_ok() {
+        if let Err(e) = app_state.database.clear_run_idle_timeout(run_id).await {
+            error!("Failed to clear idle timeout for run {}: {}", run_id, e);
+        }
+    }
     Ok(())
 }
 
@@ -449,16 +455,16 @@ async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
                 error!("Failed to update run {} status to failed: {}", run.id, e);
             }
 
-            // Clear the idle timeout
-            if let Err(e) = app_state.database.clear_run_idle_timeout(run.id).await {
-                error!("Failed to clear idle timeout for run {}: {}", run.id, e);
-            }
-
             // Delete the sandbox
             if let Err(e) = provider.delete_sandbox(sandbox_id).await {
                 error!("Failed to delete expired sandbox {}: {}", sandbox_id, e);
             } else {
                 info!("Successfully cleaned up expired sandbox {}", sandbox_id);
+                
+                // Clear the idle timeout only after successful termination
+                if let Err(e) = app_state.database.clear_run_idle_timeout(run.id).await {
+                    error!("Failed to clear idle timeout for run {}: {}", run.id, e);
+                }
             }
         }
     }
