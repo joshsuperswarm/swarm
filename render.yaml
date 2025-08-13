@@ -9,7 +9,7 @@ services:
   - type: web
     name: swarm-backend
     env: rust
-    plan: starter
+    plan: standard
     rootDir: backend
     buildCommand: |
       set -euo pipefail
