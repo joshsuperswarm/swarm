@@ -57,13 +57,38 @@ export function ChatBubble({ variant, children, fullWidth = false, content }: Ch
   if (shouldCollapse) {
     // Collapsed view with gradient fade
     return (
-      <div className={`${base} ${styles[variant]} relative overflow-hidden`}>
+      <div className={`${base} ${styles[variant]} relative overflow-hidden group`}>
         <div className="whitespace-pre-wrap leading-relaxed">
           {content?.split('\n').slice(0, 5).join('\n')}
         </div>
         <div className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t ${
           variant === 'user' ? 'from-gray-100' : variant === 'error' ? 'from-red-50' : 'from-white'
         } to-transparent pointer-events-none`}></div>
+        
+        {/* Hover-revealed copy button */}
+        {content && (
+          <div className="absolute top-2 right-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
+              className={`h-6 px-2 opacity-0 group-hover:opacity-100 transition-all bg-white border border-gray-200 hover:bg-gray-50 ${
+                isCopied ? 'opacity-100' : ''
+              }`}
+              title={isCopied ? 'Copied!' : 'Copy message'}
+            >
+              {isCopied ? (
+                <>
+                  <Check className="h-3 w-3 mr-1" />
+                  <span className="text-xs">Copied</span>
+                </>
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+        )}
+        
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
           <Button
             variant="outline"
