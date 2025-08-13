@@ -155,6 +155,7 @@ pub struct Run {
     pub commit_body: Option<String>,
     pub final_message_md: Option<String>,
     pub mode: String,
+    pub model: String,
     pub idle_timeout_at: Option<DateTime<Utc>>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -171,6 +172,7 @@ pub struct CreateRun {
     pub status: Option<String>,
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
+    pub model: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, FromRow)]
@@ -191,6 +193,7 @@ pub struct TaskWithRunDB {
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
     pub mode: Option<String>,
+    pub model: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
     pub is_archived: bool,
@@ -218,6 +221,7 @@ pub struct TaskWithRun {
     pub commit_title: Option<String>,
     pub commit_body: Option<String>,
     pub mode: Option<String>,
+    pub model: Option<String>,
     pub pr_title: Option<String>,
     pub pr_body: Option<String>,
     pub is_archived: bool,

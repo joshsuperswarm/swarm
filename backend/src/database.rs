@@ -231,6 +231,7 @@ impl Database {
                 commit_title: row.commit_title,
                 commit_body: row.commit_body,
                 mode: row.mode,
+                model: row.model,
                 pr_title: row.pr_title,
                 pr_body: row.pr_body,
                 is_archived: row.is_archived,
@@ -532,7 +533,7 @@ impl Database {
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
             Run,
-            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at FROM runs WHERE id = $1",
+            "SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at FROM runs WHERE id = $1",
             run_id
         )
         .fetch_optional(&self.pool)
@@ -623,7 +624,7 @@ impl Database {
             UPDATE runs
                SET status = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             status
@@ -645,7 +646,7 @@ impl Database {
             UPDATE runs
                SET session_id = $2, command_id = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             session,
@@ -668,7 +669,7 @@ impl Database {
             UPDATE runs
                SET commit_title = $2, commit_body = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             commit_title,
@@ -686,7 +687,7 @@ impl Database {
             UPDATE runs
                SET final_message_md = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             md
@@ -703,7 +704,7 @@ impl Database {
             UPDATE runs
                SET branch = $2, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             branch
@@ -725,7 +726,7 @@ impl Database {
             UPDATE runs
                SET sandbox_id = $2, sandbox_hostname = $3, updated_at = NOW()
              WHERE id = $1
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             run_id,
             sandbox_id,
@@ -736,16 +737,17 @@ impl Database {
         Ok(run)
     }
 
-    pub async fn create_run(&self, task_id: i32, mode: &str) -> AppResult<Run> {
+    pub async fn create_run(&self, task_id: i32, mode: &str, model: &str) -> AppResult<Run> {
         let run = sqlx::query_as!(
             Run,
             r#"
-            INSERT INTO runs (task_id, mode, status, created_at, updated_at)
-            VALUES ($1, $2, 'pending', NOW(), NOW())
-            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, idle_timeout_at, created_at, updated_at
+            INSERT INTO runs (task_id, mode, model, status, created_at, updated_at)
+            VALUES ($1, $2, $3, 'pending', NOW(), NOW())
+            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at
             "#,
             task_id,
             mode,
+            model,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -796,7 +798,7 @@ impl Database {
                 r.session_id as "session_id?", r.command_id as "command_id?", 
                 r.branch as "branch?", r.status as "status?", 
                 r.commit_title as "commit_title?", r.commit_body as "commit_body?", 
-                r.mode as "mode?", r.created_at as "run_created_at?", 
+                r.mode as "mode?", r.model as "model?", r.created_at as "run_created_at?", 
                 r.updated_at as "run_updated_at?"
             FROM messages m
             LEFT JOIN runs r ON r.id = m.run_id
@@ -828,6 +830,7 @@ impl Database {
                         commit_body: row.commit_body,
                         final_message_md: None, // This is assembled separately
                         mode: mode,
+                        model: row.model.unwrap_or_else(|| "sonnet".to_string()),
                         idle_timeout_at: None,
                         created_at: row.run_created_at,
                         updated_at: row.run_updated_at,
@@ -1108,7 +1111,7 @@ impl Database {
             Run,
             r#"
             SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, 
-                   branch, status, commit_title, commit_body, final_message_md, mode, 
+                   branch, status, commit_title, commit_body, final_message_md, mode, model,
                    idle_timeout_at, created_at, updated_at
             FROM runs 
             WHERE task_id = $1 AND branch = $2 
@@ -1152,7 +1155,7 @@ impl Database {
             Run,
             r#"
             SELECT id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, 
-                   branch, status, commit_title, commit_body, final_message_md, mode, 
+                   branch, status, commit_title, commit_body, final_message_md, mode, model,
                    idle_timeout_at, created_at, updated_at
             FROM runs 
             WHERE sandbox_id IS NOT NULL

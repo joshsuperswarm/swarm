@@ -20,12 +20,13 @@ pub async fn run_full_task_pipeline(
     app_state: AppState,
     task: Task,
     mode: &str,
+    model: &str,
     description: &str,
 ) -> Result<()> {
     tracing::info!("Starting task pipeline for task {}", task.id);
 
     // Create a new run for this task
-    let run = match app_state.database.create_run(task.id, mode).await {
+    let run = match app_state.database.create_run(task.id, mode, model).await {
         Ok(run) => run,
         Err(e) => {
             tracing::error!("Failed to create run for task {}: {}", task.id, e);
@@ -259,6 +260,7 @@ pub async fn run_full_task_pipeline(
                     &author_name,
                     &author_email,
                     mode,
+                    model,
                 )
                 .await
             {
@@ -295,6 +297,7 @@ pub async fn run_full_task_pipeline(
                 &author_name,
                 &author_email,
                 mode,
+                model,
                 true, // reuse_session = true for reused sandboxes
             )
             .await

@@ -45,6 +45,14 @@ use sandbox::{modal::ModalProvider, DynSandbox};
 use std::sync::Arc;
 use ts_rs::TS;
 
+fn validate_model(model: Option<String>) -> String {
+    match model.as_deref() {
+        Some("sonnet") => "sonnet".to_string(),
+        Some("opus") => "opus".to_string(),
+        _ => "sonnet".to_string(), // Default to sonnet
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub database: Database,
@@ -1444,6 +1452,7 @@ struct CreateTaskRequest {
     description: String,
     repository_id: i32,
     mode: String,
+    model: Option<String>,
 }
 
 async fn create_task(
@@ -1561,10 +1570,11 @@ async fn create_task(
     let task_clone = task.clone();
     let task_id = task.id;
     let mode = payload.mode.clone();
+    let model = validate_model(payload.model.clone());
     let description = payload.description.clone();
     tokio::spawn(async move {
         if let Err(e) =
-            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, &mode, &description)
+            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, &mode, &model, &description)
                 .await
         {
             tracing::error!("Task {} pipeline error: {}", task_id, e);
@@ -1840,6 +1850,7 @@ async fn get_task_messages(
 struct PostMessageRequest {
     content: String,
     mode: Option<String>,
+    model: Option<String>,
 }
 
 async fn post_task_message(
@@ -1912,7 +1923,8 @@ async fn post_task_message(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let run = match app_state.database.create_run(task_id, &mode).await {
+    let validated_model = validate_model(payload.model.clone());
+    let run = match app_state.database.create_run(task_id, &mode, &validated_model).await {
         Ok(run) => {
             // Attach the run to the message
             if let Err(e) = app_state
@@ -1933,12 +1945,14 @@ async fn post_task_message(
             let task_clone = _task.clone();
             let run_id = run.id;
             let mode_clone = mode.clone();
+            let model = validate_model(payload.model.clone());
             let description = payload.content.clone();
             tokio::spawn(async move {
                 if let Err(e) = task_pipeline::run_full_task_pipeline(
                     pipeline_state,
                     task_clone,
                     &mode_clone,
+                    &model,
                     &description,
                 )
                 .await

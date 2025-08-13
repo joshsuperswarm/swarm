@@ -237,6 +237,7 @@ impl ModalProvider {
         author_name: &str,
         author_email: &str,
         mode: &str,
+        model: &str,
         reuse_session: bool,
     ) -> SandboxResult<String> {
         info!(
@@ -256,6 +257,7 @@ impl ModalProvider {
             "author_name": author_name,
             "author_email": author_email,
             "mode": mode,
+            "model": model,
             "reuse_session": reuse_session
         });
 
@@ -518,6 +520,7 @@ impl SandboxProvider for ModalProvider {
         author_name: &str,
         author_email: &str,
         mode: &str,
+        model: &str,
     ) -> SandboxResult<SandboxInfo> {
         info!(
             "Starting Modal sandbox for task {}, repository: {}",
@@ -618,6 +621,7 @@ impl SandboxProvider for ModalProvider {
                 author_name,
                 author_email,
                 mode,
+                model,
                 false, // New sandbox, not reusing session
             )
             .await?;
@@ -740,6 +744,7 @@ impl SandboxProvider for ModalProvider {
         author_name: &str,
         author_email: &str,
         mode: &str,
+        model: &str,
         reuse_session: bool,
     ) -> SandboxResult<String> {
         info!(
@@ -764,6 +769,7 @@ impl SandboxProvider for ModalProvider {
             author_name,
             author_email,
             mode,
+            model,
             reuse_session,
         )
         .await

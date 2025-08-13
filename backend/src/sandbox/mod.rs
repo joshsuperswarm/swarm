@@ -53,6 +53,7 @@ pub trait SandboxProvider: Send + Sync {
         author_name: &str,
         author_email: &str,
         mode: &str,
+        model: &str,
     ) -> SandboxResult<SandboxInfo>;
 
     /// Get the current status of a sandbox
@@ -89,6 +90,7 @@ pub trait SandboxProvider: Send + Sync {
         author_name: &str,
         author_email: &str,
         mode: &str,
+        model: &str,
         reuse_session: bool,
     ) -> SandboxResult<String>;
 

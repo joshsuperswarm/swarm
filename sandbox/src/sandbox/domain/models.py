@@ -56,6 +56,7 @@ class ClaudeCodeExecReq(BaseModel):
     author_name: str
     author_email: str
     mode: str = "execute"  # execute, plan, or review
+    model: str = "sonnet"  # sonnet or opus
     reuse_session: bool = False  # whether to use --continue flag for session reuse
 
 

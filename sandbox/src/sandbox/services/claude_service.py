@@ -89,10 +89,10 @@ class ClaudeService:
 
             # Plan mode uses read-only permission mode, use --continue for session reuse
             if is_continuation_session:
-                claude_args = "claude --continue -p --permission-mode plan --output-format stream-json --verbose"
+                claude_args = f"claude --model {req.model} --continue -p --permission-mode plan --output-format stream-json --verbose"
                 self.logger.info("Using --continue flag for plan mode session continuity in task %s", req.task_id)
             else:
-                claude_args = "claude -p --permission-mode plan --output-format stream-json --verbose"
+                claude_args = f"claude --model {req.model} -p --permission-mode plan --output-format stream-json --verbose"
         else:
             # Execute/Review modes: full environment
             env_pairs = {
@@ -108,10 +108,10 @@ class ClaudeService:
 
             # Execute/Review modes: use --continue for session reuse
             if is_continuation_session:
-                claude_args = "claude --continue -p --dangerously-skip-permissions --verbose --output-format stream-json"
+                claude_args = f"claude --model {req.model} --continue -p --dangerously-skip-permissions --verbose --output-format stream-json"
                 self.logger.info("Using --continue flag for session continuity in task %s", req.task_id)
             else:
-                claude_args = "claude -p --dangerously-skip-permissions --verbose --output-format stream-json"
+                claude_args = f"claude --model {req.model} -p --dangerously-skip-permissions --verbose --output-format stream-json"
 
         env_setup = " && ".join(
             f"export {k}={shlex.quote(v)}" for k, v in env_pairs.items()
