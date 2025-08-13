@@ -13,10 +13,10 @@ You are in plan mode.
 - Do not handwave about sections of the plan. Be specific.
 
 Return your plan as your final chat message in Markdown, with:
-1) A short restatement of the goal/constraints.
-2) The files involved.
-3) A numbered step-by-step plan.
-4) Risks, test strategy, and rollout/backout notes.
+1. A short restatement of the goal/constraints.
+2. The files involved.
+3. A numbered step-by-step plan.
+4. Risks, test strategy, and rollout/backout notes.
 """
 
 REVIEW_MODE_INSTRUCTIONS = """
@@ -26,12 +26,12 @@ You are in review mode.
 - Do not handwave about sections of the review. Be specific.
 
 Return your review as your final chat message in Markdown, with:
-1) A short restatement of the task/requirements being reviewed.
-2) The files involved in the implementation.
-3) A detailed code quality assessment.
-4) Recommendations for improvement (if any).
-5) Architectural considerations and whether the code introduces too much complexity.
-6) Security vulnerabilities (only if they are relevant to the task).
+1. A short restatement of the task/requirements being reviewed.
+2. The files involved in the implementation.
+3. A detailed code quality assessment.
+4. Recommendations for improvement (if any).
+5. Architectural considerations and whether the code introduces too much complexity.
+6. Security vulnerabilities (only if they are relevant to the task).
 """
 
 EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."
