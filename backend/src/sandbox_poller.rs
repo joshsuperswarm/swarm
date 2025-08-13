@@ -450,11 +450,6 @@ async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
                 run.id, sandbox_id
             );
 
-            // Mark run as failed and cleanup sandbox
-            if let Err(e) = app_state.database.update_run_status(run.id, "failed").await {
-                error!("Failed to update run {} status to failed: {}", run.id, e);
-            }
-
             // Delete the sandbox
             if let Err(e) = provider.delete_sandbox(sandbox_id).await {
                 error!("Failed to delete expired sandbox {}: {}", sandbox_id, e);
