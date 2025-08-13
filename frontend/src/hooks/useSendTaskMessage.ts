@@ -19,53 +19,28 @@ export const useSendTaskMessage = (taskId: number) => {
       }
       return ApiService.postTaskMessage(jwt, taskId, { content, mode });
     },
-    onMutate: async ({ content, mode }) => {
-      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+    onMutate: async () => {
+      // Cancel any outgoing refetches so they don't overwrite the real update
       await queryClient.cancelQueries({ queryKey: ['task-details', taskId] });
 
-      // Snapshot the previous value
+      // Snapshot the previous value for error recovery
       const previousTaskDetails = queryClient.getQueryData(['task-details', taskId]);
-
-      // Optimistically update the cache
-      queryClient.setQueryData(['task-details', taskId], (old: any) => {
-        if (!old) return old;
-
-        const optimisticMessage: MessageWithRun = {
-          id: BigInt(-Date.now()),          // temp negative ID
-          task_id: taskId,
-          role: 'user',
-          content,
-          created_at: new Date().toISOString(),
-          metadata: { pending: true, mode: mode || 'execute' },
-          run: null,
-        };
-
-        return {
-          ...old,
-          messages: [...(old.messages || []), optimisticMessage],
-        };
-      });
 
       // Return a context object with the snapshotted value
       return { previousTaskDetails };
     },
-    onError: (err, _variables, context) => {
-      // If the mutation fails, use the context returned from onMutate to roll back
-      if (context && typeof context === 'object' && 'previousTaskDetails' in context) {
-        queryClient.setQueryData(['task-details', taskId], (context as any).previousTaskDetails);
-      }
-      
+    onError: (err) => {
       // Show error toast
       console.error('Failed to send message:', err);
       // TODO: Add toast notification
     },
     onSuccess: ({ message, run }) => {
-      // Replace the optimistic update with the real data
+      // Add the real message to existing data
       queryClient.setQueryData(['task-details', taskId], (old: any) => {
         if (!old) return old;
 
-        // Remove optimistic messages (those with negative IDs) and add the real one
-        const realMessages = (old.messages || []).filter((m: any) => Number(m.id) > 0);
+        // Get existing messages since we no longer use optimistic updates
+        const existingMessages = old.messages || [];
         
         // Convert the API response to match our expected format
         const realMessage: MessageWithRun = {
@@ -106,7 +81,7 @@ export const useSendTaskMessage = (taskId: number) => {
 
         return {
           ...old,
-          messages: [...realMessages, realMessage],
+          messages: [...existingMessages, realMessage],
         };
       });
 
