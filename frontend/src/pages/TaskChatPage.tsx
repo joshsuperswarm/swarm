@@ -281,6 +281,7 @@ export function TaskChatPage() {
               <ChatBubble
                 variant={message.role === "user" ? "user" : "assistant"}
                 fullWidth={message.role === "assistant"}
+                content={message.content}
               >
                 {message.role === "assistant" ? (
                   <div>
