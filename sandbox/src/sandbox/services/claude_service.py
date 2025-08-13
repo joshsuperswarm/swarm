@@ -15,13 +15,13 @@ from .git_service import GitService
 
 class ClaudeService:
     """Service for Claude Code operations."""
-    
+
     def __init__(self, sandbox_service: SandboxService, process_service: ProcessService, git_service: GitService):
         self.sandbox_service = sandbox_service
         self.process_service = process_service
         self.git_service = git_service
         self.logger = get_logger(__name__)
-    
+
     def exec(self, sandbox_id: str, req: ClaudeCodeExecReq) -> ExecResp:
         """Execute Claude Code with prompt, environment, and configuration."""
         from ..prompts import (
@@ -30,7 +30,7 @@ class ClaudeService:
             EXECUTE_MODE_INSTRUCTIONS,
             CLAUDE_PROMPT_TEMPLATE,
         )
-        
+
         sb = self.sandbox_service.get(sandbox_id)
         adapter = ModalAdapter(sb, self.logger)
 
@@ -86,13 +86,13 @@ class ClaudeService:
             }
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
-            
+
             # Plan mode uses read-only permission mode, use --continue for session reuse
             if is_continuation_session:
-                claude_args = "claude --continue -p --permission-mode plan --model opus --output-format stream-json --verbose"
+                claude_args = "claude --continue -p --permission-mode plan --output-format stream-json --verbose"
                 self.logger.info("Using --continue flag for plan mode session continuity in task %s", req.task_id)
             else:
-                claude_args = "claude -p --permission-mode plan --model opus --output-format stream-json --verbose"
+                claude_args = "claude -p --permission-mode plan --output-format stream-json --verbose"
         else:
             # Execute/Review modes: full environment
             env_pairs = {
@@ -105,7 +105,7 @@ class ClaudeService:
             }
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
-            
+
             # Execute/Review modes: use --continue for session reuse
             if is_continuation_session:
                 claude_args = "claude --continue -p --dangerously-skip-permissions --verbose --output-format stream-json"
@@ -136,7 +136,7 @@ class ClaudeService:
             cwd=req.repo_path,  # still needed for container
         )
         return self.process_service.exec(sandbox_id, exec_req)
-    
+
     def install_claude_code(self, sandbox_id: str) -> ExecResp:
         """Verify Claude Code is available (already installed in pre-built image)."""
         try:
@@ -158,4 +158,3 @@ class ClaudeService:
             raise HTTPException(
                 status_code=500, detail=f"Failed to verify Claude Code: {str(e)}"
             )
-    
