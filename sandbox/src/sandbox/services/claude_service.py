@@ -79,22 +79,22 @@ class ClaudeService:
         # Use the reuse_session flag from the backend request
         is_continuation_session = req.reuse_session
 
-        if req.mode == "plan":
-            # Plan mode: export only API keys, no GitHub token or Git environment
+        if req.mode == "plan" or req.mode == "review":
+            # Plan and Review modes: export only API keys, no GitHub token or Git environment
             env_pairs = {
                 "ANTHROPIC_API_KEY": req.anthropic_api_key,
             }
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
 
-            # Plan mode uses read-only permission mode, use --continue for session reuse
+            # Plan and Review modes use read-only permission mode, use --continue for session reuse
             if is_continuation_session:
                 claude_args = f"claude --model {req.model} --continue -p --permission-mode plan --output-format stream-json --verbose"
-                self.logger.info("Using --continue flag for plan mode session continuity in task %s", req.task_id)
+                self.logger.info("Using --continue flag for %s mode session continuity in task %s", req.mode, req.task_id)
             else:
                 claude_args = f"claude --model {req.model} -p --permission-mode plan --output-format stream-json --verbose"
         else:
-            # Execute/Review modes: full environment
+            # Execute mode: full environment
             env_pairs = {
                 "GITHUB_TOKEN": req.github_token,
                 "ANTHROPIC_API_KEY": req.anthropic_api_key,
@@ -106,10 +106,10 @@ class ClaudeService:
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
 
-            # Execute/Review modes: use --continue for session reuse
+            # Execute mode: use --continue for session reuse
             if is_continuation_session:
                 claude_args = f"claude --model {req.model} --continue -p --dangerously-skip-permissions --verbose --output-format stream-json"
-                self.logger.info("Using --continue flag for session continuity in task %s", req.task_id)
+                self.logger.info("Using --continue flag for execute mode session continuity in task %s", req.task_id)
             else:
                 claude_args = f"claude --model {req.model} -p --dangerously-skip-permissions --verbose --output-format stream-json"
 
