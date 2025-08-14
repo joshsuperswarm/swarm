@@ -360,38 +360,93 @@ pub async fn run_full_task_pipeline(
     Ok(())
 }
 
-/// Determine branch name for task with reuse logic
-/// Execute mode: Reuse existing branch if available and PR not merged, otherwise create new branch
-/// Plan/Review modes: Always use main branch to avoid confusing the agent
+/// Determine branch based on whether this is the first run and mode
+/// First run: plan/review use main, execute creates new branch
+/// Subsequent runs: all modes use the same existing branch
 async fn determine_branch_for_task(
     app_state: &AppState,
     task_id: i32,
     mode: &str,
 ) -> Result<String> {
-    // Plan and review modes should always use main branch to avoid confusion
-    if mode == "plan" || mode == "review" {
-        tracing::info!("Using main branch for {} mode task {}", mode, task_id);
-        return Ok("main".to_string());
-    }
-
-    // Execute mode: try to reuse existing branch
-    if let Ok(Some(existing_branch)) = app_state
+    // Check if this is the first run for this task
+    let is_first_run = app_state
         .database
-        .get_existing_branch_for_task(task_id, mode)
+        .is_first_run_for_task(task_id)
         .await
-    {
-        tracing::info!(
-            "Reusing existing branch '{}' for task {}",
-            existing_branch,
-            task_id
-        );
-        return Ok(existing_branch);
+        .unwrap_or(true); // Default to first run if query fails
+
+    if is_first_run {
+        // First run logic
+        if mode == "plan" || mode == "review" {
+            tracing::info!(
+                "First run: Using main branch for {} mode task {}",
+                mode,
+                task_id
+            );
+            return Ok("main".to_string());
+        } else if mode == "execute" {
+            // Execute mode on first run: create new branch
+            let new_branch = format!("swarm/task-{}", task_id);
+            tracing::info!(
+                "First run: Creating new branch '{}' for execute mode task {}",
+                new_branch,
+                task_id
+            );
+            return Ok(new_branch);
+        }
+    } else {
+        // Not first run - use same branch for all modes
+        if let Ok(Some(existing_branch)) = app_state
+            .database
+            .get_any_existing_branch_for_task(task_id)
+            .await
+        {
+            tracing::info!(
+                "Not first run: Using existing branch '{}' for {} mode task {}",
+                existing_branch,
+                mode,
+                task_id
+            );
+            return Ok(existing_branch);
+        }
+
+        // Fallback: if we can't find an existing branch, try mode-specific lookup
+        if let Ok(Some(existing_branch)) = app_state
+            .database
+            .get_existing_branch_for_task(task_id, mode)
+            .await
+        {
+            tracing::info!(
+                "Not first run: Using mode-specific branch '{}' for {} mode task {}",
+                existing_branch,
+                mode,
+                task_id
+            );
+            return Ok(existing_branch);
+        }
+
+        // Final fallback: create new branch for execute mode or use main for others
+        if mode == "execute" {
+            let new_branch = format!("swarm/task-{}", task_id);
+            tracing::info!(
+                "Not first run fallback: Creating new branch '{}' for execute mode task {}",
+                new_branch,
+                task_id
+            );
+            return Ok(new_branch);
+        } else {
+            tracing::info!(
+                "Not first run fallback: Using main branch for {} mode task {}",
+                mode,
+                task_id
+            );
+            return Ok("main".to_string());
+        }
     }
 
-    // Execute mode fallback: generate new branch
-    let new_branch = format!("swarm/task-{}", task_id);
-    tracing::info!("Creating new branch '{}' for task {}", new_branch, task_id);
-    Ok(new_branch)
+    // Should not reach here, but fallback to old behavior
+    tracing::warn!("Unexpected path in determine_branch_for_task, falling back to main");
+    Ok("main".to_string())
 }
 
 /// Check for existing active sandbox for this task and branch

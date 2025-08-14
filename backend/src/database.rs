@@ -1110,6 +1110,34 @@ impl Database {
         Ok(result.flatten())
     }
 
+    pub async fn is_first_run_for_task(&self, task_id: i32) -> AppResult<bool> {
+        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM runs WHERE task_id = $1", task_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(count == Some(0))
+    }
+
+    pub async fn get_any_existing_branch_for_task(
+        &self,
+        task_id: i32,
+    ) -> AppResult<Option<String>> {
+        let result = sqlx::query_scalar!(
+            r#"
+            SELECT branch FROM runs 
+            WHERE task_id = $1 
+            AND status = 'pr_opened'
+            ORDER BY created_at DESC 
+            LIMIT 1
+            "#,
+            task_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result.flatten())
+    }
+
     pub async fn find_active_session_for_task(
         &self,
         task_id: i32,
