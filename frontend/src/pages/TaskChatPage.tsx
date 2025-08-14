@@ -7,7 +7,7 @@ import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { RunModeButton } from "@/components/RunModeButton";
 import { AgentThinkingIndicator } from "@/components/AgentThinkingIndicator";
 import { statuses } from "@/data/data";
-import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation } from "@/services/queries";
+import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation, useTaskTodosQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
@@ -43,13 +43,20 @@ export function TaskChatPage() {
   const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId || 0);
   const archiveMutation = useArchiveTaskMutation();
   
-  // Extract data from unified response
+  // Extract current run status for todo fetching
   const task = taskDetails?.task;
   const messages = taskDetails?.messages || [];
   const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
+  const currentRunStatus = currentRun?.run?.status;
+  
+  // Get todos for the current task
+  const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
+    taskId, 
+    currentRunStatus || undefined,
+    taskId > 0
+  );
   
   // Get run status and phase early for hooks
-  const currentRunStatus = currentRun?.run?.status;
   const phase = useRunPhase(currentRunStatus);
   
   // Prepare task list for navigation (same filtering as TasksPage)
@@ -279,6 +286,19 @@ export function TaskChatPage() {
         onScroll={onScroll}
       >
         <div className="mx-auto w-full max-w-3xl space-y-4">
+        
+        {/* Active run todos - show when task is running and we have todos */}
+        {currentRunStatus === "running" && todos.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Bot className="w-4 h-4" />
+              <span>Claude is working on this task...</span>
+              {isLoadingTodos && <div className="w-3 h-3 border border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>}
+            </div>
+            <CollapsedTodoList todos={todos} />
+          </div>
+        )}
+        
         {messages.length === 0 && !finished && !isSending ? (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
