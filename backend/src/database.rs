@@ -471,7 +471,11 @@ impl Database {
 
     /// ⚠ INTERNAL – call only after ensure_task_owner().
     /// Returns the most recent logs for a task (for debugging purposes)
-    pub async fn get_recent_task_logs_raw(&self, task_id: i32, limit: i32) -> AppResult<Vec<TaskLog>> {
+    pub async fn get_recent_task_logs_raw(
+        &self,
+        task_id: i32,
+        limit: i32,
+    ) -> AppResult<Vec<TaskLog>> {
         let rows = sqlx::query!(
             r#"
             SELECT id, task_id, run_id, log_line as "log_line: serde_json::Value", created_at
@@ -500,18 +504,19 @@ impl Database {
         Ok(logs)
     }
 
-    pub async fn get_agent_todos(&self) -> AppResult<Vec<AgentTodo>> {
+    pub async fn get_agent_todos_for_run(&self, run_id: i32) -> AppResult<Vec<AgentTodo>> {
         let rows = sqlx::query_as!(
             AgentTodo,
             r#"SELECT todo_id, content, priority, status, updated_at
                FROM agent_todos
-               ORDER BY updated_at DESC"#
+               WHERE run_id = $1
+               ORDER BY id ASC"#,
+            run_id
         )
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
     }
-
 
     pub async fn get_run_by_id(&self, run_id: i32) -> AppResult<Option<Run>> {
         let run = sqlx::query_as!(
@@ -536,7 +541,7 @@ impl Database {
 
     pub async fn assemble_run_meta(&self, run: &Run) -> AppResult<RunWithMeta> {
         // Get todos
-        let todos = self.get_agent_todos().await?;
+        let todos = self.get_agent_todos_for_run(run.id).await?;
 
         // Get all log lines for this run
         let rows = sqlx::query!(
@@ -584,7 +589,7 @@ impl Database {
 
     pub async fn assemble_run_meta_without_logs(&self, run: &Run) -> AppResult<RunWithMeta> {
         // Get todos
-        let todos = self.get_agent_todos().await?;
+        let todos = self.get_agent_todos_for_run(run.id).await?;
 
         // Don't load logs - use empty logs structure
         Ok(RunWithMeta {

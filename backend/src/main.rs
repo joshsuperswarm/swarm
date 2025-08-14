@@ -1410,7 +1410,11 @@ async fn get_tasks(
             // If include=todos is specified, fetch todos for each task
             if query.include.as_deref() == Some("todos") {
                 for task_run in &mut task_runs {
-                    match app_state.database.get_agent_todos().await {
+                    match app_state
+                        .database
+                        .get_agent_todos_for_run(task_run.run_id)
+                        .await
+                    {
                         Ok(todos) => {
                             // Limit to 20 todos per task and only include non-completed or recently updated ones
                             let filtered_todos: Vec<_> = todos
@@ -1573,9 +1577,14 @@ async fn create_task(
     let model = validate_model(payload.model.clone());
     let description = payload.description.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, &mode, &model, &description)
-                .await
+        if let Err(e) = task_pipeline::run_full_task_pipeline(
+            pipeline_state,
+            task_clone,
+            &mode,
+            &model,
+            &description,
+        )
+        .await
         {
             tracing::error!("Task {} pipeline error: {}", task_id, e);
         }
@@ -1745,7 +1754,11 @@ async fn get_task_logs(
                 }
             }
         }
-        None => match app_state.database.get_recent_task_logs_raw(task_id, 20).await {
+        None => match app_state
+            .database
+            .get_recent_task_logs_raw(task_id, 20)
+            .await
+        {
             Ok(logs) => logs,
             Err(e) => {
                 tracing::error!("Error fetching recent logs for task {}: {}", task_id, e);
@@ -1798,11 +1811,23 @@ async fn get_task_todos(
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
 
-    let todos = app_state
+    // Get the latest run for this task to fetch todos
+    let run_id = app_state
         .database
-        .get_agent_todos()
+        .get_latest_run_id_for_task(task_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let todos = if let Some(run_id) = run_id {
+        app_state
+            .database
+            .get_agent_todos_for_run(run_id)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        // No runs for this task, return empty todos
+        vec![]
+    };
 
     Ok(Json(json!({
         "task_id": task_id,
@@ -1924,7 +1949,11 @@ async fn post_task_message(
     }
 
     let validated_model = validate_model(payload.model.clone());
-    let run = match app_state.database.create_run(task_id, &mode, &validated_model).await {
+    let run = match app_state
+        .database
+        .create_run(task_id, &mode, &validated_model)
+        .await
+    {
         Ok(run) => {
             // Attach the run to the message
             if let Err(e) = app_state

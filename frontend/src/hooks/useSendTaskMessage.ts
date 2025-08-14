@@ -65,7 +65,7 @@ export const useSendTaskMessage = (taskId: number) => {
               commit_body: run.commit_body || null,
               final_message_md: run.final_message_md || null,
               mode: run.mode,
-              model: run.model,
+              model: run.model || 'sonnet',
               created_at: run.created_at,
               updated_at: run.updated_at || null,
               idle_timeout_at: run.idle_timeout_at || null,

@@ -421,14 +421,15 @@ impl ModalProvider {
                             for todo in todos {
                                 if let Err(e) = sqlx::query!(
                                     r#"
-                                    INSERT INTO agent_todos (todo_id, content, priority, status)
-                                    VALUES ($1, $2, $3, $4)
-                                    ON CONFLICT (todo_id)
+                                    INSERT INTO agent_todos (run_id, todo_id, content, priority, status)
+                                    VALUES ($1, $2, $3, $4, $5)
+                                    ON CONFLICT (run_id, todo_id)
                                     DO UPDATE SET content = EXCLUDED.content,
                                                   priority = EXCLUDED.priority,
                                                   status   = EXCLUDED.status,
                                                   updated_at = now()
                                     "#,
+                                    run_id,
                                     todo.id,
                                     todo.content,
                                     todo.priority,
