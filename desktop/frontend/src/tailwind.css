@@ -49,6 +49,6 @@ body, #root { @apply bg-[#f7f7f8]; }
 
 /* Enhanced code block styling for better readability */
 .prose-chat pre code {
-  @apply text-gray-900; /* Darker text for better contrast */
+  @apply text-gray-100; /* light text for dark block */
   line-height: 1.6;
 }
