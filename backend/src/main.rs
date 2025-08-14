@@ -1549,40 +1549,62 @@ async fn create_task(
         }
     };
 
-    // Insert initial description into messages table
-    let create_message = CreateMessage {
-        task_id: task.id,
-        run_id: None, // Will be set when run is created
-        mode: payload.mode.clone(),
-        body_md: payload.description.clone(),
-        sha: None,
-        role: "user".to_string(),
-        metadata: None,
+    // Create initial user message (as today)
+    let message = {
+        let create_message = CreateMessage {
+            task_id: task.id,
+            run_id: None,
+            mode: payload.mode.clone(),
+            body_md: payload.description.clone(),
+            sha: None,
+            role: "user".to_string(),
+            metadata: None,
+        };
+        match app_state.database.create_message(create_message).await {
+            Ok(message) => message,
+            Err(e) => {
+                tracing::error!("Error creating initial message for task {}: {}", task.id, e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
     };
 
-    if let Err(e) = app_state.database.create_message(create_message).await {
-        tracing::error!("Error creating initial message for task {}: {}", task.id, e);
-        // Continue even if message creation fails
+    // Create the run up-front
+    let model = validate_model(payload.model.clone());
+    let run = app_state
+        .database
+        .create_run(task.id, &payload.mode, &model)
+        .await
+        .map_err(|e| {
+            tracing::error!("Error creating run for task {}: {}", task.id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Attach the run to the initial message so /details exposes it
+    if let Err(e) = app_state
+        .database
+        .attach_run_to_message(message.id, run.id)
+        .await
+    {
+        tracing::error!(
+            "Error attaching run {} to initial message {}: {}",
+            run.id,
+            message.id,
+            e
+        );
     }
 
-    // Spawn detached task for heavy operations
+    // Spawn the pipeline using THIS run
     let pipeline_state = app_state.clone();
     let task_clone = task.clone();
-    let task_id = task.id;
-    let mode = payload.mode.clone();
-    let model = validate_model(payload.model.clone());
+    let run_id = run.id;
     let description = payload.description.clone();
     tokio::spawn(async move {
-        if let Err(e) = task_pipeline::run_full_task_pipeline(
-            pipeline_state,
-            task_clone,
-            &mode,
-            &model,
-            &description,
-        )
-        .await
+        if let Err(e) =
+            task_pipeline::run_full_task_pipeline(pipeline_state, task_clone, run_id, &description)
+                .await
         {
-            tracing::error!("Task {} pipeline error: {}", task_id, e);
+            tracing::error!("Task {} pipeline error: {}", task.id, e);
         }
     });
 
@@ -1969,15 +1991,12 @@ async fn post_task_message(
             let pipeline_state = app_state.clone();
             let task_clone = _task.clone();
             let run_id = run.id;
-            let mode_clone = mode.clone();
-            let model = validate_model(payload.model.clone());
             let description = payload.content.clone();
             tokio::spawn(async move {
                 if let Err(e) = task_pipeline::run_full_task_pipeline(
                     pipeline_state,
                     task_clone,
-                    &mode_clone,
-                    &model,
+                    run_id,
                     &description,
                 )
                 .await

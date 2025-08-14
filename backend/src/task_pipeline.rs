@@ -15,27 +15,25 @@ use tracing::instrument;
 /// - Command ID storage
 ///
 /// On any error, marks the task as "failed" in the database.
-#[instrument(skip_all, fields(task_id = task.id))]
+#[instrument(skip_all, fields(task_id = task.id, run_id))]
 pub async fn run_full_task_pipeline(
     app_state: AppState,
     task: Task,
-    mode: &str,
-    model: &str,
+    run_id: i32,
     description: &str,
 ) -> Result<()> {
     tracing::info!("Starting task pipeline for task {}", task.id);
 
-    // Create a new run for this task
-    let run = match app_state.database.create_run(task.id, mode, model).await {
-        Ok(run) => run,
-        Err(e) => {
-            tracing::error!("Failed to create run for task {}: {}", task.id, e);
-            // Note: This failure happens before run creation, so no run to update status on
-            return Err(anyhow::anyhow!("Failed to create run: {}", e));
-        }
-    };
-    tracing::info!("Using run {} for task {}", run.id, task.id);
+    // Fetch the run we were given
+    let run = app_state
+        .database
+        .get_run_by_id(run_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
+    let mode = run.mode.clone();
+    let model = run.model.clone();
 
+    tracing::info!("Using run {} (mode: {}, model: {})", run.id, mode, model);
 
     // Get the user from the task
     let user = match app_state.database.get_user_by_id(task.user_id).await {
@@ -135,7 +133,7 @@ pub async fn run_full_task_pipeline(
     };
 
     // Determine branch name with reuse logic
-    let branch = determine_branch_for_task(&app_state, task.id, mode).await?;
+    let branch = determine_branch_for_task(&app_state, task.id, &mode).await?;
     let author_name = match user.github_username.clone() {
         Some(username) => username,
         None => {
@@ -244,8 +242,8 @@ pub async fn run_full_task_pipeline(
                 &branch,
                 &author_name,
                 &author_email,
-                mode,
-                model,
+                &mode,
+                &model,
             )
             .await
         {
@@ -281,8 +279,8 @@ pub async fn run_full_task_pipeline(
                 &branch,
                 &author_name,
                 &author_email,
-                mode,
-                model,
+                &mode,
+                &model,
                 true, // reuse_session = true for reused sandboxes
             )
             .await
