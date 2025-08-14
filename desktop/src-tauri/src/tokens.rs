@@ -134,7 +134,7 @@ pub async fn count_tokens_for_files(
     let total_tokens = files.iter().map(|f| f.tokens).sum();
     let total_bytes = files.iter().map(|f| f.bytes).sum();
     
-    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
     let context_window = get_model_context_window(&model);
 
     Ok(TokenReport {

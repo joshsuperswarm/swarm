@@ -204,7 +204,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
         &api_key[api_key.len().saturating_sub(5)..]
     );
 
-    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
     info!("Using model: {}", model);
 
     let client = reqwest::Client::builder()

@@ -37,11 +37,11 @@ async fn main() {
             let window = app.get_webview_window("main").unwrap();
             window.set_title("RepoChat")?;
 
-            // Open devtools in debug builds
-            #[cfg(debug_assertions)]
-            {
-                window.open_devtools();
-            }
+            // Devtools disabled
+            // #[cfg(debug_assertions)]
+            // {
+            //     window.open_devtools();
+            // }
 
             Ok(())
         })
