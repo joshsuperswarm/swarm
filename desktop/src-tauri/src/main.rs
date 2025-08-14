@@ -24,11 +24,14 @@ async fn main() {
             cmds::repo_recent,
             cmds::repo_list_files,
             cmds::repo_read_file,
+            cmds::repo_read_files_bulk,
             cmds::repo_count_tokens,
             cmds::chat_stream_start,
             cmds::chat_stream_cancel,
             cmds::save_selected_files,
             cmds::load_selected_files,
+            cmds::save_selected_folders,
+            cmds::load_selected_folders,
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();

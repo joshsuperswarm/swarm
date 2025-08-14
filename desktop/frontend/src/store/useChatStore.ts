@@ -40,25 +40,45 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   sendMessage: async (content: string) => {
     const { messages, apiMessages: prevApiMessages, filesAlreadySent } = get()
     
-    // Get selected files from repo store
-    const { selectedFiles } = useRepoStore.getState()
+    // Get expanded file selection from repo store
+    const { expandedSelectedFiles, selectedFiles, selectedFolders } = useRepoStore.getState()
+    const expandedFiles = expandedSelectedFiles()
     
-    // Track which files are included for display purposes
+    // System prompt enforcing Markdown + proper code formatting
+    const systemPrompt: ChatMessage = {
+      role: 'system',
+      content: `You are a helpful assistant that always responds in valid Markdown.
+- Use single backticks for inline code: variable names (e.g., \`useClipboard\`), types, field names (e.g., \`may_exceed_context\`), file paths, CLI commands, and literal values.
+- ONLY use fenced code blocks (triple backticks with language) for multi-line code samples, never for single identifiers.
+- Always specify the language for code blocks: \`\`\`ts for TypeScript, \`\`\`js for JavaScript, \`\`\`json for JSON, etc.
+- Do not wrap short identifiers or single-line expressions in code blocks - use inline backticks instead.
+- Do not use inline HTML unless explicitly requested.
+- Use proper headings, lists, and tables where appropriate.`
+    }
+    
+    // Determine which files to send (only on first message)
+    const filesToSend = !filesAlreadySent ? expandedFiles : []
+    // For UI display, show top-level selections (folders + individual files)
     let includedFiles: string[] = []
-    
-    // Read file contents and append to message - only on first message
     let fullContent = content
-    if (selectedFiles.length > 0 && !filesAlreadySent) {
-      fullContent += '\n\n--- Selected Files ---\n'
-      includedFiles = selectedFiles
+    
+    if (filesToSend.length > 0) {
+      // Use bulk read API for efficiency
+      const fileMap = await invoke<Record<string, string>>('repo_read_files_bulk', { 
+        relpaths: filesToSend 
+      })
       
-      for (const relpath of selectedFiles) {
-        try {
-          const fileContent = await invoke<string>('repo_read_file', { relpath })
-          fullContent += `\n--- ${relpath} ---\n${fileContent}\n`
-        } catch (error) {
-          console.error(`Failed to read file ${relpath}:`, error)
-        }
+      // For display, show folders and individual files (not expanded)
+      includedFiles = [
+        ...selectedFolders.map(f => `${f}/`),
+        ...selectedFiles
+      ]
+      
+      fullContent += '\n\n--- Selected Files ---\n'
+      
+      for (const relpath of filesToSend) {
+        const fileContent = fileMap[relpath] ?? ''
+        fullContent += `\n--- ${relpath} ---\n${fileContent}\n`
       }
       
       // Mark files as sent
@@ -78,8 +98,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // Display messages show user's text only
     const displayMessages = [...messages, displayMessage]
     
-    // API messages preserve the full content including files
-    const apiMessages = [...prevApiMessages, apiMessage]
+    // API messages: prepend system prompt if it's the first message
+    const apiMessages = prevApiMessages.length === 0
+      ? [systemPrompt, apiMessage]
+      : [...prevApiMessages, apiMessage]
     
     const newMessages: ChatMessage[] = displayMessages
     set({ messages: newMessages, apiMessages })

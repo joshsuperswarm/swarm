@@ -7,7 +7,10 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub last_root: Option<String>,
+    #[serde(default)]
     pub selected_files: Vec<String>,
+    #[serde(default)]
+    pub selected_folders: Vec<String>,
 }
 
 impl Default for Config {
@@ -15,6 +18,7 @@ impl Default for Config {
         Self {
             last_root: None,
             selected_files: Vec::new(),
+            selected_folders: Vec::new(),
         }
     }
 }

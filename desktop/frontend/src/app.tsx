@@ -3,14 +3,13 @@ import { useRepoStore } from './store/useRepoStore'
 import { useChatStore } from './store/useChatStore'
 import OpenFolderEmptyState from './components/OpenFolderEmptyState'
 import FilePicker from './components/FilePicker'
-import FilePills from './components/FilePills'
 import TokenCountBadge from './components/TokenCountBadge'
 import Chat from './components/Chat'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 export default function App() {
-  const { repo, loadRecent, selectedFiles } = useRepoStore()
-  const { isPickerOpen, setPickerOpen } = useChatStore()
+  const { repo, loadRecent } = useRepoStore()
+  const { isPickerOpen, setPickerOpen, resetChat } = useChatStore()
 
   useEffect(() => {
     loadRecent()
@@ -21,6 +20,12 @@ export default function App() {
     if (repo) {
       setPickerOpen(true)
     }
+  }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
+
+  // New Chat: Cmd/Ctrl+N
+  useHotkeys('mod+n', (e) => {
+    e.preventDefault()
+    resetChat()
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
   if (!repo) return <OpenFolderEmptyState />;
@@ -42,14 +47,6 @@ export default function App() {
           <Chat />
         </div>
       </main>
-
-      {selectedFiles.length > 0 && (
-        <div className="border-t bg-white">
-          <div className="chat-container py-2">
-            <FilePills />
-          </div>
-        </div>
-      )}
 
       <FilePicker open={isPickerOpen} onOpenChange={setPickerOpen} />
     </div>

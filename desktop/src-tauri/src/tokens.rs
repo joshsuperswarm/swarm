@@ -1,9 +1,12 @@
 use crate::repo::RepoManager;
 use anyhow::Result;
+use directories::ProjectDirs;
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::fs;
 use tiktoken_rs::{get_bpe_from_model, CoreBPE};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +27,7 @@ pub struct TokenReport {
     pub may_exceed_context: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedCount {
     mtime: u64,
     size: u64,
@@ -37,50 +40,100 @@ static TOKENIZER: Lazy<CoreBPE> = Lazy::new(|| {
 });
 
 static TOKEN_CACHE: Lazy<Mutex<HashMap<String, CachedCount>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+    Lazy::new(|| Mutex::new(load_token_cache().unwrap_or_default()));
+
+fn cache_path() -> Option<std::path::PathBuf> {
+    ProjectDirs::from("com", "repochat", "repochat")
+        .map(|d| d.cache_dir().join("token-cache.json"))
+}
+
+fn load_token_cache() -> Option<HashMap<String, CachedCount>> {
+    let p = cache_path()?;
+    let bytes = fs::read(p).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn save_token_cache() {
+    if let Some(p) = cache_path() {
+        if let Ok(bytes) = serde_json::to_vec(&*TOKEN_CACHE.lock()) {
+            let _ = fs::create_dir_all(p.parent().unwrap());
+            let _ = fs::write(p, bytes);
+        }
+    }
+}
 
 pub async fn count_tokens_for_files(
     repo: &RepoManager,
     relpaths: Vec<String>,
 ) -> Result<TokenReport> {
-    let mut files = Vec::new();
-    let mut total_tokens = 0u64;
-    let mut total_bytes = 0u64;
-
-    let file_metas = repo.list_files()?;
-    let meta_map: HashMap<_, _> = file_metas
+    // Use cached list which is now much faster with parallel walking
+    let meta_map: HashMap<_, _> = repo
+        .list_files()?
         .into_iter()
         .map(|m| (m.relpath.clone(), m))
         .collect();
 
-    for relpath in relpaths {
-        if let Some(meta) = meta_map.get(&relpath) {
-            total_bytes += meta.size;
-
+    // Process files in parallel for maximum speed
+    let results: Vec<FileToken> = relpaths
+        .par_iter()
+        .filter_map(|rel| {
+            let meta = meta_map.get(rel)?;
+            let relpath = rel.clone();
+            
             if meta.is_binary {
-                files.push(FileToken {
-                    relpath: relpath.clone(),
+                return Some(FileToken {
+                    relpath,
                     bytes: meta.size,
                     tokens: 0,
                     is_binary: true,
                 });
-                continue;
             }
 
-            let tokens = count_tokens_for_file(repo, &relpath, meta.mtime, meta.size)?;
-            total_tokens += tokens;
+            // Check cache with combined key including mtime
+            let cache_key = format!("{}:{}:{}", repo.get_root().to_string_lossy(), rel, meta.mtime);
+            
+            // Fast path: check cache
+            if let Some(c) = TOKEN_CACHE.lock().get(&cache_key) {
+                return Some(FileToken {
+                    relpath,
+                    bytes: meta.size,
+                    tokens: c.tokens,
+                    is_binary: false,
+                });
+            }
 
-            files.push(FileToken {
-                relpath: relpath.clone(),
+            // Slow path: tokenize
+            let content = repo.read_file(rel).ok()?;
+            let tokens = TOKENIZER.encode_ordinary(&content).len() as u64;
+
+            // Update cache
+            TOKEN_CACHE.lock().insert(
+                cache_key,
+                CachedCount {
+                    mtime: meta.mtime,
+                    size: meta.size,
+                    tokens,
+                },
+            );
+
+            Some(FileToken {
+                relpath,
                 bytes: meta.size,
                 tokens,
                 is_binary: false,
-            });
-        }
-    }
+            })
+        })
+        .collect();
 
+    // Save cache to disk for persistence across runs
+    save_token_cache();
+
+    let mut files = results;
     files.sort_by(|a, b| b.tokens.cmp(&a.tokens));
-
+    
+    let total_tokens = files.iter().map(|f| f.tokens).sum();
+    let total_bytes = files.iter().map(|f| f.bytes).sum();
+    
     let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
     let context_window = get_model_context_window(&model);
 
@@ -92,36 +145,6 @@ pub async fn count_tokens_for_files(
         model_context_window: context_window,
         may_exceed_context: total_tokens > context_window as u64 * 9 / 10, // 90% threshold
     })
-}
-
-fn count_tokens_for_file(repo: &RepoManager, relpath: &str, mtime: u64, size: u64) -> Result<u64> {
-    let cache_key = format!("{}:{}", repo.get_root().to_string_lossy(), relpath);
-
-    {
-        let cache = TOKEN_CACHE.lock().unwrap();
-        if let Some(cached) = cache.get(&cache_key) {
-            if cached.mtime == mtime && cached.size == size {
-                return Ok(cached.tokens);
-            }
-        }
-    }
-
-    let content = repo.read_file(relpath)?;
-    let tokens = TOKENIZER.encode_ordinary(&content).len() as u64;
-
-    {
-        let mut cache = TOKEN_CACHE.lock().unwrap();
-        cache.insert(
-            cache_key,
-            CachedCount {
-                mtime,
-                size,
-                tokens,
-            },
-        );
-    }
-
-    Ok(tokens)
 }
 
 fn get_model_context_window(model: &str) -> u32 {

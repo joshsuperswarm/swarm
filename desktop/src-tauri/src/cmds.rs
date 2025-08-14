@@ -45,6 +45,7 @@ fn to_responses_input(messages: &[ChatMsg]) -> serde_json::Value {
     let items: Vec<serde_json::Value> = messages.iter().map(|m| {
         let content_type = match m.role.as_str() {
             "assistant" => "output_text",
+            "system" => "input_text",  // System messages are input_text
             _ => "input_text"
         };
         
@@ -122,6 +123,23 @@ pub async fn repo_read_file(relpath: String) -> Result<String, String> {
 
     match &*manager {
         Some(repo) => repo.read_file(&relpath).map_err(|e| e.to_string()),
+        None => Err("No repository opened".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn repo_read_files_bulk(relpaths: Vec<String>) -> Result<HashMap<String, String>, String> {
+    let manager = REPO_MANAGER.read().await;
+    match &*manager {
+        Some(repo) => {
+            let mut out = HashMap::new();
+            for rel in relpaths {
+                if let Ok(content) = repo.read_file(&rel) {
+                    out.insert(rel, content);
+                }
+            }
+            Ok(out)
+        }
         None => Err("No repository opened".to_string()),
     }
 }
@@ -221,7 +239,6 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
     let body = serde_json::json!({
         "model": model,
         "input": to_responses_input(&messages),
-        "reasoning": { "effort": "low" },
         "stream": true
     });
     debug!(
@@ -478,6 +495,20 @@ pub async fn save_selected_files(files: Vec<String>) -> Result<(), String> {
 pub async fn load_selected_files() -> Result<Vec<String>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
     Ok(config.selected_files)
+}
+
+#[tauri::command]
+pub async fn save_selected_folders(folders: Vec<String>) -> Result<(), String> {
+    let mut config = load_config().map_err(|e| e.to_string())?;
+    config.selected_folders = folders;
+    save_config(&config).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn load_selected_folders() -> Result<Vec<String>, String> {
+    let config = load_config().map_err(|e| e.to_string())?;
+    Ok(config.selected_folders)
 }
 
 #[tauri::command]

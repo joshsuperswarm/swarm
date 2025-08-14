@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkState};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +24,7 @@ pub struct FileMeta {
 
 pub struct RepoManager {
     root: PathBuf,
+    files_cache: Arc<StdMutex<Option<Vec<FileMeta>>>>,
 }
 
 impl RepoManager {
@@ -32,7 +35,10 @@ impl RepoManager {
             return Err(anyhow!("Path does not exist or is not a directory"));
         }
 
-        Ok(Self { root })
+        Ok(Self {
+            root,
+            files_cache: Arc::new(StdMutex::new(None)),
+        })
     }
 
     pub fn get_summary(&self) -> RepoSummary {
@@ -53,14 +59,22 @@ impl RepoManager {
     }
 
     pub fn list_files(&self) -> Result<Vec<FileMeta>> {
-        let mut files = Vec::new();
-        let max_file_size = 5 * 1024 * 1024; // 5MB
+        // Fast path: return cached files if available
+        if let Some(cached) = self.files_cache.lock().unwrap().as_ref() {
+            return Ok(cached.clone());
+        }
 
-        let walker = WalkBuilder::new(&self.root)
+        let root = self.root.clone();
+        let max_file_size = 5 * 1024 * 1024; // 5MB
+        let out = Arc::new(StdMutex::new(Vec::new()));
+
+        let mut builder = WalkBuilder::new(&root);
+        builder
             .standard_filters(true)
             .hidden(false)
             .ignore(true)
             .git_ignore(true)
+            .threads(num_cpus::get()) // Use all available cores for parallel walking
             .filter_entry(|entry| {
                 let path = entry.path();
                 if path.is_dir() {
@@ -72,40 +86,64 @@ impl RepoManager {
                 } else {
                     true
                 }
-            })
-            .build();
+            });
 
-        for entry in walker {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_file() {
-                let metadata = fs::metadata(path)?;
-
-                if metadata.len() > max_file_size {
-                    continue;
+        builder.build_parallel().run(|| {
+            let out = out.clone();
+            let root = root.clone();
+            Box::new(move |entry| {
+                match entry {
+                    Ok(dirent) => {
+                        let path = dirent.path().to_path_buf();
+                        if path.is_file() {
+                            if let Ok(metadata) = fs::metadata(&path) {
+                                if metadata.len() <= max_file_size {
+                                    let relpath = path
+                                        .strip_prefix(&root)
+                                        .ok()
+                                        .and_then(|p| p.to_str())
+                                        .unwrap_or("")
+                                        .to_string();
+                                    if !relpath.is_empty() {
+                                        let mtime = metadata
+                                            .modified()
+                                            .ok()
+                                            .and_then(|m| m.duration_since(SystemTime::UNIX_EPOCH).ok())
+                                            .map(|d| d.as_secs())
+                                            .unwrap_or(0);
+                                        let is_binary = is_binary_file(&path);
+                                        let mut guard = out.lock().unwrap();
+                                        guard.push(FileMeta {
+                                            relpath,
+                                            size: metadata.len(),
+                                            mtime,
+                                            is_binary,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {}
                 }
+                WalkState::Continue
+            })
+        });
 
-                let relpath = path.strip_prefix(&self.root)?.to_string_lossy().to_string();
+        let mut list = out.lock().unwrap().clone();
+        list.sort_by(|a, b| b.mtime.cmp(&a.mtime));
+        
+        // Cache the results
+        *self.files_cache.lock().unwrap() = Some(list.clone());
+        
+        Ok(list)
+    }
 
-                let mtime = metadata
-                    .modified()?
-                    .duration_since(SystemTime::UNIX_EPOCH)?
-                    .as_secs();
-
-                let is_binary = is_binary_file(path);
-
-                files.push(FileMeta {
-                    relpath,
-                    size: metadata.len(),
-                    mtime,
-                    is_binary,
-                });
-            }
-        }
-
-        files.sort_by(|a, b| b.mtime.cmp(&a.mtime));
-        Ok(files)
+    // Provide a way to force-refresh cache if needed
+    pub fn refresh_cache(&self) -> Result<()> {
+        *self.files_cache.lock().unwrap() = None;
+        let _ = self.list_files()?; // Rebuild cache
+        Ok(())
     }
 
     pub fn read_file(&self, relpath: &str) -> Result<String> {
@@ -129,11 +167,15 @@ impl RepoManager {
 }
 
 fn is_binary_file(path: &Path) -> bool {
-    match fs::read(path) {
-        Ok(bytes) => {
-            let sample = &bytes[..bytes.len().min(8192)];
-            sample.iter().any(|&b| b == 0)
-        }
-        Err(_) => true,
-    }
+    // Read only first 8KB instead of entire file for binary detection
+    let mut f = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return true,
+    };
+    let mut buf = [0u8; 8192];
+    let n = match f.read(&mut buf) {
+        Ok(n) => n,
+        Err(_) => return true,
+    };
+    buf[..n].iter().any(|&b| b == 0)
 }

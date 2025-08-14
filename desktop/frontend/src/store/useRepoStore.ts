@@ -2,10 +2,14 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { RepoSummary, FileMeta, TokenReport } from '../types'
 
+// Debounce handle for token counting
+let debounceHandle: any
+
 interface RepoStore {
   repo: RepoSummary | null
   files: FileMeta[]
   selectedFiles: string[]
+  selectedFolders: string[]
   tokenReport: TokenReport | null
   
   openRepo: () => Promise<void>
@@ -14,19 +18,25 @@ interface RepoStore {
   toggleFile: (relpath: string) => void
   removeFile: (relpath: string) => void
   clearFiles: () => void
+  toggleFolder: (relpath: string) => void
+  removeFolder: (relpath: string) => void
+  clearFolders: () => void
   updateTokens: () => Promise<void>
+  expandedSelectedFiles: () => string[]
+  deriveAllFolders: (files: FileMeta[]) => string[]
 }
 
 export const useRepoStore = create<RepoStore>((set, get) => ({
   repo: null,
   files: [],
   selectedFiles: [],
+  selectedFolders: [],
   tokenReport: null,
 
   openRepo: async () => {
     try {
       const repo = await invoke<RepoSummary>('repo_open')
-      set({ repo, selectedFiles: [] })
+      set({ repo, selectedFiles: [], selectedFolders: [] })
       await get().loadFiles()
     } catch (error) {
       console.error('Failed to open repo:', error)
@@ -40,10 +50,11 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         set({ repo })
         await get().loadFiles()
         
-        // Load saved selected files
+        // Load saved selected files and folders
         const savedFiles = await invoke<string[]>('load_selected_files')
-        if (savedFiles.length > 0) {
-          set({ selectedFiles: savedFiles })
+        const savedFolders = await invoke<string[]>('load_selected_folders')
+        if (savedFiles.length > 0 || savedFolders.length > 0) {
+          set({ selectedFiles: savedFiles, selectedFolders: savedFolders })
           await get().updateTokens()
         }
       }
@@ -86,24 +97,91 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   clearFiles: async () => {
-    set({ selectedFiles: [], tokenReport: null })
+    set({ selectedFiles: [], selectedFolders: [], tokenReport: null })
     await invoke('save_selected_files', { files: [] })
+    await invoke('save_selected_folders', { folders: [] })
+  },
+
+  toggleFolder: async (relpath: string) => {
+    const { selectedFolders } = get()
+    let newSelectedFolders: string[]
+    if (selectedFolders.includes(relpath)) {
+      newSelectedFolders = selectedFolders.filter(f => f !== relpath)
+    } else {
+      newSelectedFolders = [...selectedFolders, relpath]
+    }
+    set({ selectedFolders: newSelectedFolders })
+    
+    // Save to persistence
+    await invoke('save_selected_folders', { folders: newSelectedFolders })
+    get().updateTokens()
+  },
+
+  removeFolder: async (relpath: string) => {
+    const newSelectedFolders = get().selectedFolders.filter(f => f !== relpath)
+    set({ selectedFolders: newSelectedFolders })
+    
+    // Save to persistence
+    await invoke('save_selected_folders', { folders: newSelectedFolders })
+    get().updateTokens()
+  },
+
+  clearFolders: async () => {
+    set({ selectedFolders: [] })
+    await invoke('save_selected_folders', { folders: [] })
+    get().updateTokens()
+  },
+
+  expandedSelectedFiles: () => {
+    const { selectedFiles, selectedFolders, files } = get()
+    const expanded = new Set<string>(selectedFiles)
+    
+    // Expand folders to include all files under them
+    for (const folder of selectedFolders) {
+      const prefix = folder.endsWith('/') ? folder : folder + '/'
+      for (const file of files) {
+        if (file.relpath.startsWith(prefix)) {
+          expanded.add(file.relpath)
+        }
+      }
+    }
+    
+    return [...expanded]
+  },
+
+  deriveAllFolders: (files: FileMeta[]) => {
+    const folderSet = new Set<string>()
+    for (const file of files) {
+      const parts = file.relpath.split('/')
+      for (let i = 1; i < parts.length; i++) {
+        folderSet.add(parts.slice(0, i).join('/'))
+      }
+    }
+    return [...folderSet].sort()
   },
 
   updateTokens: async () => {
-    const { selectedFiles } = get()
-    if (selectedFiles.length === 0) {
-      set({ tokenReport: null })
-      return
-    }
+    const { expandedSelectedFiles } = get()
+    const expandedFiles = expandedSelectedFiles()
+    
+    // Cancel any pending debounced calls
+    if (debounceHandle) clearTimeout(debounceHandle)
+    
+    // Debounce token counting to avoid excessive calls
+    debounceHandle = setTimeout(async () => {
+      if (expandedFiles.length === 0) {
+        set({ tokenReport: null })
+        return
+      }
 
-    try {
-      const report = await invoke<TokenReport>('repo_count_tokens', {
-        relpaths: selectedFiles
-      })
-      set({ tokenReport: report })
-    } catch (error) {
-      console.error('Failed to count tokens:', error)
-    }
+      try {
+        const report = await invoke<TokenReport>('repo_count_tokens', {
+          relpaths: expandedFiles
+        })
+        set({ tokenReport: report })
+      } catch (error) {
+        console.error('Failed to count tokens:', error)
+      }
+    }, 200) // 200ms debounce delay
   },
 }))
