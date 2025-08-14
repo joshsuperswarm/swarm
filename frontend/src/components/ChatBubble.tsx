@@ -46,9 +46,39 @@ export function ChatBubble({ variant, children, fullWidth = false, content }: Ch
     });
   };
 
-  // For assistant messages, use the old simple display
+  // For assistant messages, add copy functionality with hover but no expand/collapse
   if (variant === 'assistant') {
-    return <div className={`${base} ${styles[variant]}`}>{children}</div>;
+    return (
+      <div className={`${base} ${styles[variant]} relative group`}>
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {children}
+        </div>
+        
+        {/* Hover-revealed copy button for assistant messages */}
+        {content && (
+          <div className="absolute top-2 right-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
+              className={`h-6 px-2 opacity-0 group-hover:opacity-100 transition-all bg-white border border-gray-200 hover:bg-gray-50 ${
+                isCopied ? 'opacity-100' : ''
+              }`}
+              title={isCopied ? 'Copied!' : 'Copy message'}
+            >
+              {isCopied ? (
+                <>
+                  <Check className="h-3 w-3 mr-1" />
+                  <span className="text-xs">Copied</span>
+                </>
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   const shouldShowExpandCollapse = content && content.split('\n').length > 10;
