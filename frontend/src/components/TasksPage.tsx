@@ -11,6 +11,7 @@ import { useTasksQuery, useArchiveTaskMutation, useArchiveMultipleTasksMutation 
 import { ApiService } from '@/services/api';
 import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
 import { useModalStore } from '@/store/modalStore';
+import { useTaskSelectionStore } from '@/store/taskSelectionStore';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 // Memoize DataTable outside component to ensure stable reference
@@ -23,6 +24,7 @@ export function TasksPage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
   const [initialRefetchDone, setInitialRefetchDone] = useState(false);
   const { openCreateTask, createTaskOpen } = useModalStore();
+  const { selectedTaskId, setSelectedTaskId } = useTaskSelectionStore();
   const { has, isLoaded } = useAuth();
   const archiveMutation = useArchiveTaskMutation();
   const archiveMultipleMutation = useArchiveMultipleTasksMutation();
@@ -68,10 +70,24 @@ export function TasksPage() {
     };
   }, [qc]);
   
-  // Keep selectedIndex within bounds when tasks change
+  // Restore selectedIndex from stored selectedTaskId when tasks change
   React.useEffect(() => {
     if (tasks.length > 0) {
-      setSelectedIndex((prev) => Math.min(prev, tasks.length - 1));
+      // Try to restore from stored selectedTaskId
+      if (selectedTaskId) {
+        const storedIndex = tasks.findIndex(t => t.task_id === selectedTaskId);
+        if (storedIndex >= 0) {
+          setSelectedIndex(storedIndex);
+        } else {
+          // If stored task not found, use first task and update store
+          setSelectedIndex(0);
+          setSelectedTaskId(tasks[0].task_id);
+        }
+      } else {
+        // No stored selection, use first task
+        setSelectedIndex(0);
+        setSelectedTaskId(tasks[0].task_id);
+      }
     } else {
       setSelectedIndex(0);
     }
@@ -81,12 +97,19 @@ export function TasksPage() {
       const filteredSelection = new Set([...prevSelected].filter(id => currentTaskIds.has(id)));
       return filteredSelection;
     });
-  }, [tasks]);
+  }, [tasks, selectedTaskId, setSelectedTaskId]);
 
   // Derive selectedTask from selectedIndex
   const currentSelectedTask = useMemo(() => {
     return tasks.length > 0 ? tasks[selectedIndex] : null;
   }, [tasks, selectedIndex]);
+
+  // Update store when selectedIndex changes (for j/k navigation)
+  useEffect(() => {
+    if (currentSelectedTask) {
+      setSelectedTaskId(currentSelectedTask.task_id);
+    }
+  }, [currentSelectedTask, setSelectedTaskId]);
 
   // Handle task selection changes
   const handleSelectionChange = (taskId: number, selected: boolean) => {
