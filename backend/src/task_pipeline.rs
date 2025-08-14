@@ -34,7 +34,6 @@ pub async fn run_full_task_pipeline(
     let model = run.model.clone();
 
     tracing::info!("Using run {} (mode: {}, model: {})", run.id, mode, model);
-
     // Get the user from the task
     let user = match app_state.database.get_user_by_id(task.user_id).await {
         Ok(Some(user)) => user,
@@ -362,14 +361,20 @@ pub async fn run_full_task_pipeline(
 }
 
 /// Determine branch name for task with reuse logic
-/// All modes (execute, plan, review): Reuse existing branch if available and PR not merged
-/// Fallback: Generate new branch if none exists
+/// Execute mode: Reuse existing branch if available and PR not merged, otherwise create new branch
+/// Plan/Review modes: Always use main branch to avoid confusing the agent
 async fn determine_branch_for_task(
     app_state: &AppState,
     task_id: i32,
     mode: &str,
 ) -> Result<String> {
-    // Try to reuse existing branch for all modes
+    // Plan and review modes should always use main branch to avoid confusion
+    if mode == "plan" || mode == "review" {
+        tracing::info!("Using main branch for {} mode task {}", mode, task_id);
+        return Ok("main".to_string());
+    }
+
+    // Execute mode: try to reuse existing branch
     if let Ok(Some(existing_branch)) = app_state
         .database
         .get_existing_branch_for_task(task_id, mode)
@@ -383,7 +388,7 @@ async fn determine_branch_for_task(
         return Ok(existing_branch);
     }
 
-    // Fallback: generate new branch
+    // Execute mode fallback: generate new branch
     let new_branch = format!("swarm/task-{}", task_id);
     tracing::info!("Creating new branch '{}' for task {}", new_branch, task_id);
     Ok(new_branch)
