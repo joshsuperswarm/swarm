@@ -211,57 +211,62 @@ pub async fn run_full_task_pipeline(
     }
 
     // Check for existing active sandbox for this task
-    let (sandbox_info, is_reused) =
-        if let Some((existing_sandbox, old_run_id)) = find_reusable_session(&app_state, task.id, &branch).await? {
-            tracing::info!(
-                "Reusing existing sandbox {} from run {} for task {}",
-                existing_sandbox.id,
+    let (sandbox_info, is_reused) = if let Some((existing_sandbox, old_run_id)) =
+        find_reusable_session(&app_state, task.id, &branch).await?
+    {
+        tracing::info!(
+            "Reusing existing sandbox {} from run {} for task {}",
+            existing_sandbox.id,
+            old_run_id,
+            task.id
+        );
+        // Clear idle timeout on the OLD run to prevent it from cleaning up the sandbox
+        if let Err(e) = app_state.database.clear_run_idle_timeout(old_run_id).await {
+            tracing::warn!(
+                "Failed to clear idle timeout on old run {}: {}",
                 old_run_id,
-                task.id
+                e
             );
-            // Clear idle timeout on the OLD run to prevent it from cleaning up the sandbox
-            if let Err(e) = app_state.database.clear_run_idle_timeout(old_run_id).await {
-                tracing::warn!("Failed to clear idle timeout on old run {}: {}", old_run_id, e);
-            }
-            // Set idle timeout for NEW run (extend by 15 minutes)
-            if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
-                tracing::warn!("Failed to set idle timeout for new run: {}", e);
-            }
-            (existing_sandbox, true)
-        } else {
-            // Create new sandbox as current logic
-            match app_state
-                .sandbox
-                .start_sandbox(
-                    task.id,
-                    &repo_url,
-                    &github_token,
-                    &prompt,
-                    &anthropic_api_key,
-                    openai_api_key_opt.as_deref(),
-                    &branch,
-                    &author_name,
-                    &author_email,
-                    mode,
-                    model,
-                )
-                .await
-            {
-                Ok(info) => {
-                    tracing::info!("Started new sandbox {} for task {}", info.id, task.id);
-                    // Set initial idle timeout for new session (15 minutes)
-                    if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
-                        tracing::warn!("Failed to set idle timeout for new session: {}", e);
-                    }
-                    (info, false)
+        }
+        // Set idle timeout for NEW run (extend by 15 minutes)
+        if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
+            tracing::warn!("Failed to set idle timeout for new run: {}", e);
+        }
+        (existing_sandbox, true)
+    } else {
+        // Create new sandbox as current logic
+        match app_state
+            .sandbox
+            .start_sandbox(
+                task.id,
+                &repo_url,
+                &github_token,
+                &prompt,
+                &anthropic_api_key,
+                openai_api_key_opt.as_deref(),
+                &branch,
+                &author_name,
+                &author_email,
+                mode,
+                model,
+            )
+            .await
+        {
+            Ok(info) => {
+                tracing::info!("Started new sandbox {} for task {}", info.id, task.id);
+                // Set initial idle timeout for new session (15 minutes)
+                if let Err(e) = app_state.database.update_run_idle_timeout(run.id, 15).await {
+                    tracing::warn!("Failed to set idle timeout for new session: {}", e);
                 }
-                Err(e) => {
-                    tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
-                    let _ = app_state.database.update_run_status(run.id, "failed").await;
-                    return Err(anyhow::anyhow!("Failed to start sandbox: {}", e));
-                }
+                (info, false)
             }
-        };
+            Err(e) => {
+                tracing::error!("Failed to start sandbox for task {}: {}", task.id, e);
+                let _ = app_state.database.update_run_status(run.id, "failed").await;
+                return Err(anyhow::anyhow!("Failed to start sandbox: {}", e));
+            }
+        }
+    };
 
     // If we're reusing a sandbox, we need to launch Claude Code with the new task
     let final_sandbox_info = if is_reused {
@@ -453,8 +458,14 @@ async fn find_reusable_session(
                                         id: sandbox_id.clone(),
                                         hostname: hostname.clone(),
                                         status,
-                                        session_id: existing_run.session_id.clone().unwrap_or_default(),
-                                        command_id: existing_run.command_id.clone().unwrap_or_default(),
+                                        session_id: existing_run
+                                            .session_id
+                                            .clone()
+                                            .unwrap_or_default(),
+                                        command_id: existing_run
+                                            .command_id
+                                            .clone()
+                                            .unwrap_or_default(),
                                         branch: branch.to_string(),
                                     },
                                     existing_run.id,

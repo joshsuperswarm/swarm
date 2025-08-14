@@ -178,7 +178,15 @@ async fn handle_task(
             )
             .await?;
         } else {
-            mark_failed(app_state, provider, run_id, task_id, &sandbox_id, &format!("non-zero exit code: {}", code)).await?;
+            mark_failed(
+                app_state,
+                provider,
+                run_id,
+                task_id,
+                &sandbox_id,
+                &format!("non-zero exit code: {}", code),
+            )
+            .await?;
         }
         return Ok(());
     }
@@ -211,10 +219,26 @@ async fn handle_task(
             }
         }
         SandboxStatus::Stopped => {
-            mark_failed(app_state, provider, run_id, task_id, &sandbox_id, "sandbox stopped").await?
+            mark_failed(
+                app_state,
+                provider,
+                run_id,
+                task_id,
+                &sandbox_id,
+                "sandbox stopped",
+            )
+            .await?
         }
         SandboxStatus::Failed => {
-            mark_failed(app_state, provider, run_id, task_id, &sandbox_id, "sandbox failed").await?
+            mark_failed(
+                app_state,
+                provider,
+                run_id,
+                task_id,
+                &sandbox_id,
+                "sandbox failed",
+            )
+            .await?
         }
         SandboxStatus::Starting => {
             debug!("task {task_id} sandbox still starting");
@@ -426,7 +450,7 @@ async fn mark_failed(
         .database
         .update_run_status(run_id, "failed")
         .await?;
-    
+
     // Delete sandbox and clear idle timeout on success
     if provider.delete_sandbox(sandbox_id).await.is_ok() {
         if let Err(e) = app_state.database.clear_run_idle_timeout(run_id).await {
@@ -456,7 +480,7 @@ async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
                 error!("Failed to delete expired sandbox {}: {}", sandbox_id, e);
             } else {
                 info!("Successfully cleaned up expired sandbox {}", sandbox_id);
-                
+
                 // Clear the idle timeout only after successful termination
                 if let Err(e) = app_state.database.clear_run_idle_timeout(run.id).await {
                     error!("Failed to clear idle timeout for run {}: {}", run.id, e);
