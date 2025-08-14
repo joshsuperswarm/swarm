@@ -50,7 +50,7 @@ export function ChatBubble({ variant, children, fullWidth = false, content }: Ch
   if (variant === 'assistant') {
     return (
       <div className={`${base} ${styles[variant]} relative group`}>
-        <div className="whitespace-pre-wrap leading-relaxed">
+        <div className="leading-relaxed [word-break:break-word]">
           {children}
         </div>
         
