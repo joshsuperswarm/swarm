@@ -22,16 +22,16 @@ impl Default for Config {
 fn get_config_path() -> Result<PathBuf> {
     let project_dirs = ProjectDirs::from("com", "repochat", "repochat")
         .ok_or_else(|| anyhow::anyhow!("Failed to get project directories"))?;
-    
+
     let config_dir = project_dirs.config_dir();
     fs::create_dir_all(config_dir)?;
-    
+
     Ok(config_dir.join("config.json"))
 }
 
 pub fn load_config() -> Result<Config> {
     let path = get_config_path()?;
-    
+
     if path.exists() {
         let contents = fs::read_to_string(path)?;
         Ok(serde_json::from_str(&contents)?)

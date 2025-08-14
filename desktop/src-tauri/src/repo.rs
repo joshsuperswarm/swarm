@@ -27,33 +27,35 @@ pub struct RepoManager {
 impl RepoManager {
     pub fn new(path: &str) -> Result<Self> {
         let root = PathBuf::from(path).canonicalize()?;
-        
+
         if !root.exists() || !root.is_dir() {
             return Err(anyhow!("Path does not exist or is not a directory"));
         }
-        
+
         Ok(Self { root })
     }
-    
+
     pub fn get_summary(&self) -> RepoSummary {
-        let name = self.root.file_name()
+        let name = self
+            .root
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        
+
         let file_count = self.list_files().unwrap_or_default().len();
-        
+
         RepoSummary {
             root: self.root.to_string_lossy().to_string(),
             name,
             file_count,
         }
     }
-    
+
     pub fn list_files(&self) -> Result<Vec<FileMeta>> {
         let mut files = Vec::new();
         let max_file_size = 5 * 1024 * 1024; // 5MB
-        
+
         let walker = WalkBuilder::new(&self.root)
             .standard_filters(true)
             .hidden(false)
@@ -63,34 +65,36 @@ impl RepoManager {
                 let path = entry.path();
                 if path.is_dir() {
                     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    !matches!(name, ".git" | "node_modules" | "target" | "build" | "dist" | ".next" | "venv")
+                    !matches!(
+                        name,
+                        ".git" | "node_modules" | "target" | "build" | "dist" | ".next" | "venv"
+                    )
                 } else {
                     true
                 }
             })
             .build();
-        
+
         for entry in walker {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() {
                 let metadata = fs::metadata(path)?;
-                
+
                 if metadata.len() > max_file_size {
                     continue;
                 }
-                
-                let relpath = path.strip_prefix(&self.root)?
-                    .to_string_lossy()
-                    .to_string();
-                
-                let mtime = metadata.modified()?
+
+                let relpath = path.strip_prefix(&self.root)?.to_string_lossy().to_string();
+
+                let mtime = metadata
+                    .modified()?
                     .duration_since(SystemTime::UNIX_EPOCH)?
                     .as_secs();
-                
+
                 let is_binary = is_binary_file(path);
-                
+
                 files.push(FileMeta {
                     relpath,
                     size: metadata.len(),
@@ -99,26 +103,26 @@ impl RepoManager {
                 });
             }
         }
-        
+
         files.sort_by(|a, b| b.mtime.cmp(&a.mtime));
         Ok(files)
     }
-    
+
     pub fn read_file(&self, relpath: &str) -> Result<String> {
         if relpath.contains("..") {
             return Err(anyhow!("Invalid path: contains '..'"));
         }
-        
+
         let full_path = self.root.join(relpath);
         let canonical = full_path.canonicalize()?;
-        
+
         if !canonical.starts_with(&self.root) {
             return Err(anyhow!("Path traversal detected"));
         }
-        
+
         Ok(fs::read_to_string(canonical)?)
     }
-    
+
     pub fn get_root(&self) -> &Path {
         &self.root
     }
