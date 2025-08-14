@@ -69,7 +69,7 @@ export const RunModeButton: React.FC<RunModeButtonProps> = ({
       title={title || `${config.description} (Shift+Tab to cycle)`}
     >
       <config.icon size={iconSize} />
-      {showLabel && <span className="hidden sm:inline">{config.label}</span>}
+      {showLabel && <span>{config.label}</span>}
     </button>
   );
 };
