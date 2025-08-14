@@ -5,7 +5,21 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['"Fira Sans"', 'ui-sans-serif', 'system-ui'],
+        mono: ['"Fira Code"', 'ui-monospace', 'SFMono-Regular'],
+      },
+      typography: ({ theme }) => ({
+        DEFAULT: {
+          css: {
+            code: { backgroundColor: theme('colors.gray.50') },
+            'code::before': { content: '""' },
+            'code::after': { content: '""' },
+          },
+        },
+      }),
+    },
   },
-  plugins: [],
+  plugins: [require('@tailwindcss/typography')],
 }

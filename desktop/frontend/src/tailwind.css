@@ -1,3 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html {
+  @apply font-sans;
+}
+
+/* App surface like ChatGPT */
+body, #root { @apply bg-[#f7f7f8]; }
+
+/* Chat column */
+.chat-container { @apply mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8; }
+
+/* Message card look */
+.msg-card { @apply rounded-2xl border border-gray-200 bg-white shadow-sm; }
+.msg-user  { @apply bg-gray-100 border border-gray-200; }
+
+/* Markdown "prose" tweaks */
+.prose-chat {
+  @apply prose prose-slate max-w-none;
+}
+.prose-chat pre {
+  @apply rounded-xl border border-gray-200;
+}
+.prose-chat code {
+  @apply font-mono text-sm;
+}
+.prose-chat :where(h1,h2,h3){ @apply scroll-mt-20; }

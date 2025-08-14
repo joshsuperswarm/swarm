@@ -30,4 +30,5 @@ export interface TokenReport {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  includedFiles?: string[]; // Files included in this message (for user messages)
 }

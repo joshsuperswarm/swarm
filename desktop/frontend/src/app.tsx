@@ -23,27 +23,31 @@ export default function App() {
     }
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
-  if (!repo) {
-    return <OpenFolderEmptyState />
-  }
+  if (!repo) return <OpenFolderEmptyState />;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <header className="bg-white border-b px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold">{repo.name}</h1>
-          <span className="text-sm text-gray-500">{repo.file_count} files</span>
+    <div className="flex h-screen flex-col">
+      <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
+        <div className="chat-container flex h-12 items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-sm font-semibold">{repo.name}</h1>
+            <span className="text-xs text-gray-500">{repo.file_count} files</span>
+          </div>
+          <TokenCountBadge />
         </div>
-        <TokenCountBadge />
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        <Chat />
-      </div>
+      <main className="flex-1 overflow-hidden">
+        <div className="chat-container h-full">
+          <Chat />
+        </div>
+      </main>
 
       {selectedFiles.length > 0 && (
-        <div className="bg-white border-t px-4 py-2">
-          <FilePills />
+        <div className="border-t bg-white">
+          <div className="chat-container py-2">
+            <FilePills />
+          </div>
         </div>
       )}
 

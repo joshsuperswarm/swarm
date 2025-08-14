@@ -2,6 +2,15 @@ import { AlertCircle } from 'lucide-react'
 import { useRepoStore } from '../store/useRepoStore'
 import { cn } from '../lib/cn'
 
+function formatTokenCount(count: number): string {
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1).replace(/\.0$/, '')}M`
+  } else if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`
+  }
+  return count.toString()
+}
+
 export default function TokenCountBadge() {
   const { tokenReport } = useRepoStore()
 
@@ -23,7 +32,7 @@ export default function TokenCountBadge() {
     >
       {isWarning && <AlertCircle className="h-4 w-4" />}
       <span>
-        {tokenReport.total_tokens.toLocaleString()} / {tokenReport.model_context_window.toLocaleString()}
+        {formatTokenCount(tokenReport.total_tokens)} / {formatTokenCount(tokenReport.model_context_window)}
       </span>
       <span className="text-xs opacity-75">
         ({percentage.toFixed(0)}%)

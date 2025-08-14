@@ -81,7 +81,7 @@ pub async fn count_tokens_for_files(
 
     files.sort_by(|a, b| b.tokens.cmp(&a.tokens));
 
-    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
+    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
     let context_window = get_model_context_window(&model);
 
     Ok(TokenReport {
@@ -134,7 +134,7 @@ fn get_model_context_window(model: &str) -> u32 {
     }
 
     match model {
-        "gpt-5" | "gpt-5-latest" => 272000, // ~272k tokens for GPT-5
+        "gpt-5" | "gpt-5-latest" | "gpt-5-mini" => 272000, // ~272k tokens for GPT-5/GPT-5-mini
         "gpt-4o" | "gpt-4o-2024-08-06" => 128000,
         "gpt-4o-mini" => 128000,
         "gpt-4-turbo" | "gpt-4-turbo-preview" => 128000,

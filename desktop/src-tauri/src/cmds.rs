@@ -4,7 +4,7 @@ use crate::tokens::{count_tokens_for_files, TokenReport};
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use lazy_static::lazy_static;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -38,6 +38,25 @@ pub struct StreamDone {
     pub request_id: String,
     pub finish_reason: Option<String>,
     pub canceled: bool,
+}
+
+// Map ChatMsg to Responses API input format
+fn to_responses_input(messages: &[ChatMsg]) -> serde_json::Value {
+    let items: Vec<serde_json::Value> = messages.iter().map(|m| {
+        let content_type = match m.role.as_str() {
+            "assistant" => "output_text",
+            _ => "input_text"
+        };
+        
+        serde_json::json!({
+            "role": m.role,
+            "content": [
+                { "type": content_type, "text": m.content }
+            ]
+        })
+    }).collect();
+
+    serde_json::Value::Array(items)
 }
 
 #[tauri::command]
@@ -167,7 +186,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
         &api_key[api_key.len().saturating_sub(5)..]
     );
 
-    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
+    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
     info!("Using model: {}", model);
 
     let client = reqwest::Client::builder()
@@ -201,8 +220,9 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
 
     let body = serde_json::json!({
         "model": model,
-        "messages": messages,
-        "stream": true,
+        "input": to_responses_input(&messages),
+        "reasoning": { "effort": "low" },
+        "stream": true
     });
     debug!(
         "Request body: {}",
@@ -279,14 +299,18 @@ async fn stream_with_retry(
     );
 
     // Log estimated token count (rough estimate: ~4 chars per token)
-    if let Some(messages) = body["messages"].as_array() {
-        let total_chars: usize = messages
+    if let Some(input) = body["input"].as_array() {
+        let total_chars: usize = input
             .iter()
-            .filter_map(|m| m["content"].as_str())
+            .filter_map(|item| {
+                item["content"].as_array()
+                    .and_then(|content| content.get(0))
+                    .and_then(|text_obj| text_obj["text"].as_str())
+            })
             .map(|c| c.len())
             .sum();
         info!(
-            "Total message content: {} chars, ~{} tokens (estimate)",
+            "Total input content: {} chars, ~{} tokens (estimate)",
             total_chars,
             total_chars / 4
         );
@@ -299,7 +323,7 @@ async fn stream_with_retry(
     );
 
     let response = client
-        .post("https://api.openai.com/v1/chat/completions")
+        .post("https://api.openai.com/v1/responses")
         .headers(headers.clone())
         .json(body)
         .send()
@@ -347,62 +371,84 @@ async fn stream_with_retry(
         match event {
             Ok(event) => {
                 let eventsource_stream::Event { data, .. } = event;
-                if data == "[DONE]" {
-                    info!(
-                        "Received [DONE] signal for request {}, total tokens: {}",
-                        request_id, token_count
-                    );
-                    let _ = app.emit(
-                        "chat_done",
-                        StreamDone {
-                            request_id: request_id.to_string(),
-                            finish_reason: Some("stop".to_string()),
-                            canceled: false,
-                        },
-                    );
-                    break;
-                }
 
-                if let Ok(chunk) = serde_json::from_str::<serde_json::Value>(&data) {
-                    if let Some(delta) = chunk["choices"][0]["delta"]["content"].as_str() {
-                        token_count += 1;
+                // Responses API does NOT use "[DONE]"; it ends with a "response.completed" event.
+                // Each line of `data` is a JSON object with a "type" discriminator.
+                let parsed: serde_json::Value = match serde_json::from_str(&data) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        // Some providers send keep-alives or non-JSON comments; ignore them.
+                        continue;
+                    }
+                };
 
-                        // Log time to first token
-                        if first_token_time.is_none() {
-                            first_token_time = Some(start_time.elapsed());
-                            info!(
-                                "First token received after {:.2}s for request {}",
-                                first_token_time.unwrap().as_secs_f32(),
-                                request_id
-                            );
+                let etype = parsed.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+                match etype {
+                    // This carries the streamed text chunks
+                    "response.output_text.delta" => {
+                        if let Some(delta) = parsed.get("delta").and_then(|d| d.as_str()) {
+                            token_count += 1;
+                            if first_token_time.is_none() {
+                                first_token_time = Some(start_time.elapsed());
+                                info!(
+                                    "First token received after {:.2}s for request {}",
+                                    first_token_time.unwrap().as_secs_f32(),
+                                    request_id
+                                );
+                            }
+                            let _ = app.emit("chat_token", StreamToken {
+                                request_id: request_id.to_string(),
+                                delta: delta.to_string(),
+                            });
                         }
-
-                        debug!(
-                            "Emitting token {} for request {}: {}",
-                            token_count, request_id, delta
-                        );
-                        let _ = app
-                            .emit(
-                                "chat_token",
-                                StreamToken {
-                                    request_id: request_id.to_string(),
-                                    delta: delta.to_string(),
-                                },
-                            )
-                            .map_err(|e| warn!("Failed to emit token: {}", e));
                     }
 
-                    if let Some(finish) = chunk["choices"][0]["finish_reason"].as_str() {
-                        let _ = app.emit(
-                            "chat_done",
-                            StreamDone {
-                                request_id: request_id.to_string(),
-                                finish_reason: Some(finish.to_string()),
-                                canceled: false,
-                            },
+                    // Useful to ignore; marks end of a text block
+                    "response.output_text.done" => {
+                        // no-op
+                    }
+
+                    // Final event for the whole response
+                    "response.completed" => {
+                        let finish = parsed
+                            .get("response")
+                            .and_then(|r| r.get("status"))
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("completed");
+
+                        info!(
+                            "Received response.completed signal for request {}, total tokens: {}",
+                            request_id, token_count
                         );
+
+                        let _ = app.emit("chat_done", StreamDone {
+                            request_id: request_id.to_string(),
+                            finish_reason: Some(finish.to_string()),
+                            canceled: false,
+                        });
                         break;
                     }
+
+                    // Surface API-side errors mid-stream
+                    "response.error" => {
+                        let msg = parsed.get("error")
+                            .and_then(|e| e.get("message"))
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("unknown error");
+                        error!("Responses API error: {}", msg);
+
+                        let _ = app.emit("chat_done", StreamDone {
+                            request_id: request_id.to_string(),
+                            finish_reason: Some(format!("error: {}", msg)),
+                            canceled: false,
+                        });
+                        break;
+                    }
+
+                    // Other events you might see; safe to ignore for basic text streaming:
+                    // "response.created", "response.in_progress", "response.refusal.delta", etc.
+                    _ => { /* ignore */ }
                 }
             }
             Err(e) => return Err(format!("Stream error: {}", e)),
