@@ -5,11 +5,13 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { RunModeButton } from "@/components/RunModeButton";
+import { AgentThinkingIndicator } from "@/components/AgentThinkingIndicator";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
+import { useRunPhase } from "@/hooks/useRunPhase";
 import { Bot, ArrowLeft, Brain, Zap } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
@@ -45,6 +47,10 @@ export function TaskChatPage() {
   const task = taskDetails?.task;
   const messages = taskDetails?.messages || [];
   const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
+  
+  // Get run status and phase early for hooks
+  const currentRunStatus = currentRun?.run?.status;
+  const phase = useRunPhase(currentRunStatus);
   
   // Prepare task list for navigation (same filtering as TasksPage)
   const unarchived = allTasks.filter((t: TaskWithRun) => !t.is_archived && t.status !== 'archived');
@@ -171,7 +177,6 @@ export function TaskChatPage() {
     );
   }
   
-  const currentRunStatus = currentRun?.run?.status;
   const finished = ["done", "failed", "pr_opened"].includes(
     currentRunStatus || "",
   );
@@ -285,6 +290,7 @@ export function TaskChatPage() {
           messages.map((message: MessageWithRun, idx: number) => {
             const prevRole = idx > 0 ? messages[idx - 1].role : null;
             const isGrouped = prevRole === message.role;
+            const isLastUserMsg = message.role === "user" && idx === messages.length - 1;
             return (
               <div
                 key={message.id}
@@ -328,6 +334,11 @@ export function TaskChatPage() {
                   </div>
                 )}
               </ChatBubble>
+              {isLastUserMsg && phase && (
+                <div className="flex justify-start mt-2">
+                  <AgentThinkingIndicator phase={phase} />
+                </div>
+              )}
               </div>
             );
           })
