@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Dialog, DialogContent } from './ui/dialog'
 import { useRepoStore } from '../store/useRepoStore'
 import Fuse from 'fuse.js'
@@ -16,6 +16,7 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
   const [search, setSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const fuse = new Fuse(files, {
     keys: ['relpath'],
@@ -26,6 +27,11 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
     ? fuse.search(search).map(result => result.item)
     : files
 
+  // Reset highlighted index when search changes
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [search])
+
   useEffect(() => {
     if (open) {
       setSearch('')
@@ -34,19 +40,32 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
     }
   }, [open])
 
-  useHotkeys('down', () => {
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (open && listRef.current) {
+      const highlightedElement = listRef.current.querySelector(`[data-index="${highlightedIndex}"]`)
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [highlightedIndex, open])
+
+  useHotkeys('down', (e) => {
+    e.preventDefault()
     setHighlightedIndex(i => Math.min(i + 1, filteredFiles.length - 1))
-  }, { enabled: open })
+  }, { enabled: open, preventDefault: true })
 
-  useHotkeys('up', () => {
+  useHotkeys('up', (e) => {
+    e.preventDefault()
     setHighlightedIndex(i => Math.max(i - 1, 0))
-  }, { enabled: open })
+  }, { enabled: open, preventDefault: true })
 
-  useHotkeys('enter', () => {
+  useHotkeys('enter', (e) => {
+    e.preventDefault()
     if (filteredFiles[highlightedIndex]) {
       toggleFile(filteredFiles[highlightedIndex].relpath)
     }
-  }, { enabled: open })
+  }, { enabled: open, preventDefault: true })
 
   useHotkeys('escape', () => {
     onOpenChange(false)
@@ -69,11 +88,12 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto" ref={listRef}>
             <AnimatePresence>
               {filteredFiles.map((file, index) => (
                 <motion.div
                   key={file.relpath}
+                  data-index={index}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}

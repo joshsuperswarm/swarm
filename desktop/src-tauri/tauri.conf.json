@@ -9,13 +9,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "identifier": "com.repochat.app",
     "resources": []
   },
+  "identifier": "com.repochat.app",
   "productName": "RepoChat",
   "mainBinaryName": "repochat",
   "version": "0.1.0",
-  "identifier": "com.repochat.app",
   "app": {
     "windows": [
       {

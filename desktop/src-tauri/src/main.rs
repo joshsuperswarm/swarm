@@ -12,6 +12,10 @@ mod tokens;
 
 #[tokio::main]
 async fn main() {
+    // Initialize logger with RUST_LOG env var (e.g., RUST_LOG=debug)
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    log::info!("Starting RepoChat application");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

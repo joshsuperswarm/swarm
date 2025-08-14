@@ -5,7 +5,6 @@ import OpenFolderEmptyState from './components/OpenFolderEmptyState'
 import FilePicker from './components/FilePicker'
 import FilePills from './components/FilePills'
 import TokenCountBadge from './components/TokenCountBadge'
-import TokenBreakdown from './components/TokenBreakdown'
 import Chat from './components/Chat'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -22,7 +21,7 @@ export default function App() {
     if (repo) {
       setPickerOpen(true)
     }
-  })
+  }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
   if (!repo) {
     return <OpenFolderEmptyState />
@@ -35,31 +34,18 @@ export default function App() {
           <h1 className="text-lg font-semibold">{repo.name}</h1>
           <span className="text-sm text-gray-500">{repo.file_count} files</span>
         </div>
-        <div className="flex items-center gap-2">
-          <TokenBreakdown />
-          <TokenCountBadge />
-        </div>
+        <TokenCountBadge />
       </header>
 
       <div className="flex-1 overflow-hidden">
         <Chat />
       </div>
 
-      <div className="bg-white border-t">
-        {selectedFiles.length > 0 && (
-          <div className="px-4 py-2 border-b">
-            <FilePills />
-          </div>
-        )}
-        <div className="px-4 py-4">
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            Press ⌘P to select files
-          </button>
+      {selectedFiles.length > 0 && (
+        <div className="bg-white border-t px-4 py-2">
+          <FilePills />
         </div>
-      </div>
+      )}
 
       <FilePicker open={isPickerOpen} onOpenChange={setPickerOpen} />
     </div>
