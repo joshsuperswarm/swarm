@@ -4,4 +4,4 @@ export type Task = { id: number, user_id: number, repository_id: number, title: 
 /**
  * Deprecated – will be removed after 2025-Q3
  */
-description: string | null, status: string | null, github_pr_url: string | null, pr_title: string | null, pr_body: string | null, is_archived: boolean, created_at: string | null, updated_at: string | null, };
+description: string | null, status: string | null, github_pr_url: string | null, pr_title: string | null, pr_body: string | null, pr_merged_at: string | null, is_archived: boolean, created_at: string | null, updated_at: string | null, };

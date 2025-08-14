@@ -170,7 +170,10 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
     let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
     info!("Using model: {}", model);
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let mut headers = HeaderMap::new();
     let auth_header = format!("Bearer {}", api_key);
     debug!("Auth header length: {}", auth_header.len());
@@ -267,7 +270,34 @@ async fn stream_with_retry(
     request_id: &str,
     cancel_token: CancellationToken,
 ) -> Result<(), String> {
-    info!("Sending request to OpenAI API for request {}", request_id);
+    // Log the size of the request
+    let body_str = body.to_string();
+    info!(
+        "Request body size: {} bytes, {} chars",
+        body_str.len(),
+        body_str.chars().count()
+    );
+
+    // Log estimated token count (rough estimate: ~4 chars per token)
+    if let Some(messages) = body["messages"].as_array() {
+        let total_chars: usize = messages
+            .iter()
+            .filter_map(|m| m["content"].as_str())
+            .map(|c| c.len())
+            .sum();
+        info!(
+            "Total message content: {} chars, ~{} tokens (estimate)",
+            total_chars,
+            total_chars / 4
+        );
+    }
+
+    let start_time = std::time::Instant::now();
+    info!(
+        "Sending request to OpenAI API for request {} at {:?}",
+        request_id, start_time
+    );
+
     let response = client
         .post("https://api.openai.com/v1/chat/completions")
         .headers(headers.clone())
@@ -278,7 +308,13 @@ async fn stream_with_retry(
             error!("Failed to send request: {}", e);
             e.to_string()
         })?;
-    info!("Got response with status: {}", response.status());
+
+    let headers_time = start_time.elapsed();
+    info!(
+        "Got response headers after {:.2}s with status: {}",
+        headers_time.as_secs_f32(),
+        response.status()
+    );
 
     if !response.status().is_success() {
         let status = response.status();
@@ -288,8 +324,14 @@ async fn stream_with_retry(
     }
 
     let mut stream = response.bytes_stream().eventsource();
-    info!("Started streaming response for request {}", request_id);
+    let first_byte_time = start_time.elapsed();
+    info!(
+        "Started streaming response for request {} after {:.2}s total",
+        request_id,
+        first_byte_time.as_secs_f32()
+    );
     let mut token_count = 0;
+    let mut first_token_time: Option<std::time::Duration> = None;
 
     while let Some(event) = tokio::select! {
         event = stream.next() => event,
@@ -324,6 +366,17 @@ async fn stream_with_retry(
                 if let Ok(chunk) = serde_json::from_str::<serde_json::Value>(&data) {
                     if let Some(delta) = chunk["choices"][0]["delta"]["content"].as_str() {
                         token_count += 1;
+
+                        // Log time to first token
+                        if first_token_time.is_none() {
+                            first_token_time = Some(start_time.elapsed());
+                            info!(
+                                "First token received after {:.2}s for request {}",
+                                first_token_time.unwrap().as_secs_f32(),
+                                request_id
+                            );
+                        }
+
                         debug!(
                             "Emitting token {} for request {}: {}",
                             token_count, request_id, delta
@@ -355,6 +408,14 @@ async fn stream_with_retry(
             Err(e) => return Err(format!("Stream error: {}", e)),
         }
     }
+
+    let total_time = start_time.elapsed();
+    info!(
+        "Stream completed for request {} - Total time: {:.2}s, Tokens: {}",
+        request_id,
+        total_time.as_secs_f32(),
+        token_count
+    );
 
     Ok(())
 }

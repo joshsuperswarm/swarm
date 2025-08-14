@@ -33,6 +33,13 @@ async fn main() {
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
             window.set_title("RepoChat")?;
+
+            // Open devtools in debug builds
+            #[cfg(debug_assertions)]
+            {
+                window.open_devtools();
+            }
+
             Ok(())
         })
         .run(generate_context!())

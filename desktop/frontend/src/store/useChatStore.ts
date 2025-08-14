@@ -68,14 +68,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       })
 
       const unlistenToken = await listen<StreamToken>('chat_token', (event) => {
+        console.log('Received chat_token event:', event.payload)
+        console.log('Expected requestId:', requestId)
         if (event.payload.request_id === requestId) {
-          set(state => ({
-            messages: state.messages.map((msg, idx) => 
+          console.log('Token matched! Delta:', event.payload.delta)
+          set(state => {
+            const updatedMessages = state.messages.map((msg, idx) => 
               idx === state.messages.length - 1 
                 ? { ...msg, content: msg.content + event.payload.delta }
                 : msg
             )
-          }))
+            console.log('Updated last message content:', updatedMessages[updatedMessages.length - 1].content)
+            return { messages: updatedMessages }
+          })
+        } else {
+          console.log('Request ID mismatch!')
         }
       })
 
