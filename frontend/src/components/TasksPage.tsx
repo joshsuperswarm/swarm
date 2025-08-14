@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBackendJwtQuery } from '@/services/auth';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { useTasksQuery, useArchiveTaskMutation, useArchiveMultipleTasksMutation 
 import { ApiService } from '@/services/api';
 import { useTaskHotkeys } from '@/hooks/useTaskHotkeys';
 import { useModalStore } from '@/store/modalStore';
+import { useTaskSelectionStore } from '@/store/taskSelectionStore';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 // Memoize DataTable outside component to ensure stable reference
@@ -23,9 +24,13 @@ export function TasksPage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
   const [initialRefetchDone, setInitialRefetchDone] = useState(false);
   const { openCreateTask, createTaskOpen } = useModalStore();
+  const { selectedTaskId, setSelectedTaskId } = useTaskSelectionStore();
   const { has, isLoaded } = useAuth();
   const archiveMutation = useArchiveTaskMutation();
   const archiveMultipleMutation = useArchiveMultipleTasksMutation();
+  
+  // Add a ref so we only do the restore once per mount
+  const didRestoreSelectionRef = useRef(false);
   
   // Reverse the array so newest appears at top but j/k navigation works correctly
   const tasks = useMemo(() => {
@@ -68,19 +73,36 @@ export function TasksPage() {
     };
   }, [qc]);
   
-  // Keep selectedIndex within bounds when tasks change
-  React.useEffect(() => {
-    if (tasks.length > 0) {
-      setSelectedIndex((prev) => Math.min(prev, tasks.length - 1));
-    } else {
+  // Restore selectedIndex from store once per mount, then stop touching it on normal list updates
+  useEffect(() => {
+    if (tasks.length === 0) {
       setSelectedIndex(0);
+      return;
     }
-    // Clear selection when tasks change (e.g., after archiving)
-    setSelectedTaskIds(prevSelected => {
-      const currentTaskIds = new Set(tasks.map(t => t.task_id));
-      const filteredSelection = new Set([...prevSelected].filter(id => currentTaskIds.has(id)));
-      return filteredSelection;
+
+    // Only perform a restore once per mount (or when we truly have no selection)
+    if (!didRestoreSelectionRef.current) {
+      if (selectedTaskId != null) {
+        const idx = tasks.findIndex(t => t.task_id === selectedTaskId);
+        if (idx >= 0) {
+          setSelectedIndex(idx);
+        } else {
+          setSelectedIndex(0);
+          setSelectedTaskId(tasks[0].task_id);
+        }
+      } else {
+        setSelectedIndex(0);
+        setSelectedTaskId(tasks[0].task_id);
+      }
+      didRestoreSelectionRef.current = true;
+    }
+
+    // Always clamp multi-select to visible tasks, but DO NOT reset selectedIndex
+    setSelectedTaskIds(prev => {
+      const currentIds = new Set(tasks.map(t => t.task_id));
+      return new Set([...prev].filter(id => currentIds.has(id)));
     });
+    // Only depend on tasks; don't depend on selectedTaskId or setter
   }, [tasks]);
 
   // Derive selectedTask from selectedIndex
@@ -173,6 +195,7 @@ export function TasksPage() {
 
       if ((e.key === 'o' || e.key === 'Enter') && currentSelectedTask) {
         e.preventDefault();
+        setSelectedTaskId(currentSelectedTask.task_id);
         navigate(`/tasks/${currentSelectedTask.task_id}`);
       }
     };

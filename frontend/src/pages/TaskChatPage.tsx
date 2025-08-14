@@ -16,11 +16,14 @@ import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { RunMode, ClaudeModel } from "@/services/api";
 import { AnimatedTitle } from "@/components/AnimatedTitle";
 import { isTitlePending } from "@/lib/titleState";
+import { useTaskSelectionStore } from "@/store/taskSelectionStore";
 
 export function TaskChatPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const taskId = parseInt(id || "0", 10);
+  const parsed = Number(id);
+  const taskId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  const { setSelectedTaskId } = useTaskSelectionStore();
 
   // Key filter to ignore hotkeys when user is typing
   const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -31,11 +34,11 @@ export function TaskChatPage() {
   };
   
   // Use unified task details query
-  const { data: taskDetails, isLoading } = useTaskDetailsQuery(taskId);
+  const { data: taskDetails, isLoading } = useTaskDetailsQuery(taskId || 0, taskId !== null);
   
   // Get all tasks for j/k navigation
   const { data: allTasks = [] } = useTasksQuery();
-  const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId);
+  const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId || 0);
   const archiveMutation = useArchiveTaskMutation();
   
   // Extract data from unified response
@@ -48,7 +51,7 @@ export function TaskChatPage() {
   const tasks = [...unarchived].reverse(); // Newest first, same as TasksPage
   
   // Find current task index in the list
-  const currentTaskIndex = tasks.findIndex(t => t.task_id === taskId);
+  const currentTaskIndex = taskId ? tasks.findIndex(t => t.task_id === taskId) : -1;
   
   // Navigate to adjacent task
   const navigateToTask = (direction: 'next' | 'prev') => {
@@ -68,12 +71,14 @@ export function TaskChatPage() {
   
   // Archive task handler
   const handleArchive = () => {
-    archiveMutation.mutate(taskId, {
-      onSuccess: () => {
-        // Navigate back to tasks list after archiving
-        navigate('/');
-      }
-    });
+    if (taskId) {
+      archiveMutation.mutate(taskId, {
+        onSuccess: () => {
+          // Navigate back to tasks list after archiving
+          navigate('/');
+        }
+      });
+    }
   };
   
   // Use the mode from current run, fallback to default execute mode
@@ -111,6 +116,11 @@ export function TaskChatPage() {
   useEffect(() => {
     localStorage.setItem('taskChatModel', model);
   }, [model]);
+
+  // Store the selected task ID for restoration on TasksPage
+  useEffect(() => {
+    if (taskId != null) setSelectedTaskId(taskId);
+  }, [taskId, setSelectedTaskId]);
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -125,6 +135,7 @@ export function TaskChatPage() {
   
   // Navigation hotkeys
   useHotkeys('esc', () => {
+    if (taskId != null) setSelectedTaskId(taskId);
     navigate('/');
   }, {
     ignoreEventWhen: (e) => !keyFilter(e)
@@ -214,7 +225,10 @@ export function TaskChatPage() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => {
+                if (taskId != null) setSelectedTaskId(taskId);
+                navigate('/');
+              }}
               aria-label="Back to tasks"
               title="Back to tasks (Esc)"
               className="h-9 w-9 flex items-center justify-center rounded-md bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
