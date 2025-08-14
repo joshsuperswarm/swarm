@@ -150,12 +150,17 @@ async fn handle_task_success(
     };
 
     // Only treat "failed" as terminal. We still want to comment on "pr_opened".
-    if matches!(task.status.as_deref(), Some("failed")) {
-        tracing::info!(
-            "Task {} already failed; skipping post-run handling",
-            task_id
-        );
-        return Ok(());
+    // Check the latest run's status instead of task.status (which is being phased out)
+    if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
+        if let Ok(Some(run)) = app_state.database.get_run_by_id(run_id).await {
+            if matches!(run.status.as_deref(), Some("failed")) {
+                tracing::info!(
+                    "Task {} has failed run; skipping post-run handling",
+                    task_id
+                );
+                return Ok(());
+            }
+        }
     }
 
     let user = match app_state.database.get_user_by_id(task.user_id).await? {

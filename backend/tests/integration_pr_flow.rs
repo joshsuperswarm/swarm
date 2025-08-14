@@ -26,10 +26,10 @@ async fn test_pr_flow_database_integration() {
     // Test updating task with branch (simulated by adding to PR URL for now)
     let test_branch = format!("swarm/task-{}", test_task_id);
 
-    // Test updating task with PR URL and status
+    // Test updating task with PR URL (status is now managed via runs table)
     let test_pr_url = "https://github.com/test-owner/test-repo/pull/123";
     sqlx::query!(
-        "UPDATE tasks SET github_pr_url = $1, status = 'pr_opened' WHERE id = $2",
+        "UPDATE tasks SET github_pr_url = $1 WHERE id = $2",
         test_pr_url,
         test_task_id
     )
@@ -37,9 +37,9 @@ async fn test_pr_flow_database_integration() {
     .await
     .expect("Failed to update task with PR URL");
 
-    // Verify the task has all the expected fields
+    // Verify the task has all the expected fields (status is now managed via runs table)
     let task = sqlx::query!(
-        "SELECT id, title, status, github_pr_url FROM tasks WHERE id = $1",
+        "SELECT id, title, github_pr_url FROM tasks WHERE id = $1",
         test_task_id
     )
     .fetch_one(&pool)
@@ -48,7 +48,6 @@ async fn test_pr_flow_database_integration() {
 
     assert_eq!(task.id, test_task_id);
     assert_eq!(task.title, "Test PR Flow Task");
-    assert_eq!(task.status.as_deref(), Some("pr_opened"));
     assert_eq!(task.github_pr_url.as_deref(), Some(test_pr_url));
 
     // Clean up
