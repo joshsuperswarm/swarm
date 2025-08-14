@@ -10,7 +10,6 @@ import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation } from "@/se
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
-import { useTaskSelectionStore } from "@/store/taskSelectionStore";
 import { Bot, ArrowLeft, Brain, Zap } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
@@ -22,7 +21,6 @@ export function TaskChatPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const taskId = parseInt(id || "0", 10);
-  const { setSelectedTaskId } = useTaskSelectionStore();
 
   // Key filter to ignore hotkeys when user is typing
   const keyFilter = (keyboardEvent: KeyboardEvent) => {
@@ -72,8 +70,7 @@ export function TaskChatPage() {
   const handleArchive = () => {
     archiveMutation.mutate(taskId, {
       onSuccess: () => {
-        // Store current task ID to preserve selection when returning to task list
-        setSelectedTaskId(taskId);
+        // Navigate back to tasks list after archiving
         navigate('/');
       }
     });
@@ -128,8 +125,6 @@ export function TaskChatPage() {
   
   // Navigation hotkeys
   useHotkeys('esc', () => {
-    // Store current task ID to preserve selection when returning to task list
-    setSelectedTaskId(taskId);
     navigate('/');
   }, {
     ignoreEventWhen: (e) => !keyFilter(e)
@@ -219,10 +214,7 @@ export function TaskChatPage() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => {
-                setSelectedTaskId(taskId);
-                navigate('/');
-              }}
+              onClick={() => navigate('/')}
               aria-label="Back to tasks"
               title="Back to tasks (Esc)"
               className="h-9 w-9 flex items-center justify-center rounded-md bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100"
