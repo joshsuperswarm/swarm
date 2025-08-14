@@ -33,7 +33,8 @@ SELECT DISTINCT ON (r.task_id)
        t.is_archived,
        r.created_at,
        r.updated_at,
-       t.github_pr_url -- still lives on task
+       t.github_pr_url, -- still lives on task
+       t.pr_merged_at  -- timestamp when PR was merged
 FROM   tasks t
 JOIN   runs  r ON r.task_id = t.id
 WHERE  t.user_id = $1 AND t.is_archived = FALSE

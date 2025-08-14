@@ -201,6 +201,7 @@ pub struct TaskWithRunDB {
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub github_pr_url: Option<String>,
+    pub pr_merged_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, TS)]
@@ -229,6 +230,7 @@ pub struct TaskWithRun {
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub github_pr_url: Option<String>,
+    pub pr_merged_at: Option<DateTime<Utc>>,
     pub latest_todos: Option<Vec<AgentTodo>>,
 }
 

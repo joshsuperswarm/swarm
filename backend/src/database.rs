@@ -222,7 +222,11 @@ impl Database {
                 description: row.description,
                 repository_id: row.repository_id,
                 user_id: row.user_id,
-                status: row.status,
+                status: if row.pr_merged_at.is_some() {
+                    Some("pr_merged".to_string())
+                } else {
+                    row.status
+                },
                 github_branch: row.github_branch,
                 sandbox_id: row.sandbox_id,
                 sandbox_hostname: row.sandbox_hostname,
@@ -238,6 +242,7 @@ impl Database {
                 created_at: row.created_at,
                 updated_at: row.updated_at,
                 github_pr_url: row.github_pr_url,
+                pr_merged_at: row.pr_merged_at,
                 latest_todos: None, // Will be populated in the handler if requested
             })
             .collect();
@@ -254,7 +259,9 @@ impl Database {
         Ok(task)
     }
 
-    #[deprecated(note = "Use update_run_status instead - tasks.status is being phased out in favor of runs.status")]
+    #[deprecated(
+        note = "Use update_run_status instead - tasks.status is being phased out in favor of runs.status"
+    )]
     pub async fn update_task_status(
         &self,
         task_id: i32,
