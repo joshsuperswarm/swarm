@@ -285,7 +285,7 @@ pub struct Comment {
     pub id: i64,
     pub task_id: i32,
     pub run_id: i32,
-    pub mode: String, // "plan" | "review"
+    pub mode: String, // "chat" or legacy modes
     pub body_md: String,
     pub sha: Option<String>,
     pub created_at: Option<DateTime<Utc>>,

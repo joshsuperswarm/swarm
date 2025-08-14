@@ -25,8 +25,7 @@ class ClaudeService:
     def exec(self, sandbox_id: str, req: ClaudeCodeExecReq) -> ExecResp:
         """Execute Claude Code with prompt, environment, and configuration."""
         from ..prompts import (
-            PLAN_MODE_INSTRUCTIONS,
-            REVIEW_MODE_INSTRUCTIONS,
+            CHAT_MODE_INSTRUCTIONS,
             EXECUTE_MODE_INSTRUCTIONS,
             CLAUDE_PROMPT_TEMPLATE,
         )
@@ -45,18 +44,12 @@ class ClaudeService:
         # -------- 1.  Create the Claude prompt with artifact markers ------------
 
         # Generate mode-specific prompt
-        if req.mode == "plan":
-            # Plan mode: use only plan mode instructions, no template overhead
-            claude_prompt = f"You are working on task {req.task_id}: {req.prompt}\n\n{PLAN_MODE_INSTRUCTIONS.format(task_id=req.task_id)}"
-        else:
-            # Execute/Review modes: use full template with mode-specific instructions
-            if req.mode == "review":
-                mode_instructions = REVIEW_MODE_INSTRUCTIONS.format(task_id=req.task_id)
-            else:  # execute mode
-                mode_instructions = EXECUTE_MODE_INSTRUCTIONS
-
+        if req.mode == "chat":
+            # Chat mode: use chat mode instructions with simple template
+            claude_prompt = f"You are working on task {req.task_id}: {req.prompt}\n\n{CHAT_MODE_INSTRUCTIONS}"
+        else:  # execute mode
             claude_prompt = CLAUDE_PROMPT_TEMPLATE.format(
-                task_id=req.task_id, prompt=req.prompt, mode_instructions=mode_instructions
+                task_id=req.task_id, prompt=req.prompt, mode_instructions=EXECUTE_MODE_INSTRUCTIONS
             )
 
         # -------- 2.  write prompt file -----------------------------------------
@@ -79,15 +72,15 @@ class ClaudeService:
         # Use the reuse_session flag from the backend request
         is_continuation_session = req.reuse_session
 
-        if req.mode == "plan" or req.mode == "review":
-            # Plan and Review modes: export only API keys, no GitHub token or Git environment
+        if req.mode == "chat":
+            # Chat mode: export only API keys, no GitHub token or Git environment
             env_pairs = {
                 "ANTHROPIC_API_KEY": req.anthropic_api_key,
             }
             if req.openai_api_key:
                 env_pairs["OPENAI_API_KEY"] = req.openai_api_key
 
-            # Plan and Review modes use read-only permission mode, use --continue for session reuse
+            # Chat mode uses read-only permission mode, use --continue for session reuse
             if is_continuation_session:
                 claude_args = f"claude --model {req.model} --continue -p --permission-mode plan --output-format stream-json --verbose"
                 self.logger.info("Using --continue flag for %s mode session continuity in task %s", req.mode, req.task_id)

@@ -13,13 +13,13 @@ export interface ApiRun {
   task_id: number;
   message_id: number;
   status: string;            // 'pending' | 'running' | …
-  mode: 'execute' | 'plan' | 'review';
+  mode: 'execute' | 'chat';
   created_at: string;
 }
 
 export interface SendMessagePayload {
   content: string;
-  mode?: 'execute' | 'plan' | 'review';
+  mode?: 'execute' | 'chat';
   model?: 'sonnet' | 'opus';
 }
 

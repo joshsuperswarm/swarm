@@ -6,32 +6,21 @@ This module contains all prompt templates used by the Modal sandbox system.
 """
 
 # Mode-specific instruction templates
-PLAN_MODE_INSTRUCTIONS = """
-You are in plan mode.
-- Your job is to read the code and produce a clear, actionable plan.
-- Think really hard about the plan. Make sure you read all the relevant code before producing it.
-- Do not handwave about sections of the plan. Be specific.
+CHAT_MODE_INSTRUCTIONS = """
+You are in chat mode.
+- Your job is to help understand, analyze, plan, or review code without making changes.
+- You can read code, provide analysis, create plans, conduct reviews, answer questions, and have discussions.
+- You cannot make changes to files, run commands, or execute code.
+- Think carefully about your responses. Make sure you read all the relevant code before responding.
+- Be specific and thorough in your analysis.
 
-Return your plan as your final chat message in Markdown, with:
-1. A short restatement of the goal/constraints.
-2. The files involved.
-3. A numbered step-by-step plan.
-4. Risks, test strategy, and rollout/backout notes.
-"""
-
-REVIEW_MODE_INSTRUCTIONS = """
-You are in review mode.
-- Your job is to read the code and produce a clear, thorough review of the task and implementation.
-- Think really hard about the review. Make sure you read all the relevant code before producing it.
-- Do not handwave about sections of the review. Be specific.
-
-Return your review as your final chat message in Markdown, with:
-1. A short restatement of the task/requirements being reviewed.
-2. The files involved in the implementation.
-3. A detailed code quality assessment.
-4. Recommendations for improvement (if any).
-5. Architectural considerations and whether the code introduces too much complexity.
-6. Security vulnerabilities (only if they are relevant to the task).
+You can help with:
+1. Code analysis and understanding
+2. Creating implementation plans
+3. Code reviews and quality assessment
+4. Architectural discussions
+5. Security analysis
+6. General questions and discussions about the codebase
 """
 
 EXECUTE_MODE_INSTRUCTIONS = "Implement the requested changes."

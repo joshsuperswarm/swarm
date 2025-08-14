@@ -1522,7 +1522,7 @@ async fn create_task(
     }
 
     // Validate mode
-    if !["execute", "plan", "review"].contains(&payload.mode.as_str()) {
+    if !["execute", "chat"].contains(&payload.mode.as_str()) {
         tracing::warn!("Rejected task creation: invalid mode '{}'", payload.mode);
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -1940,7 +1940,7 @@ async fn post_task_message(
         .unwrap_or_else(|| "execute".to_string());
 
     // Validate mode if provided
-    if !["execute", "plan", "review"].contains(&mode.as_str()) {
+    if !["execute", "chat"].contains(&mode.as_str()) {
         return Err(StatusCode::BAD_REQUEST);
     }
 

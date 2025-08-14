@@ -5,7 +5,7 @@ import type { RunMode } from "@/services/api";
 export function useRunMode(initialMode: RunMode = "execute") {
   const [mode, setMode] = useState<RunMode>(initialMode);
   
-  const runModes: RunMode[] = ['execute', 'plan', 'review'];
+  const runModes: RunMode[] = ['execute', 'chat'];
   
   const cycleRunMode = () => {
     const currentIndex = runModes.indexOf(mode);

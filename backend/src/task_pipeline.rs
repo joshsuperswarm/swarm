@@ -139,14 +139,14 @@ pub async fn run_full_task_pipeline(
     let author_name = match user.github_username.clone() {
         Some(username) => username,
         None => {
-            if mode == "plan" {
-                // Plan mode doesn't need GitHub username, use placeholder
+            if mode == "chat" {
+                // Chat mode doesn't need GitHub username, use placeholder
                 tracing::info!(
-                    "No GitHub username available for user {} in plan task {}, using placeholder",
+                    "No GitHub username available for user {} in chat task {}, using placeholder",
                     user.id,
                     task.id
                 );
-                "plan-user".to_string()
+                "chat-user".to_string()
             } else {
                 tracing::error!(
                     "No GitHub username available for user {} in task {}",

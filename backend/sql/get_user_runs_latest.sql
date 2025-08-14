@@ -26,7 +26,7 @@ SELECT DISTINCT ON (r.task_id)
        r.command_id,
        r.commit_title,
        r.commit_body,
-       r.mode,         -- run mode (plan/execute/review)
+       r.mode,         -- run mode (chat/execute)
        r.model,        -- claude model (sonnet/opus)
        t.pr_title,     -- PR artifacts from task
        t.pr_body,      -- PR artifacts from task

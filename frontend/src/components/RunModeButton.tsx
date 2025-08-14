@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, FileText, Search } from 'lucide-react';
+import { Zap, MessageCircle } from 'lucide-react';
 import type { RunMode } from '@/services/api';
 
 export interface RunModeConfig {
@@ -18,19 +18,12 @@ export const getModeConfig = (mode: RunMode): RunModeConfig => {
         color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700', 
         description: 'Execute changes immediately' 
       };
-    case 'plan':
+    case 'chat':
       return { 
-        icon: FileText, 
-        label: 'Plan', 
+        icon: MessageCircle, 
+        label: 'Chat', 
         color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', 
-        description: 'Create a plan only' 
-      };
-    case 'review':
-      return { 
-        icon: Search, 
-        label: 'Review', 
-        color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700', 
-        description: 'Review and analyze code' 
+        description: 'Chat, plan, analyze, and review code' 
       };
   }
 };

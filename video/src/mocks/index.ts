@@ -63,7 +63,7 @@ export const mockTasks: Task[] = [
     title: "Review security vulnerability in API endpoint",
     description: "Security audit revealed potential SQL injection vulnerability in /api/users/search endpoint. Need to review input validation and implement proper parameterized queries.",
     status: "failed",
-    mode: "review",
+    mode: "chat",
     created_at: "2024-01-14T16:30:00Z",
     github_pr_url: null
   },
@@ -73,7 +73,7 @@ export const mockTasks: Task[] = [
     title: "Plan microservices architecture migration",
     description: "Create detailed migration plan for breaking down monolithic application into microservices. Include service boundaries, data migration strategy, and deployment considerations.",
     status: "done",
-    mode: "plan",
+    mode: "chat",
     created_at: "2024-01-14T14:20:00Z",
     github_pr_url: null
   }

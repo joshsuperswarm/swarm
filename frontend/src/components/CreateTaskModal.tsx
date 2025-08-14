@@ -45,7 +45,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const lastActiveElementRef = useRef<HTMLElement | null>(null);
 
   // Run mode cycling
-  const runModes: RunMode[] = ['execute', 'plan', 'review'];
+  const runModes: RunMode[] = ['execute', 'chat'];
   
   const cycleRunMode = () => {
     const currentIndex = runModes.indexOf(formData.mode);

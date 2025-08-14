@@ -9,7 +9,7 @@ import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-export type RunMode = 'execute' | 'plan' | 'review';
+export type RunMode = 'execute' | 'chat';
 export type ClaudeModel = 'sonnet' | 'opus';
 
 export interface Message {
@@ -84,7 +84,7 @@ export class ApiService {
       throw new Error('Description cannot be empty');
     }
     
-    if (!['execute', 'plan', 'review'].includes(task.mode)) {
+    if (!['execute', 'chat'].includes(task.mode)) {
       throw new Error('Invalid run mode');
     }
     

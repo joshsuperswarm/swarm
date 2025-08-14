@@ -289,9 +289,9 @@ async fn wait_for_final_message(
         return Err(anyhow::anyhow!("No final message to synthesize PR from"));
     }
 
-    // Skip PR synthesis for plan mode
-    if run.mode == "plan" {
-        info!("Skipping PR synthesis for plan mode task {}", task_id);
+    // Skip PR synthesis for chat mode
+    if run.mode == "chat" {
+        info!("Skipping PR synthesis for chat mode task {}", task_id);
         return finalize_success(
             app_state, provider, run_id, task_id, sandbox_id, command_id, &run.mode,
         )
@@ -417,9 +417,9 @@ async fn finalize_success(
         info!("Set 15-minute idle timeout for completed run {}", run_id);
     }
 
-    // Skip PR creation for plan mode
-    if run_mode == "plan" {
-        info!("task {task_id} → done (plan mode, skipping PR creation)");
+    // Skip PR creation for chat mode
+    if run_mode == "chat" {
+        info!("task {task_id} → done (chat mode, skipping PR creation)");
     } else {
         // Spawn handle_task_success for PR creation
         info!("task {task_id} → done, spawning PR creation");

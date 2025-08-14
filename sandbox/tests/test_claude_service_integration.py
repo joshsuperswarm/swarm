@@ -102,7 +102,7 @@ class TestClaudeServiceIntegration:
             prompt="Another test task",
             repo_path="/another/repo",
             branch="bugfix/critical-issue", 
-            mode="plan",
+            mode="chat",
             github_token="test-token",
             anthropic_api_key="test-key",
             author_name="Test User",
@@ -171,7 +171,7 @@ class TestClaudeServiceIntegration:
         self.mock_process_service.exec.return_value = mock_exec_response
         
         # Test different modes
-        modes = ["plan", "review", "execute"]
+        modes = ["chat", "execute"]
         
         for mode in modes:
             # Reset mocks for each test
