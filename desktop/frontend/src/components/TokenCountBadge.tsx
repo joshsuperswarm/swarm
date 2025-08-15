@@ -34,9 +34,6 @@ export default function TokenCountBadge() {
       <span>
         {formatTokenCount(tokenReport.total_tokens)} / {formatTokenCount(tokenReport.model_context_window)}
       </span>
-      <span className="text-xs opacity-75">
-        ({percentage.toFixed(0)}%)
-      </span>
     </div>
   )
 }
