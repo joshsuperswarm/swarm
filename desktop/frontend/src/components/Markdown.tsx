@@ -16,13 +16,13 @@ export default function Markdown({ content }: Props) {
           ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-900">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-900">{children}</ol>,
           li: ({ children }) => <li className="text-gray-900 leading-relaxed">{children}</li>,
-          pre: ({ children }) => <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 mb-3 overflow-x-auto text-sm">{children}</pre>,
+          pre: ({ children }) => <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 mb-3 overflow-x-auto text-sm" style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace" }}>{children}</pre>,
           code: ({ children, ...props }) => {
             const isInline = !props.className?.includes('language-')
             return isInline ? (
-              <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+              <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono" style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace" }}>{children}</code>
             ) : (
-              <code className="text-gray-800 font-mono text-sm leading-relaxed">{children}</code>
+              <code className="text-gray-800 font-mono text-sm leading-relaxed" style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace" }}>{children}</code>
             )
           },
           blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-200 pl-4 mb-3 text-gray-700 italic">{children}</blockquote>,
