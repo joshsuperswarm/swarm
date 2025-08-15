@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Dialog, DialogContent } from './ui/dialog'
+import { Dialog, DialogPortal } from './ui/dialog'
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { cn } from '../lib/cn'
 import { useRepoStore } from '../store/useRepoStore'
 import Fuse from 'fuse.js'
 import { Check, File, Folder } from 'lucide-react'
@@ -165,48 +167,54 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[900px] max-w-[95vw] p-0 max-h-[80vh]">
-        <div className="flex flex-col max-h-[80vh]">
-          <div className="p-4 border-b">
-            <input
-              ref={inputRef}
-              type="text"
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Search files and folders..."
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+      <DialogPortal>
+        <DialogPrimitive.Content
+          className={cn(
+            "fixed left-[50%] top-[50%] z-50 grid w-[900px] max-w-[95vw] translate-x-[-50%] translate-y-[-50%] border bg-white p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-2xl max-h-[80vh]"
+          )}
+        >
+          <div className="flex flex-col max-h-[80vh]">
+            <div className="p-4 border-b">
+              <input
+                ref={inputRef}
+                type="text"
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search files and folders..."
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-          <div className="flex-1 overflow-hidden">
-            <List
-              ref={listRef}
-              height={400} // Fixed height for virtualization
-              itemCount={filteredItems.length}
-              itemSize={40} // Height per item (py-2 = 8px + content ~32px)
-              overscanCount={5} // Render extra items for smooth scrolling
-            >
-              {RowComponent}
-            </List>
-          </div>
+            <div className="flex-1 overflow-hidden">
+              <List
+                ref={listRef}
+                height={400} // Fixed height for virtualization
+                itemCount={filteredItems.length}
+                itemSize={40} // Height per item (py-2 = 8px + content ~32px)
+                overscanCount={5} // Render extra items for smooth scrolling
+              >
+                {RowComponent}
+              </List>
+            </div>
 
-          <div className="p-4 border-t bg-gray-50 flex-shrink-0">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">
-                {selectedFolders.length} folders, {selectedFiles.length} files selected
-                {expandedFiles.length > selectedFiles.length && (
-                  <span className="text-gray-500"> ({expandedFiles.length} total files)</span>
-                )}
-              </span>
-              <span className="text-gray-600">
-                ~{estimatedTokens.toLocaleString()} tokens
-              </span>
+            <div className="p-4 border-t bg-gray-50 flex-shrink-0">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  {selectedFolders.length} folders, {selectedFiles.length} files selected
+                  {expandedFiles.length > selectedFiles.length && (
+                    <span className="text-gray-500"> ({expandedFiles.length} total files)</span>
+                  )}
+                </span>
+                <span className="text-gray-600">
+                  ~{estimatedTokens.toLocaleString()} tokens
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
+        </DialogPrimitive.Content>
+      </DialogPortal>
     </Dialog>
   )
 }
