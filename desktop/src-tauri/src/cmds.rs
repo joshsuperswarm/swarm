@@ -219,9 +219,10 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
         cancels.insert(request_id.clone(), cancel_token.clone());
     }
 
-    let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
-        error!("OPENAI_API_KEY environment variable not set");
-        "OPENAI_API_KEY not set".to_string()
+    let config = load_config().map_err(|e| e.to_string())?;
+    let api_key = config.openai_api_key.ok_or_else(|| {
+        error!("OpenAI API key not configured");
+        "OpenAI API key not configured".to_string()
     })?;
     // Trim the API key to remove any whitespace or newlines
     let api_key = api_key.trim().to_string();
@@ -246,7 +247,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
     // Check for common issues with the API key
     if api_key.contains('\n') || api_key.contains('\r') {
         error!("API key contains newline characters");
-        return Err("API key contains newline characters - please check your OPENAI_API_KEY environment variable".to_string());
+        return Err("API key contains newline characters - please check your API key configuration".to_string());
     }
 
     headers.insert(
@@ -559,4 +560,18 @@ pub async fn chat_stream_cancel(request_id: String) -> Result<(), String> {
     } else {
         Err("Request not found".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn set_openai_api_key(api_key: String) -> Result<(), String> {
+    let mut config = load_config().map_err(|e| e.to_string())?;
+    config.openai_api_key = Some(api_key);
+    save_config(&config).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_openai_api_key() -> Result<Option<String>, String> {
+    let config = load_config().map_err(|e| e.to_string())?;
+    Ok(config.openai_api_key)
 }

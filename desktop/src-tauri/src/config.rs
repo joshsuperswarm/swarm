@@ -11,6 +11,8 @@ pub struct Config {
     pub selected_files: Vec<String>,
     #[serde(default)]
     pub selected_folders: Vec<String>,
+    #[serde(default)]
+    pub openai_api_key: Option<String>,
 }
 
 impl Default for Config {
@@ -19,6 +21,7 @@ impl Default for Config {
             last_root: None,
             selected_files: Vec::new(),
             selected_folders: Vec::new(),
+            openai_api_key: None,
         }
     }
 }

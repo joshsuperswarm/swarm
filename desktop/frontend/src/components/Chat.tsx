@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, StopCircle } from 'lucide-react'
+// Removed unused imports
 import { useChatStore } from '../store/useChatStore'
 import { useRepoStore } from '../store/useRepoStore'
 import MessageBubble from './MessageBubble'

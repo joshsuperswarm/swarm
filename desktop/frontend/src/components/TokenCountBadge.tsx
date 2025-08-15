@@ -18,7 +18,6 @@ export default function TokenCountBadge() {
     return null
   }
 
-  const percentage = (tokenReport.total_tokens / tokenReport.model_context_window) * 100
   const isWarning = tokenReport.may_exceed_context
 
   return (

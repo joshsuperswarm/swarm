@@ -32,6 +32,8 @@ async fn main() {
             cmds::load_selected_files,
             cmds::save_selected_folders,
             cmds::load_selected_folders,
+            cmds::set_openai_api_key,
+            cmds::get_openai_api_key,
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();

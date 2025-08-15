@@ -160,7 +160,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to send message:', error)
-      set({ isStreaming: false, currentRequestId: null })
+      const errorMessage = typeof error === 'string' ? error : 'Failed to send message'
+      
+      // Add error message to chat
+      set(state => ({
+        messages: [...state.messages.slice(0, -1), {
+          role: 'assistant',
+          content: `❌ Error: ${errorMessage}`
+        }],
+        apiMessages: [...state.apiMessages.slice(0, -1), {
+          role: 'assistant', 
+          content: `Error: ${errorMessage}`
+        }],
+        isStreaming: false,
+        currentRequestId: null
+      }))
     }
   },
 

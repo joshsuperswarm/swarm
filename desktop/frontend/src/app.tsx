@@ -1,15 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { useRepoStore } from './store/useRepoStore'
 import { useChatStore } from './store/useChatStore'
+import { useApiKey } from './hooks/useApiKey'
 import OpenFolderEmptyState from './components/OpenFolderEmptyState'
 import FilePicker from './components/FilePicker'
 import TokenCountBadge from './components/TokenCountBadge'
+import ApiKeySettings from './components/ApiKeySettings'
 import Chat from './components/Chat'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 export default function App() {
   const { repo, loadRecent, clearFiles } = useRepoStore()
   const { isPickerOpen, setPickerOpen, resetChat, isStreaming, clearDroppedImages } = useChatStore()
+  const { hasApiKey, isLoading: isLoadingApiKey, recheckApiKey } = useApiKey()
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -47,6 +50,11 @@ export default function App() {
 
   if (!repo) return <OpenFolderEmptyState />;
 
+  // Show API key required dialog if no API key is configured
+  if (!isLoadingApiKey && hasApiKey === false) {
+    return <ApiKeySettings required onApiKeySet={recheckApiKey} />
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
@@ -55,7 +63,10 @@ export default function App() {
             <h1 className="text-sm font-semibold text-gray-900">{repo.name}</h1>
             <span className="text-xs text-gray-500">{repo.file_count} files</span>
           </div>
-          <TokenCountBadge />
+          <div className="flex items-center gap-2">
+            <TokenCountBadge />
+            <ApiKeySettings onApiKeySet={recheckApiKey} />
+          </div>
         </div>
       </header>
 
