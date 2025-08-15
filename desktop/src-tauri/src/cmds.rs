@@ -22,9 +22,19 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageAttachment {
+    pub data: String, // base64 data URL
+    #[serde(rename = "type")]
+    pub image_type: String, // MIME type
+    pub name: String, // file name
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMsg {
     pub role: String,
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub images: Option<Vec<ImageAttachment>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,11 +61,24 @@ fn to_responses_input(messages: &[ChatMsg]) -> serde_json::Value {
                 _ => "input_text",
             };
 
+            let mut content = vec![serde_json::json!({
+                "type": content_type,
+                "text": m.content
+            })];
+
+            // Add images if present
+            if let Some(images) = &m.images {
+                for img in images {
+                    content.push(serde_json::json!({
+                        "type": "input_image",
+                        "image_url": img.data
+                    }));
+                }
+            }
+
             serde_json::json!({
                 "role": m.role,
-                "content": [
-                    { "type": content_type, "text": m.content }
-                ]
+                "content": content
             })
         })
         .collect();

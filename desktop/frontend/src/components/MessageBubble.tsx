@@ -1,5 +1,5 @@
 import { ChatMessage } from '../types'
-import { User, Bot, FileCode, Clipboard, Folder, Loader2 } from 'lucide-react'
+import { User, Bot, FileCode, Clipboard, Folder, Loader2, Image } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Markdown from './Markdown'
 import { useState } from 'react'
@@ -30,6 +30,26 @@ export default function MessageBubble({ message, streaming }: MessageBubbleProps
             <Markdown content={message.content} streaming={!isUser ? streaming : false} />
           )}
 
+          {/* Images display */}
+          {isUser && message.images?.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {message.images.map((img, i) => (
+                <div key={i} className="relative group/img">
+                  <img 
+                    src={img.data} 
+                    alt={img.name}
+                    className="h-16 w-16 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(img.data, '_blank')}
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 rounded-b-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                    {img.name}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Files display */}
           {isUser && message.includedFiles?.length ? (
             <div className="mt-3 flex flex-wrap gap-1">
               {message.includedFiles.map((file, i) => {

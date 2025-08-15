@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { ChatMessage } from '../types'
+import { ChatMessage, ImageAttachment } from '../types'
 import { useRepoStore } from './useRepoStore'
 
 interface StreamToken {
@@ -23,7 +23,7 @@ interface ChatStore {
   isPickerOpen: boolean
   filesAlreadySent: boolean
   
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string, images?: ImageAttachment[]) => Promise<void>
   cancelStream: () => Promise<void>
   setPickerOpen: (open: boolean) => void
   resetChat: () => void
@@ -37,7 +37,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   isPickerOpen: false,
   filesAlreadySent: false,
 
-  sendMessage: async (content: string) => {
+  sendMessage: async (content: string, images?: ImageAttachment[]) => {
     const { messages, apiMessages: prevApiMessages, filesAlreadySent } = get()
     
     // Get expanded file selection from repo store
@@ -89,11 +89,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const displayMessage: ChatMessage = { 
       role: 'user', 
       content: content,  // Display only user's text
-      includedFiles: includedFiles.length > 0 ? includedFiles : undefined
+      includedFiles: includedFiles.length > 0 ? includedFiles : undefined,
+      images: images
     }
     
-    // For API, use the full content with files
-    const apiMessage: ChatMessage = { role: 'user', content: fullContent }
+    // For API, use the full content with files and images
+    const apiMessage: ChatMessage = { 
+      role: 'user', 
+      content: fullContent,
+      images: images 
+    }
     
     // Display messages show user's text only
     const displayMessages = [...messages, displayMessage]

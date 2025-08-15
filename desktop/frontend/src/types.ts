@@ -27,8 +27,15 @@ export interface TokenReport {
   may_exceed_context: boolean;
 }
 
+export interface ImageAttachment {
+  data: string; // base64 data URL
+  type: string; // MIME type
+  name: string; // file name
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   includedFiles?: string[]; // Files included in this message (for user messages)
+  images?: ImageAttachment[]; // Image attachments
 }

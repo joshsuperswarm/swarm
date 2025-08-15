@@ -4,13 +4,18 @@ import { useChatStore } from '../store/useChatStore'
 import { useRepoStore } from '../store/useRepoStore'
 import MessageBubble from './MessageBubble'
 import FilePills from './FilePills'
+import ImagePills from './ImagePills'
 import { useHotkeys } from 'react-hotkeys-hook'
 import ScrollToBottom from './ScrollToBottom'
+import { ImageAttachment } from '../types'
+import { fileToBase64 } from '../utils/fileUtils'
 
 export default function Chat() {
   const { messages, isStreaming, sendMessage, cancelStream } = useChatStore()
   const { selectedFiles, selectedFolders } = useRepoStore()
   const [input, setInput] = useState('')
+  const [droppedImages, setDroppedImages] = useState<ImageAttachment[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -40,11 +45,71 @@ export default function Chat() {
     e?.preventDefault()
     if (!input.trim() || isStreaming) return
     setInput('')
-    await sendMessage(input)
+    await sendMessage(input, droppedImages)
+    setDroppedImages([])
+  }
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.currentTarget === e.target) {
+      setIsDragging(false)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+
+    if (imageFiles.length === 0) {
+      alert('Please drop only image files')
+      return
+    }
+
+    const newImages: ImageAttachment[] = []
+    for (const file of imageFiles) {
+      try {
+        const base64 = await fileToBase64(file)
+        newImages.push({
+          data: base64,
+          type: file.type,
+          name: file.name
+        })
+      } catch (error) {
+        console.error('Error converting image:', error)
+      }
+    }
+
+    setDroppedImages(prev => [...prev, ...newImages])
+  }
+
+  const removeImage = (index: number) => {
+    setDroppedImages(prev => prev.filter((_, i) => i !== index))
   }
 
   return (
-    <div className="relative h-full">
+    <div 
+      className="relative h-full"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Messages */}
       <div ref={scrollContainerRef} className="h-full overflow-y-auto pb-36 md:pb-40 pt-3 px-3">
         <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -64,8 +129,14 @@ export default function Chat() {
       {/* Floating Composer */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-3 pb-3">
         <div className="mx-auto w-full max-w-3xl pointer-events-auto">
-          <div className="rounded-xl md:rounded-2xl border border-gray-200 bg-white/90 backdrop-blur shadow-lg">
+          <div className={`rounded-xl md:rounded-2xl border ${isDragging ? 'border-blue-500 border-2' : 'border-gray-200'} bg-white/90 backdrop-blur shadow-lg transition-colors`}>
             <div className="flex flex-col gap-2 p-2">
+              {/* Image pills row - above file pills */}
+              {droppedImages.length > 0 && (
+                <div className="overflow-x-auto">
+                  <ImagePills images={droppedImages} onRemove={removeImage} />
+                </div>
+              )}
               {/* File pills row - now always above input */}
               {(selectedFiles.length > 0 || selectedFolders.length > 0) && (
                 <div className="overflow-x-auto">
@@ -115,6 +186,15 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="text-2xl font-semibold text-blue-600">
+            Drop images here
+          </div>
+        </div>
+      )}
     </div>
   )
 }
