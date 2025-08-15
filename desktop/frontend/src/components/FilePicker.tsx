@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from './ui/dialog'
 import { useRepoStore } from '../store/useRepoStore'
 import Fuse from 'fuse.js'
 import { Check, File, Folder } from 'lucide-react'
+import { FixedSizeList as List } from 'react-window'
 
 interface FilePickerProps {
   open: boolean
@@ -16,56 +17,85 @@ type PickerItem = {
 }
 
 export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
-  const { files, selectedFiles, selectedFolders, toggleFile, toggleFolder, deriveAllFolders, expandedSelectedFiles } = useRepoStore()
+  const { files, selectedFiles, selectedFolders, toggleFile, toggleFolder, expandedSelectedFiles } = useRepoStore()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<List>(null)
 
-  // Derive folders from files
-  const folders = useMemo(() => deriveAllFolders(files), [files, deriveAllFolders])
+  // Memoize folder derivation with dependency on files length and content hash
+  const folders = useMemo(() => {
+    const folderSet = new Set<string>()
+    for (const file of files) {
+      const parts = file.relpath.split('/')
+      for (let i = 1; i < parts.length; i++) {
+        folderSet.add(parts.slice(0, i).join('/'))
+      }
+    }
+    return [...folderSet].sort()
+  }, [files])
 
-  // Create combined items list (folders + files)
+  // Create combined items list (folders + files) - memoized more efficiently
   const items = useMemo<PickerItem[]>(() => {
-    const folderItems: PickerItem[] = folders.map(f => ({ kind: 'folder', relpath: f }))
-    const fileItems: PickerItem[] = files.map(f => ({ kind: 'file', relpath: f.relpath, fileData: f }))
-    return [...folderItems, ...fileItems]
+    const result: PickerItem[] = []
+    // Add folders first
+    for (const folder of folders) {
+      result.push({ kind: 'folder', relpath: folder })
+    }
+    // Add files
+    for (const file of files) {
+      result.push({ kind: 'file', relpath: file.relpath, fileData: file })
+    }
+    return result
   }, [folders, files])
 
-  // Memoize Fuse instance
+  // Memoize Fuse instance with stable options
   const fuse = useMemo(() => new Fuse(items, {
     keys: ['relpath'],
     threshold: 0.3,
+    ignoreLocation: true, // Improve fuzzy search performance
+    includeScore: false, // We don't need scores
   }), [items])
 
-  // Memoize filtered items
-  const filteredItems = useMemo(
-    () => (search ? fuse.search(search).map(result => result.item) : items),
-    [search, fuse, items]
-  )
+  // Memoize filtered items using debounced search
+  const filteredItems = useMemo(() => {
+    if (!debouncedSearch.trim()) return items
+    const results = fuse.search(debouncedSearch)
+    return results.map(result => result.item)
+  }, [debouncedSearch, fuse, items])
 
   // Get expanded file count for token estimation
   const expandedFiles = useMemo(() => expandedSelectedFiles(), [expandedSelectedFiles, selectedFiles, selectedFolders])
   const estimatedTokens = expandedFiles.length * 1000 // Rough estimate
 
-  // Reset highlighted index when search changes
+  // Debounce search input for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 150) // 150ms debounce delay
+    
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Reset highlighted index when debounced search changes
   useEffect(() => {
     setHighlightedIndex(0)
-  }, [search])
+  }, [debouncedSearch])
 
   useEffect(() => {
     if (open) {
       setSearch('')
+      setDebouncedSearch('')
       setHighlightedIndex(0)
       inputRef.current?.focus()
     }
   }, [open])
 
-  // Scroll highlighted item into view
+  // Scroll highlighted item into view (for virtualized list)
   useEffect(() => {
     if (!open || !listRef.current) return
-    const el = listRef.current.querySelector<HTMLElement>(`[data-index="${highlightedIndex}"]`)
-    el?.scrollIntoView({ block: 'nearest' })
+    listRef.current.scrollToItem(highlightedIndex, 'smart')
   }, [highlightedIndex, open])
 
   const handleToggle = useCallback((item: PickerItem) => {
@@ -95,6 +125,44 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
     }
   }, [filteredItems, highlightedIndex, handleToggle, onOpenChange])
 
+  // Memoized row component for virtualization
+  const RowComponent = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const item = filteredItems[index]
+    if (!item) return null
+
+    const selected = item.kind === 'folder' 
+      ? selectedFolders.includes(item.relpath)
+      : selectedFiles.includes(item.relpath)
+    const active = index === highlightedIndex
+    const isFolder = item.kind === 'folder'
+    
+    return (
+      <div
+        key={`${item.kind}-${item.relpath}`}
+        style={style}
+        className={`grid grid-cols-[16px,1fr,16px] items-center gap-3 px-4 py-2 cursor-pointer min-w-0
+          ${active ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+        onClick={() => handleToggle(item)}
+        onMouseEnter={() => setHighlightedIndex(index)}
+        role="option"
+        aria-selected={active}
+      >
+        {isFolder ? (
+          <Folder className="h-4 w-4 text-blue-500" />
+        ) : (
+          <File className="h-4 w-4 text-gray-400" />
+        )}
+        <span className="text-sm truncate min-w-0 font-mono" title={item.relpath}>
+          {item.relpath}{isFolder ? '/' : ''}
+        </span>
+        {/* reserve space so layout doesn't shift when selected */}
+        <span className="h-4 w-4 inline-flex items-center justify-center">
+          {selected ? <Check className="h-4 w-4 text-blue-600" /> : null}
+        </span>
+      </div>
+    )
+  }, [filteredItems, selectedFolders, selectedFiles, highlightedIndex, handleToggle])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[900px] max-w-[95vw] p-0 max-h-[80vh]">
@@ -112,46 +180,16 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
             />
           </div>
 
-          <div
-            className="flex-1 overflow-y-auto"
-            ref={listRef}
-            role="listbox"
-            aria-activedescendant={`item-${highlightedIndex}`}
-          >
-            {filteredItems.map((item, index) => {
-              const selected = item.kind === 'folder' 
-                ? selectedFolders.includes(item.relpath)
-                : selectedFiles.includes(item.relpath)
-              const active = index === highlightedIndex
-              const isFolder = item.kind === 'folder'
-              
-              return (
-                <div
-                  key={`${item.kind}-${item.relpath}`}
-                  id={`item-${index}`}
-                  data-index={index}
-                  className={`grid grid-cols-[16px,1fr,16px] items-center gap-3 px-4 py-2 cursor-pointer min-w-0
-                    ${active ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                  onClick={() => handleToggle(item)}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  role="option"
-                  aria-selected={active}
-                >
-                  {isFolder ? (
-                    <Folder className="h-4 w-4 text-blue-500" />
-                  ) : (
-                    <File className="h-4 w-4 text-gray-400" />
-                  )}
-                  <span className="text-sm truncate min-w-0 font-mono" title={item.relpath}>
-                    {item.relpath}{isFolder ? '/' : ''}
-                  </span>
-                  {/* reserve space so layout doesn't shift when selected */}
-                  <span className="h-4 w-4 inline-flex items-center justify-center">
-                    {selected ? <Check className="h-4 w-4 text-blue-600" /> : null}
-                  </span>
-                </div>
-              )
-            })}
+          <div className="flex-1 overflow-hidden">
+            <List
+              ref={listRef}
+              height={400} // Fixed height for virtualization
+              itemCount={filteredItems.length}
+              itemSize={40} // Height per item (py-2 = 8px + content ~32px)
+              overscanCount={5} // Render extra items for smooth scrolling
+            >
+              {RowComponent}
+            </List>
           </div>
 
           <div className="p-4 border-t bg-gray-50 flex-shrink-0">

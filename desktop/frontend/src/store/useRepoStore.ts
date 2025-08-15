@@ -23,7 +23,6 @@ interface RepoStore {
   clearFolders: () => void
   updateTokens: () => Promise<void>
   expandedSelectedFiles: () => string[]
-  deriveAllFolders: (files: FileMeta[]) => string[]
 }
 
 export const useRepoStore = create<RepoStore>((set, get) => ({
@@ -149,16 +148,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     return [...expanded]
   },
 
-  deriveAllFolders: (files: FileMeta[]) => {
-    const folderSet = new Set<string>()
-    for (const file of files) {
-      const parts = file.relpath.split('/')
-      for (let i = 1; i < parts.length; i++) {
-        folderSet.add(parts.slice(0, i).join('/'))
-      }
-    }
-    return [...folderSet].sort()
-  },
+  // Removed deriveAllFolders - moved to FilePicker component for better memoization
 
   updateTokens: async () => {
     const { expandedSelectedFiles } = get()
