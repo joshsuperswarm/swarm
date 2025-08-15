@@ -43,8 +43,7 @@ static TOKEN_CACHE: Lazy<Mutex<HashMap<String, CachedCount>>> =
     Lazy::new(|| Mutex::new(load_token_cache().unwrap_or_default()));
 
 fn cache_path() -> Option<std::path::PathBuf> {
-    ProjectDirs::from("com", "repochat", "repochat")
-        .map(|d| d.cache_dir().join("token-cache.json"))
+    ProjectDirs::from("com", "repochat", "repochat").map(|d| d.cache_dir().join("token-cache.json"))
 }
 
 fn load_token_cache() -> Option<HashMap<String, CachedCount>> {
@@ -79,7 +78,7 @@ pub async fn count_tokens_for_files(
         .filter_map(|rel| {
             let meta = meta_map.get(rel)?;
             let relpath = rel.clone();
-            
+
             if meta.is_binary {
                 return Some(FileToken {
                     relpath,
@@ -90,8 +89,13 @@ pub async fn count_tokens_for_files(
             }
 
             // Check cache with combined key including mtime
-            let cache_key = format!("{}:{}:{}", repo.get_root().to_string_lossy(), rel, meta.mtime);
-            
+            let cache_key = format!(
+                "{}:{}:{}",
+                repo.get_root().to_string_lossy(),
+                rel,
+                meta.mtime
+            );
+
             // Fast path: check cache
             if let Some(c) = TOKEN_CACHE.lock().get(&cache_key) {
                 return Some(FileToken {
@@ -130,10 +134,10 @@ pub async fn count_tokens_for_files(
 
     let mut files = results;
     files.sort_by(|a, b| b.tokens.cmp(&a.tokens));
-    
+
     let total_tokens = files.iter().map(|f| f.tokens).sum();
     let total_bytes = files.iter().map(|f| f.bytes).sum();
-    
+
     let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
     let context_window = get_model_context_window(&model);
 

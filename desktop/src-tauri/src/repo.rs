@@ -108,7 +108,9 @@ impl RepoManager {
                                         let mtime = metadata
                                             .modified()
                                             .ok()
-                                            .and_then(|m| m.duration_since(SystemTime::UNIX_EPOCH).ok())
+                                            .and_then(|m| {
+                                                m.duration_since(SystemTime::UNIX_EPOCH).ok()
+                                            })
                                             .map(|d| d.as_secs())
                                             .unwrap_or(0);
                                         let is_binary = is_binary_file(&path);
@@ -132,10 +134,10 @@ impl RepoManager {
 
         let mut list = out.lock().unwrap().clone();
         list.sort_by(|a, b| b.mtime.cmp(&a.mtime));
-        
+
         // Cache the results
         *self.files_cache.lock().unwrap() = Some(list.clone());
-        
+
         Ok(list)
     }
 

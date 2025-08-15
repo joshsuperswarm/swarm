@@ -42,20 +42,23 @@ pub struct StreamDone {
 
 // Map ChatMsg to Responses API input format
 fn to_responses_input(messages: &[ChatMsg]) -> serde_json::Value {
-    let items: Vec<serde_json::Value> = messages.iter().map(|m| {
-        let content_type = match m.role.as_str() {
-            "assistant" => "output_text",
-            "system" => "input_text",  // System messages are input_text
-            _ => "input_text"
-        };
-        
-        serde_json::json!({
-            "role": m.role,
-            "content": [
-                { "type": content_type, "text": m.content }
-            ]
+    let items: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|m| {
+            let content_type = match m.role.as_str() {
+                "assistant" => "output_text",
+                "system" => "input_text", // System messages are input_text
+                _ => "input_text",
+            };
+
+            serde_json::json!({
+                "role": m.role,
+                "content": [
+                    { "type": content_type, "text": m.content }
+                ]
+            })
         })
-    }).collect();
+        .collect();
 
     serde_json::Value::Array(items)
 }
@@ -128,7 +131,9 @@ pub async fn repo_read_file(relpath: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn repo_read_files_bulk(relpaths: Vec<String>) -> Result<HashMap<String, String>, String> {
+pub async fn repo_read_files_bulk(
+    relpaths: Vec<String>,
+) -> Result<HashMap<String, String>, String> {
     let manager = REPO_MANAGER.read().await;
     match &*manager {
         Some(repo) => {
@@ -320,7 +325,8 @@ async fn stream_with_retry(
         let total_chars: usize = input
             .iter()
             .filter_map(|item| {
-                item["content"].as_array()
+                item["content"]
+                    .as_array()
                     .and_then(|content| content.get(0))
                     .and_then(|text_obj| text_obj["text"].as_str())
             })
@@ -414,10 +420,13 @@ async fn stream_with_retry(
                                     request_id
                                 );
                             }
-                            let _ = app.emit("chat_token", StreamToken {
-                                request_id: request_id.to_string(),
-                                delta: delta.to_string(),
-                            });
+                            let _ = app.emit(
+                                "chat_token",
+                                StreamToken {
+                                    request_id: request_id.to_string(),
+                                    delta: delta.to_string(),
+                                },
+                            );
                         }
                     }
 
@@ -439,27 +448,34 @@ async fn stream_with_retry(
                             request_id, token_count
                         );
 
-                        let _ = app.emit("chat_done", StreamDone {
-                            request_id: request_id.to_string(),
-                            finish_reason: Some(finish.to_string()),
-                            canceled: false,
-                        });
+                        let _ = app.emit(
+                            "chat_done",
+                            StreamDone {
+                                request_id: request_id.to_string(),
+                                finish_reason: Some(finish.to_string()),
+                                canceled: false,
+                            },
+                        );
                         break;
                     }
 
                     // Surface API-side errors mid-stream
                     "response.error" => {
-                        let msg = parsed.get("error")
+                        let msg = parsed
+                            .get("error")
                             .and_then(|e| e.get("message"))
                             .and_then(|m| m.as_str())
                             .unwrap_or("unknown error");
                         error!("Responses API error: {}", msg);
 
-                        let _ = app.emit("chat_done", StreamDone {
-                            request_id: request_id.to_string(),
-                            finish_reason: Some(format!("error: {}", msg)),
-                            canceled: false,
-                        });
+                        let _ = app.emit(
+                            "chat_done",
+                            StreamDone {
+                                request_id: request_id.to_string(),
+                                finish_reason: Some(format!("error: {}", msg)),
+                                canceled: false,
+                            },
+                        );
                         break;
                     }
 
