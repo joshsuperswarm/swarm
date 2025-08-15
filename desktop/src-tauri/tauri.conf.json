@@ -11,16 +11,16 @@
     "targets": "all",
     "resources": []
   },
-  "identifier": "com.repochat.app",
-  "productName": "RepoChat",
-  "mainBinaryName": "repochat",
+  "identifier": "com.swarm.app",
+  "productName": "Swarm",
+  "mainBinaryName": "swarm",
   "version": "0.1.0",
   "app": {
     "windows": [
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "RepoChat",
+        "title": "Swarm",
         "width": 1200,
         "height": 800
       }

@@ -1,4 +1,4 @@
-# RepoChat - Desktop App
+# Swarm - Desktop App
 
 A Tauri-based desktop application for chatting with GPT-5 about your code files.
 

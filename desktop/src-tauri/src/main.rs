@@ -14,7 +14,7 @@ mod tokens;
 async fn main() {
     // Initialize logger with RUST_LOG env var (e.g., RUST_LOG=debug)
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    log::info!("Starting RepoChat application");
+    log::info!("Starting Swarm application");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -35,7 +35,7 @@ async fn main() {
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
-            window.set_title("RepoChat")?;
+            window.set_title("Swarm")?;
 
             // Devtools disabled
             // #[cfg(debug_assertions)]
