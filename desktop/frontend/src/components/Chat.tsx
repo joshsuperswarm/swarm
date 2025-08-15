@@ -84,7 +84,21 @@ export default function Chat() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSubmit()
+                        return
+                      }
+
+                      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+                        // Ensure select-all targets only this textarea
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const ta = e.currentTarget as HTMLTextAreaElement
+                        // Defer selection to avoid timing quirks
+                        requestAnimationFrame(() => ta.select())
+                        return
+                      }
                     }}
                     placeholder={selectedFiles.length === 0 && selectedFolders.length === 0 ? "Select files first (⌘P)" : "Ask about the selected files…"}
                     disabled={isStreaming || (selectedFiles.length === 0 && selectedFolders.length === 0)}
