@@ -24,7 +24,7 @@ impl Default for Config {
 }
 
 fn get_config_path() -> Result<PathBuf> {
-    let project_dirs = ProjectDirs::from("com", "repochat", "repochat")
+    let project_dirs = ProjectDirs::from("com", "swarm", "swarm")
         .ok_or_else(|| anyhow::anyhow!("Failed to get project directories"))?;
 
     let config_dir = project_dirs.config_dir();

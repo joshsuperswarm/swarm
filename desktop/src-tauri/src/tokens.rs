@@ -43,7 +43,7 @@ static TOKEN_CACHE: Lazy<Mutex<HashMap<String, CachedCount>>> =
     Lazy::new(|| Mutex::new(load_token_cache().unwrap_or_default()));
 
 fn cache_path() -> Option<std::path::PathBuf> {
-    ProjectDirs::from("com", "repochat", "repochat").map(|d| d.cache_dir().join("token-cache.json"))
+    ProjectDirs::from("com", "swarm", "swarm").map(|d| d.cache_dir().join("token-cache.json"))
 }
 
 fn load_token_cache() -> Option<HashMap<String, CachedCount>> {

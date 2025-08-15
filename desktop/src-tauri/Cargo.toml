@@ -1,5 +1,5 @@
 [package]
-name = "repochat"
+name = "swarm"
 version = "0.1.0"
 description = "A Tauri-based desktop app for chatting with GPT-5 about code files"
 authors = ["you"]
