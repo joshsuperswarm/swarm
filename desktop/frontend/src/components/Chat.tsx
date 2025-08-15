@@ -39,10 +39,6 @@ export default function Chat() {
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!input.trim() || isStreaming) return
-    if (selectedFiles.length === 0 && selectedFolders.length === 0) { 
-      alert('Please select at least one file or folder first'); 
-      return 
-    }
     setInput('')
     await sendMessage(input)
   }
@@ -100,15 +96,15 @@ export default function Chat() {
                         return
                       }
                     }}
-                    placeholder={selectedFiles.length === 0 && selectedFolders.length === 0 ? "Select files first (⌘P)" : "Ask about the selected files…"}
-                    disabled={isStreaming || (selectedFiles.length === 0 && selectedFolders.length === 0)}
+                    placeholder={selectedFiles.length === 0 && selectedFolders.length === 0 ? "Type your message…" : "Ask about the selected files…"}
+                    disabled={isStreaming}
                     rows={1}
                     className="max-h-56 w-full resize-none bg-transparent px-3 py-2 outline-none font-sans text-gray-900 placeholder:text-gray-500"
                   />
                   <button
                     type={isStreaming ? 'button' : 'submit'}
                     onClick={isStreaming ? cancelStream : handleSubmit}
-                    disabled={(!input.trim() && !isStreaming) || (selectedFiles.length === 0 && selectedFolders.length === 0)}
+                    disabled={!input.trim() && !isStreaming}
                     className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center flex-shrink-0"
                   >
                     {isStreaming ? "⏹" : "→"}
