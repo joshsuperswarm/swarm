@@ -87,6 +87,8 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
       e.preventDefault()
       if (filteredItems[highlightedIndex]) {
         handleToggle(filteredItems[highlightedIndex])
+        // Close the command palette after selecting with Enter
+        onOpenChange(false)
       }
     } else if (e.key === 'Escape') {
       onOpenChange(false)
