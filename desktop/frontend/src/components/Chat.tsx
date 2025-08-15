@@ -69,15 +69,15 @@ export default function Chat() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-3 pb-3">
         <div className="mx-auto w-full max-w-3xl pointer-events-auto">
           <div className="rounded-xl md:rounded-2xl border border-gray-200 bg-white/90 backdrop-blur shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2">
-              {/* File pills row */}
+            <div className="flex flex-col gap-2 p-2">
+              {/* File pills row - now always above input */}
               {(selectedFiles.length > 0 || selectedFolders.length > 0) && (
-                <div className="flex-1 overflow-hidden">
+                <div className="overflow-x-auto">
                   <FilePills />
                 </div>
               )}
               {/* Input and button row */}
-              <div className="flex-1 w-full sm:w-auto">
+              <div className="w-full">
                 <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-blue-500 transition-colors">
                   <textarea
                     ref={textareaRef}
