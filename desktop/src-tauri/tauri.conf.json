@@ -19,7 +19,7 @@
     ],
     "resources": []
   },
-  "identifier": "com.swarm.app",
+  "identifier": "com.swarm",
   "productName": "Swarm",
   "mainBinaryName": "swarm",
   "version": "0.1.0",
