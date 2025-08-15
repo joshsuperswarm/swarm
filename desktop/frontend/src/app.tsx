@@ -35,7 +35,7 @@ export default function App() {
       <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
         <div className="chat-container flex h-12 items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-sm font-semibold">{repo.name}</h1>
+            <h1 className="text-sm font-semibold text-gray-900">{repo.name}</h1>
             <span className="text-xs text-gray-500">{repo.file_count} files</span>
           </div>
           <TokenCountBadge />

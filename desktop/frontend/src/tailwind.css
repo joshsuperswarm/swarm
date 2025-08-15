@@ -6,49 +6,13 @@ html {
   @apply font-sans;
 }
 
-/* App surface like ChatGPT */
-body, #root { @apply bg-[#f7f7f8]; }
+/* App surface to match web */
+body, #root { @apply bg-gray-50; }
 
 /* Chat column */
 .chat-container { @apply mx-auto w-full px-4 sm:px-6 lg:px-8; }
 
-/* Message card look */
-.msg-card { @apply rounded-2xl border border-gray-200 bg-white shadow-sm; }
+/* Message card look - legacy classes kept for any remaining usage */
+.msg-card { @apply rounded-lg border border-gray-200 bg-white shadow-sm; }
 .msg-user  { @apply bg-gray-100 border border-gray-200; }
 .msg-assistant { @apply bg-white; }
-.avatar { @apply mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full; }
-.avatar-user { @apply bg-gray-100 text-gray-600; }
-.avatar-bot { @apply bg-blue-100 text-blue-600; }
-
-/* Markdown "prose" tweaks */
-.prose-chat { @apply prose prose-slate max-w-none; }
-
-/* Inline code chips - subtle but distinct */
-.prose-chat :where(p, li, td, th, h1, h2, h3, h4) code {
-  @apply rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[0.9em] text-gray-800 border border-gray-200;
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
-}
-
-/* Fenced blocks are rendered by the component above, but keep defaults sane */
-.prose-chat pre {
-  @apply m-0 p-0 bg-transparent border-0 shadow-none; /* component supplies container */
-}
-
-/* Tables & headings niceties */
-.prose-chat :where(h1,h2,h3){ @apply scroll-mt-20; }
-.prose-chat :where(table){ @apply w-full; }
-
-/* Force monospace for all code with better contrast */
-.prose-chat code,
-.prose-chat pre code,
-.prose-chat .hljs {
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
-  font-variant-ligatures: none; /* crisper code */
-  @apply font-mono;
-}
-
-/* Enhanced code block styling for better readability */
-.prose-chat pre code {
-  @apply text-gray-100; /* light text for dark block */
-  line-height: 1.6;
-}

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { ArrowDown } from "lucide-react";
 
 export default function ScrollToBottom({ container }: { container: HTMLElement | null }) {
   const [show, setShow] = useState(false);
@@ -18,15 +17,16 @@ export default function ScrollToBottom({ container }: { container: HTMLElement |
   if (!show) return null;
 
   return (
-    <button
-      onClick={() => container?.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })}
-      className="fixed bottom-20 right-6 z-40 rounded-full border bg-white px-3 py-2 text-sm shadow-md hover:bg-gray-50"
-      aria-label="Scroll to bottom"
-    >
-      <div className="flex items-center gap-1">
-        <ArrowDown className="h-4 w-4" />
-        <span>New messages</span>
+    <div className="fixed bottom-24 md:bottom-28 inset-x-0 z-40">
+      <div className="mx-auto w-full max-w-3xl flex justify-center">
+        <button
+          onClick={() => container?.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })}
+          className="px-3 py-1.5 rounded-full text-xs border bg-white shadow hover:bg-gray-50"
+          aria-label="Jump to latest"
+        >
+          Jump to latest ↓
+        </button>
       </div>
-    </button>
+    </div>
   );
 }

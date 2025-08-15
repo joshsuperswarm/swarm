@@ -32,7 +32,7 @@ export default function FilePills() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs"
+            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 border border-gray-200 rounded-md text-xs"
           >
             {item.type === 'folder' ? (
               <>
@@ -47,7 +47,7 @@ export default function FilePills() {
             )}
             <button
               onClick={() => item.type === 'folder' ? removeFolder(item.path) : removeFile(item.path)}
-              className="p-0.5 hover:bg-blue-100 rounded"
+              className="p-0.5 hover:bg-gray-200 rounded"
             >
               <X className="h-3 w-3" />
             </button>

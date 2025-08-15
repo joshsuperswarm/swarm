@@ -1,103 +1,43 @@
-import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
-
-/**
- * Clean Markdown renderer:
- * - Inline code: compact, monospace chip.
- * - Single-line fenced code: render as inline chip (prevents bulky blocks for tiny snippets).
- * - Multi-line fenced code: dark card with language label + Copy.
- */
 
 type Props = { content: string; streaming?: boolean };
 
-/** Recursively flatten ReactMarkdown code children to a raw string. */
-function flattenToText(node: any): string {
-  if (node == null) return "";
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(flattenToText).join("");
-  // React element with props.children
-  if (typeof node === "object" && "props" in node) {
-    return flattenToText((node as any).props?.children);
-  }
-  try {
-    // Last resort—avoid "[object Object]"
-    return "";
-  } catch {
-    return "";
-  }
-}
-
 export default function Markdown({ content }: Props) {
   return (
-    <div className="prose-chat">
+    <div className="markdown-content">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeHighlight, { ignoreMissing: true }]]}
         components={{
-          code({ inline, className, children, ...props }) {
-            const raw = flattenToText(children);
-            const txt = raw.replace(/\n+$/g, ""); // trim trailing newlines common in fences
-            const langMatch = /language-(\w+)/.exec(className || "");
-            const lang = langMatch?.[1] ?? "bash";
-
-            // Heuristic: treat as inline chip if (a) inline or (b) single line & short
-            const isSingleLine = !txt.includes("\n");
-            if (inline || isSingleLine) {
-              return (
-                <code
-                  className="rounded-md bg-gray-100 border border-gray-200 px-1.5 py-0.5 font-mono text-[0.9em] text-gray-800"
-                  style={{ fontFamily: "'Fira Code','Consolas','Monaco',monospace" }}
-                  {...props}
-                >
-                  {txt}
-                </code>
-              );
-            }
-
-            // Multi-line fenced block -> dark card
-            return (
-              <div className="my-4 overflow-hidden rounded-xl border border-gray-300 bg-gray-900 shadow-md">
-                <div className="flex items-center justify-between border-b border-gray-700 bg-gray-800 px-3 py-1.5">
-                  <span className="select-none text-xs font-medium tracking-wide text-gray-300">
-                    {lang}
-                  </span>
-                  <CopyButton text={txt} />
-                </div>
-                <pre className="max-h-[560px] overflow-auto px-4 py-3 bg-gray-900">
-                  <code
-                    className="block font-mono text-sm leading-relaxed text-gray-100"
-                    style={{ fontFamily: "'Fira Code','Consolas','Monaco',monospace" }}
-                  >
-                    {txt}
-                  </code>
-                </pre>
-              </div>
-            );
+          h1: ({ children }) => <h1 className="text-lg font-semibold text-gray-900 mb-3 mt-4 first:mt-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-base font-semibold text-gray-900 mb-2 mt-4 first:mt-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-900 mb-2 mt-3 first:mt-0">{children}</h3>,
+          p: ({ children }) => <p className="text-gray-900 mb-3 last:mb-0 leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-900">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-900">{children}</ol>,
+          li: ({ children }) => <li className="text-gray-900 leading-relaxed">{children}</li>,
+          pre: ({ children }) => <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 mb-3 overflow-x-auto text-sm">{children}</pre>,
+          code: ({ children, ...props }) => {
+            const isInline = !props.className?.includes('language-')
+            return isInline ? (
+              <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+            ) : (
+              <code className="text-gray-800 font-mono text-sm leading-relaxed">{children}</code>
+            )
           },
+          blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-200 pl-4 mb-3 text-gray-700 italic">{children}</blockquote>,
+          a: ({ href, children }) => <a href={href as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline decoration-1 underline-offset-2">{children}</a>,
+          table: ({ children }) => <div className="overflow-x-auto mb-3"><table className="w-full border-collapse border border-gray-200 rounded-md">{children}</table></div>,
+          thead: ({ children }) => <thead className="bg-gray-50">{children}</thead>,
+          th: ({ children }) => <th className="border border-gray-200 px-3 py-2 text-left text-sm font-medium text-gray-900">{children}</th>,
+          td: ({ children }) => <td className="border border-gray-200 px-3 py-2 text-sm text-gray-900">{children}</td>,
+          hr: () => <hr className="border-0 border-t border-gray-200 my-4" />,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+          em: ({ children }) => <em className="italic text-gray-900">{children}</em>,
         }}
       >
         {content}
       </ReactMarkdown>
     </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [label, setLabel] = React.useState("Copy");
-  return (
-    <button
-      onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setLabel("Copied");
-        setTimeout(() => setLabel("Copy"), 1200);
-      }}
-      className="rounded-md border border-gray-600 bg-gray-700 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-      aria-label="Copy code"
-      type="button"
-    >
-      {label}
-    </button>
   );
 }

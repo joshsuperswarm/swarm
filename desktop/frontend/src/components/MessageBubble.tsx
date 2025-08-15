@@ -21,9 +21,9 @@ export default function MessageBubble({ message, streaming }: MessageBubbleProps
   }
 
   return (
-    <div className={`flex mb-6 ${isUser ? 'justify-end' : 'justify-center'}`}>
-      <div className={`relative ${isUser ? 'max-w-4xl' : 'mx-auto w-full max-w-5xl'} group`}>
-        <div className={`msg-card px-4 py-3 ${isUser ? 'msg-user' : 'msg-assistant'}`}>
+    <div className={`${isUser ? 'flex justify-end' : 'flex justify-start'} mt-4`}>
+      <div className={`relative group ${isUser ? 'w-full md:max-w-md' : 'w-full'} rounded-lg border p-3 md:p-4 text-sm shadow-sm ${isUser ? 'bg-gray-100 border-gray-200 text-gray-700' : 'bg-white border-gray-200 text-gray-900'}`}>
+        <div className="leading-relaxed [word-break:break-word]">
           {isThinking ? (
             <ThinkingIndicator />
           ) : (
@@ -35,7 +35,7 @@ export default function MessageBubble({ message, streaming }: MessageBubbleProps
               {message.includedFiles.map((file, i) => {
                 const isFolder = file.endsWith('/')
                 return (
-                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700">
+                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 border border-gray-200">
                     {isFolder ? (
                       <Folder className="h-3 w-3" />
                     ) : (
@@ -52,11 +52,11 @@ export default function MessageBubble({ message, streaming }: MessageBubbleProps
         {/* hover copy */}
         <button
           onClick={copyAll}
-          className="absolute -top-2 -right-2 hidden rounded-md border bg-white/90 px-2 py-1 text-xs text-gray-700 shadow-sm hover:bg-white group-hover:block"
+          className="absolute top-2 right-2 hidden group-hover:block rounded-md border border-gray-200 bg-white h-6 px-2 text-xs text-gray-700 shadow-sm hover:bg-gray-50"
           aria-label="Copy message"
         >
           <div className="flex items-center gap-1">
-            <Clipboard className="h-3.5 w-3.5" />
+            <Clipboard className="h-3 w-3" />
             {copied ? 'Copied' : 'Copy'}
           </div>
         </button>
