@@ -1,7 +1,7 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal, Zap, FileText, Search } from "lucide-react"
+import { MoreHorizontal, Zap, FileText, Search, MessageSquare } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -74,6 +74,8 @@ export const createColumns = (
             return { icon: FileText, label: 'Plan', color: 'text-blue-600' };
           case 'review':
             return { icon: Search, label: 'Review', color: 'text-purple-600' };
+          case 'chat':
+            return { icon: MessageSquare, label: 'Chat', color: 'text-blue-600' };
           default:
             return { icon: Zap, label: mode, color: 'text-gray-600' };
         }

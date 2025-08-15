@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, MessageCircle } from 'lucide-react';
+import { Zap, MessageSquare } from 'lucide-react';
 import type { RunMode } from '@/services/api';
 
 export interface RunModeConfig {
@@ -20,7 +20,7 @@ export const getModeConfig = (mode: RunMode): RunModeConfig => {
       };
     case 'chat':
       return { 
-        icon: MessageCircle, 
+        icon: MessageSquare, 
         label: 'Chat', 
         color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', 
         description: 'Chat, plan, analyze, and review code' 
