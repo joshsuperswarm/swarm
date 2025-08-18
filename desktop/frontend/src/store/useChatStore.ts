@@ -55,6 +55,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 - Use single backticks for inline code: variable names (e.g., \`useClipboard\`), types, field names (e.g., \`may_exceed_context\`), file paths, CLI commands, and literal values.
 - ONLY use fenced code blocks (triple backticks with language) for multi-line code samples, never for single identifiers.
 - Always specify the language for code blocks: \`\`\`ts for TypeScript, \`\`\`js for JavaScript, \`\`\`json for JSON, etc.
+- Keep code lines under 80 characters when possible. Break long lines appropriately with proper indentation.
 - Do not wrap short identifiers or single-line expressions in code blocks - use inline backticks instead.
 - Do not use inline HTML unless explicitly requested.
 - Use proper headings, lists, and tables where appropriate.`

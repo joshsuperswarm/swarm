@@ -18,7 +18,7 @@ export default function ScrollToBottom({ container }: { container: HTMLElement |
 
   return (
     <div className="fixed bottom-24 md:bottom-28 inset-x-0 z-40">
-      <div className="mx-auto w-full max-w-3xl flex justify-center">
+      <div className="mx-auto w-full max-w-4xl flex justify-center">
         <button
           onClick={() => container?.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })}
           className="px-3 py-1.5 rounded-full text-xs border bg-white shadow hover:bg-gray-50"
