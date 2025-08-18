@@ -1,12 +1,14 @@
 use crate::repo::RepoManager;
 use anyhow::Result;
 use directories::ProjectDirs;
+use lru::LruCache;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::num::NonZeroUsize;
 use tiktoken_rs::{get_bpe_from_model, CoreBPE};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +44,10 @@ static TOKENIZER: Lazy<CoreBPE> = Lazy::new(|| {
 static TOKEN_CACHE: Lazy<Mutex<HashMap<String, CachedCount>>> =
     Lazy::new(|| Mutex::new(load_token_cache().unwrap_or_default()));
 
+// In-memory LRU cache for ultra-fast access (500 entries)
+static MEMORY_CACHE: Lazy<Mutex<LruCache<String, CachedCount>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
+
 fn cache_path() -> Option<std::path::PathBuf> {
     ProjectDirs::from("com", "swarm", "swarm").map(|d| d.cache_dir().join("token-cache.json"))
 }
@@ -65,6 +71,18 @@ pub async fn count_tokens_for_files(
     repo: &RepoManager,
     relpaths: Vec<String>,
 ) -> Result<TokenReport> {
+    // Early return for empty list
+    if relpaths.is_empty() {
+        return Ok(TokenReport {
+            files: vec![],
+            total_tokens: 0,
+            total_bytes: 0,
+            encoding: std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string()),
+            model_context_window: get_model_context_window(&std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string())),
+            may_exceed_context: false,
+        });
+    }
+
     // Use cached list which is now much faster with parallel walking
     let meta_map: HashMap<_, _> = repo
         .list_files()?
@@ -88,37 +106,53 @@ pub async fn count_tokens_for_files(
                 });
             }
 
-            // Check cache with combined key including mtime
+            // Check cache with combined key including size (more reliable than mtime)
             let cache_key = format!(
-                "{}:{}:{}",
+                "{}:{}:{}:{}",
                 repo.get_root().to_string_lossy(),
                 rel,
+                meta.size,
                 meta.mtime
             );
 
-            // Fast path: check cache
-            if let Some(c) = TOKEN_CACHE.lock().get(&cache_key) {
-                return Some(FileToken {
-                    relpath,
-                    bytes: meta.size,
-                    tokens: c.tokens,
-                    is_binary: false,
-                });
+            // Ultra-fast path: check memory cache first
+            if let Some(c) = MEMORY_CACHE.lock().get(&cache_key) {
+                if c.size == meta.size && c.mtime == meta.mtime {
+                    return Some(FileToken {
+                        relpath,
+                        bytes: meta.size,
+                        tokens: c.tokens,
+                        is_binary: false,
+                    });
+                }
             }
 
-            // Slow path: tokenize
+            // Fast path: check disk cache - still no file read needed!
+            if let Some(c) = TOKEN_CACHE.lock().get(&cache_key) {
+                if c.size == meta.size && c.mtime == meta.mtime {
+                    // Add to memory cache for next time
+                    MEMORY_CACHE.lock().put(cache_key.clone(), c.clone());
+                    return Some(FileToken {
+                        relpath,
+                        bytes: meta.size,
+                        tokens: c.tokens,
+                        is_binary: false,
+                    });
+                }
+            }
+
+            // Slow path: tokenize (only if not in cache)
             let content = repo.read_file(rel).ok()?;
             let tokens = TOKENIZER.encode_ordinary(&content).len() as u64;
 
-            // Update cache
-            TOKEN_CACHE.lock().insert(
-                cache_key,
-                CachedCount {
-                    mtime: meta.mtime,
-                    size: meta.size,
-                    tokens,
-                },
-            );
+            // Update both caches
+            let cached_count = CachedCount {
+                mtime: meta.mtime,
+                size: meta.size,
+                tokens,
+            };
+            TOKEN_CACHE.lock().insert(cache_key.clone(), cached_count.clone());
+            MEMORY_CACHE.lock().put(cache_key, cached_count);
 
             Some(FileToken {
                 relpath,
