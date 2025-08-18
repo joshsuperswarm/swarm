@@ -8,8 +8,8 @@ import Chat from './components/Chat'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 export default function App() {
-  const { repo, loadRecent } = useRepoStore()
-  const { isPickerOpen, setPickerOpen, resetChat } = useChatStore()
+  const { repo, loadRecent, clearFiles } = useRepoStore()
+  const { isPickerOpen, setPickerOpen, resetChat, isStreaming, clearDroppedImages } = useChatStore()
 
   useEffect(() => {
     loadRecent()
@@ -26,6 +26,15 @@ export default function App() {
   useHotkeys('mod+n', (e) => {
     e.preventDefault()
     resetChat()
+  }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
+
+  // Clear files and images: ESC (only when not streaming)
+  useHotkeys('escape', (e) => {
+    if (!isStreaming) {
+      e.preventDefault()
+      clearFiles()
+      clearDroppedImages()
+    }
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
   if (!repo) return <OpenFolderEmptyState />;

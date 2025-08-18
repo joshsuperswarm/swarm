@@ -22,11 +22,14 @@ interface ChatStore {
   currentRequestId: string | null
   isPickerOpen: boolean
   filesAlreadySent: boolean
+  droppedImages: ImageAttachment[]
   
   sendMessage: (content: string, images?: ImageAttachment[]) => Promise<void>
   cancelStream: () => Promise<void>
   setPickerOpen: (open: boolean) => void
   resetChat: () => void
+  setDroppedImages: (images: ImageAttachment[]) => void
+  clearDroppedImages: () => void
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -36,6 +39,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   currentRequestId: null,
   isPickerOpen: false,
   filesAlreadySent: false,
+  droppedImages: [],
 
   sendMessage: async (content: string, images?: ImageAttachment[]) => {
     const { messages, apiMessages: prevApiMessages, filesAlreadySent } = get()
@@ -173,5 +177,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setPickerOpen: (open: boolean) => set({ isPickerOpen: open }),
   
-  resetChat: () => set({ messages: [], apiMessages: [], filesAlreadySent: false, isStreaming: false, currentRequestId: null }),
+  resetChat: () => set({ messages: [], apiMessages: [], filesAlreadySent: false, isStreaming: false, currentRequestId: null, droppedImages: [] }),
+
+  setDroppedImages: (images: ImageAttachment[]) => set({ droppedImages: images }),
+  
+  clearDroppedImages: () => set({ droppedImages: [] }),
 }))

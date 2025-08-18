@@ -11,10 +11,9 @@ import { ImageAttachment } from '../types'
 import { fileToBase64 } from '../utils/fileUtils'
 
 export default function Chat() {
-  const { messages, isStreaming, sendMessage, cancelStream } = useChatStore()
+  const { messages, isStreaming, sendMessage, cancelStream, droppedImages, setDroppedImages } = useChatStore()
   const { selectedFiles, selectedFolders } = useRepoStore()
   const [input, setInput] = useState('')
-  const [droppedImages, setDroppedImages] = useState<ImageAttachment[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -95,11 +94,11 @@ export default function Chat() {
       }
     }
 
-    setDroppedImages(prev => [...prev, ...newImages])
+    setDroppedImages([...droppedImages, ...newImages])
   }
 
   const removeImage = (index: number) => {
-    setDroppedImages(prev => prev.filter((_, i) => i !== index))
+    setDroppedImages(droppedImages.filter((_, i) => i !== index))
   }
 
   return (
