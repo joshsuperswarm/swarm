@@ -15,7 +15,7 @@ impl PrStatusPoller {
         // ignore the global token entirely
         Self {
             db,
-            poll_interval: Duration::from_secs(10 * 60), // 10 minutes
+            poll_interval: Duration::from_secs(3 * 60), // 3 minutes
         }
     }
 
@@ -131,11 +131,11 @@ mod tests {
 
         // Test creating poller without token (should work now)
         let poller_no_token = PrStatusPoller::new(db.clone(), None);
-        assert_eq!(poller_no_token.poll_interval.as_secs(), 10 * 60);
+        assert_eq!(poller_no_token.poll_interval.as_secs(), 3 * 60);
 
         // Test creating poller with token (should ignore it)
         let poller_with_token = PrStatusPoller::new(db.clone(), Some("ghp_test_token"));
-        assert_eq!(poller_with_token.poll_interval.as_secs(), 10 * 60);
+        assert_eq!(poller_with_token.poll_interval.as_secs(), 3 * 60);
     }
 
     #[tokio::test]
