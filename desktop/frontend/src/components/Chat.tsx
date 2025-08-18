@@ -10,14 +10,21 @@ import ScrollToBottom from './ScrollToBottom'
 import { ImageAttachment } from '../types'
 import { fileToBase64 } from '../utils/fileUtils'
 
-export default function Chat() {
+interface ChatProps {
+  textareaRef?: React.RefObject<HTMLTextAreaElement>
+}
+
+export default function Chat({ textareaRef }: ChatProps) {
   const { messages, isStreaming, sendMessage, cancelStream, droppedImages, setDroppedImages } = useChatStore()
   const { selectedFiles, selectedFolders } = useRepoStore()
   const [input, setInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Use the passed ref if available, otherwise use the internal ref
+  const activeTextareaRef = textareaRef || internalTextareaRef
 
   const scrollToBottom = (smooth = true) =>
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
@@ -30,15 +37,14 @@ export default function Chat() {
     if (nearBottom) scrollToBottom(false)
   }, [messages])
 
-  useHotkeys('escape', () => { if (isStreaming) cancelStream() })
 
   // auto-grow textarea
   useEffect(() => {
-    const ta = textareaRef.current
+    const ta = activeTextareaRef.current
     if (!ta) return
     ta.style.height = '0px'
     ta.style.height = Math.min(ta.scrollHeight, 220) + 'px'
-  }, [input])
+  }, [input, activeTextareaRef])
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -146,7 +152,7 @@ export default function Chat() {
               <div className="w-full">
                 <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-blue-500 transition-colors">
                   <textarea
-                    ref={textareaRef}
+                    ref={activeTextareaRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {

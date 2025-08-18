@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRepoStore } from './store/useRepoStore'
 import { useChatStore } from './store/useChatStore'
 import OpenFolderEmptyState from './components/OpenFolderEmptyState'
@@ -10,6 +10,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 export default function App() {
   const { repo, loadRecent, clearFiles } = useRepoStore()
   const { isPickerOpen, setPickerOpen, resetChat, isStreaming, clearDroppedImages } = useChatStore()
+  const chatTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     loadRecent()
@@ -37,6 +38,13 @@ export default function App() {
     }
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
+  const handleFileSelection = () => {
+    // Focus the chat textarea after file selection
+    setTimeout(() => {
+      chatTextareaRef.current?.focus()
+    }, 100)
+  }
+
   if (!repo) return <OpenFolderEmptyState />;
 
   return (
@@ -53,11 +61,11 @@ export default function App() {
 
       <main className="flex-1 overflow-hidden">
         <div className="chat-container h-full">
-          <Chat />
+          <Chat textareaRef={chatTextareaRef} />
         </div>
       </main>
 
-      <FilePicker open={isPickerOpen} onOpenChange={setPickerOpen} />
+      <FilePicker open={isPickerOpen} onOpenChange={setPickerOpen} onFileSelected={handleFileSelection} />
     </div>
   )
 }

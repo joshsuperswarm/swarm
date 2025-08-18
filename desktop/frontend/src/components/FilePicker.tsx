@@ -10,6 +10,7 @@ import { FixedSizeList as List } from 'react-window'
 interface FilePickerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onFileSelected?: () => void
 }
 
 type PickerItem = {
@@ -18,7 +19,7 @@ type PickerItem = {
   fileData?: any // Original file metadata if kind === 'file'
 }
 
-export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
+export default function FilePicker({ open, onOpenChange, onFileSelected }: FilePickerProps) {
   const { files, selectedFiles, selectedFolders, toggleFile, toggleFolder, expandedSelectedFiles } = useRepoStore()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -106,7 +107,10 @@ export default function FilePicker({ open, onOpenChange }: FilePickerProps) {
     } else {
       toggleFile(item.relpath)
     }
-  }, [toggleFile, toggleFolder])
+    
+    // Call the onFileSelected callback after selection
+    onFileSelected?.()
+  }, [toggleFile, toggleFolder, onFileSelected])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
