@@ -9,6 +9,10 @@ node_modules/
 dist/
 build/
 
+# TypeScript build info
+desktop/frontend/tsconfig.node.tsbuildinfo
+desktop/frontend/tsconfig.tsbuildinfo
+
 # Backend build artifacts
 backend/build/
 *.log
