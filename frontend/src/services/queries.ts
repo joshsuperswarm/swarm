@@ -82,7 +82,7 @@ export const useTaskTodosQuery = (taskId: number, taskStatus?: string, enabled: 
     staleTime: 5 * 60 * 1000,           // 5 min
     refetchInterval: () => {
       // Stop polling if task is in terminal state
-      const isTerminal = ['done', 'failed', 'pr_opened', 'pr_merged'].includes(taskStatus ?? '');
+      const isTerminal = ['done', 'failed', 'pr_merged'].includes(taskStatus ?? '');
       return isTerminal ? false : 5 * 1000; // 5 seconds if not terminal
     },
     refetchIntervalInBackground: true,
@@ -113,7 +113,7 @@ export const useTaskMessagesQuery = (taskId: number, taskStatus?: string, enable
     staleTime: 5 * 1000, // 5 seconds - allow frequent updates
     refetchInterval: () => {
       // Poll every 3 seconds while task is non-terminal
-      const isTerminal = ['done', 'failed', 'pr_opened', 'pr_merged'].includes(taskStatus ?? '');
+      const isTerminal = ['done', 'failed', 'pr_merged'].includes(taskStatus ?? '');
       return isTerminal ? false : 3 * 1000;
     },
     refetchIntervalInBackground: true,
@@ -146,7 +146,7 @@ export const useTaskDetailsQuery = (taskId: number, enabled: boolean = true) => 
       const messages = data?.messages || [];
       const currentRun = messages.length > 0 ? messages[messages.length - 1]?.run : null;
       const taskStatus = currentRun?.run?.status;
-      const isTerminal = ['done', 'failed', 'pr_opened', 'pr_merged'].includes(taskStatus || '');
+      const isTerminal = ['done', 'failed', 'pr_merged'].includes(taskStatus || '');
       return isTerminal ? false : 3 * 1000;
     },
     refetchIntervalInBackground: true,
