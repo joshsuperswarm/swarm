@@ -4,6 +4,47 @@ import { listen } from '@tauri-apps/api/event'
 import { ChatMessage, ImageAttachment } from '../types'
 import { useRepoStore } from './useRepoStore'
 
+// Batching for stream tokens (module scope)
+const tokenBuffers = new Map<string, string[]>()
+let rafHandle: number | null = null
+
+function flushPending(
+  requestId: string,
+  set: (updater: (s: any) => Partial<any>) => void
+) {
+  const chunks = tokenBuffers.get(requestId)
+  if (!chunks?.length) return
+  const delta = chunks.join('')
+  chunks.length = 0
+
+  set((state: any) => {
+    const last = state.messages.length - 1
+    if (last < 0) return {}
+    const msgs = state.messages.slice()
+    msgs[last] = {
+      ...msgs[last],
+      content: msgs[last].content + delta,
+    }
+    const apis = state.apiMessages.slice()
+    apis[last] = {
+      ...apis[last],
+      content: apis[last].content + delta,
+    }
+    return { messages: msgs, apiMessages: apis }
+  })
+}
+
+function scheduleFlush(
+  requestId: string,
+  set: (updater: (s: any) => Partial<any>) => void
+) {
+  if (rafHandle != null) return
+  rafHandle = requestAnimationFrame(() => {
+    rafHandle = null
+    flushPending(requestId, set)
+  })
+}
+
 interface StreamToken {
   request_id: string
   delta: string
@@ -129,31 +170,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       })
 
       const unlistenToken = await listen<StreamToken>('chat_token', (event) => {
-        console.log('Received chat_token event:', event.payload)
-        console.log('Expected requestId:', requestId)
         if (event.payload.request_id === requestId) {
-          console.log('Token matched! Delta:', event.payload.delta)
-          set(state => {
-            const updatedMessages = state.messages.map((msg, idx) => 
-              idx === state.messages.length - 1 
-                ? { ...msg, content: msg.content + event.payload.delta }
-                : msg
-            )
-            const updatedApiMessages = state.apiMessages.map((msg, idx) => 
-              idx === state.apiMessages.length - 1 
-                ? { ...msg, content: msg.content + event.payload.delta }
-                : msg
-            )
-            console.log('Updated last message content:', updatedMessages[updatedMessages.length - 1].content)
-            return { messages: updatedMessages, apiMessages: updatedApiMessages }
-          })
-        } else {
-          console.log('Request ID mismatch!')
+          const buf = tokenBuffers.get(requestId) ?? []
+          buf.push(event.payload.delta)
+          tokenBuffers.set(requestId, buf)
+          scheduleFlush(requestId, set)
         }
       })
 
       const unlistenDone = await listen<StreamDone>('chat_done', (event) => {
         if (event.payload.request_id === requestId) {
+          // Final flush of any buffered chunks
+          flushPending(requestId, set)
+          tokenBuffers.delete(requestId)
+          if (rafHandle != null) {
+            cancelAnimationFrame(rafHandle)
+            rafHandle = null
+          }
+
           set({ isStreaming: false, currentRequestId: null })
           unlistenToken()
           unlistenDone()

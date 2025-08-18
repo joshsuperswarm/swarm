@@ -1,15 +1,15 @@
+import React, { useState } from 'react'
 import { ChatMessage } from '../types'
 import { FileCode, Clipboard, Folder, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Markdown from './Markdown'
-import { useState } from 'react'
 
 interface MessageBubbleProps {
   message: ChatMessage
   streaming?: boolean
 }
 
-export default function MessageBubble({ message, streaming }: MessageBubbleProps) {
+function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
   const isThinking = !isUser && streaming && (message.content?.length ?? 0) === 0
@@ -84,6 +84,14 @@ export default function MessageBubble({ message, streaming }: MessageBubbleProps
     </div>
   )
 }
+
+const MessageBubble = React.memo(
+  MessageBubbleImpl,
+  (prev, next) =>
+    prev.message === next.message && prev.streaming === next.streaming
+)
+
+export default MessageBubble
 
 function ThinkingIndicator() {
   return (
