@@ -11,6 +11,7 @@ interface RepoStore {
   selectedFiles: string[]
   selectedFolders: string[]
   tokenReport: TokenReport | null
+  filesByFolder: Map<string, Set<string>> // Optimized folder->files mapping
   
   openRepo: () => Promise<void>
   loadRecent: () => Promise<void>
@@ -25,12 +26,33 @@ interface RepoStore {
   expandedSelectedFiles: () => string[]
 }
 
+// Helper function to build folder index
+function buildFilesByFolder(files: FileMeta[]): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>()
+  
+  for (const file of files) {
+    const parts = file.relpath.split('/')
+    
+    // Add to all parent folders
+    for (let i = 0; i < parts.length - 1; i++) {
+      const folderPath = parts.slice(0, i + 1).join('/')
+      if (!index.has(folderPath)) {
+        index.set(folderPath, new Set())
+      }
+      index.get(folderPath)!.add(file.relpath)
+    }
+  }
+  
+  return index
+}
+
 export const useRepoStore = create<RepoStore>((set, get) => ({
   repo: null,
   files: [],
   selectedFiles: [],
   selectedFolders: [],
   tokenReport: null,
+  filesByFolder: new Map(),
 
   openRepo: async () => {
     try {
@@ -65,7 +87,8 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   loadFiles: async () => {
     try {
       const files = await invoke<FileMeta[]>('repo_list_files')
-      set({ files })
+      const filesByFolder = buildFilesByFolder(files)
+      set({ files, filesByFolder })
     } catch (error) {
       console.error('Failed to load files:', error)
     }
@@ -132,16 +155,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   expandedSelectedFiles: () => {
-    const { selectedFiles, selectedFolders, files } = get()
+    const { selectedFiles, selectedFolders, filesByFolder } = get()
     const expanded = new Set<string>(selectedFiles)
     
-    // Expand folders to include all files under them
+    // Use optimized folder index for O(1) lookups
     for (const folder of selectedFolders) {
-      const prefix = folder.endsWith('/') ? folder : folder + '/'
-      for (const file of files) {
-        if (file.relpath.startsWith(prefix)) {
-          expanded.add(file.relpath)
-        }
+      const folderFiles = filesByFolder.get(folder)
+      if (folderFiles) {
+        folderFiles.forEach(file => expanded.add(file))
       }
     }
     
@@ -172,6 +193,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       } catch (error) {
         console.error('Failed to count tokens:', error)
       }
-    }, 200) // 200ms debounce delay
+    }, 500) // 500ms debounce delay - reduced frequency for better performance
   },
 }))
