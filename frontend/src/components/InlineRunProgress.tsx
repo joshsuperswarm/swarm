@@ -28,7 +28,7 @@ export function InlineRunProgress({
   }) => (
     <div className="flex items-center gap-2 text-sm text-gray-600">
       {icon === 'loader' ? (
-        <Loader2 className="w-4 h-4" />
+        <Loader2 className="w-4 h-4 animate-spin" />
       ) : (
         <Bot className="w-4 h-4" />
       )}
