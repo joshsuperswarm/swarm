@@ -141,12 +141,6 @@ impl RepoManager {
         Ok(list)
     }
 
-    // Provide a way to force-refresh cache if needed
-    pub fn refresh_cache(&self) -> Result<()> {
-        *self.files_cache.lock().unwrap() = None;
-        let _ = self.list_files()?; // Rebuild cache
-        Ok(())
-    }
 
     pub fn read_file(&self, relpath: &str) -> Result<String> {
         if relpath.contains("..") {
