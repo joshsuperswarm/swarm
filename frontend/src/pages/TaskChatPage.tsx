@@ -5,7 +5,7 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { CollapsedTodoList } from "@/components/CollapsedTodoList";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { RunModeButton } from "@/components/RunModeButton";
-import { AgentThinkingIndicator } from "@/components/AgentThinkingIndicator";
+import { InlineRunProgress } from "@/components/InlineRunProgress";
 import { statuses } from "@/data/data";
 import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation, useTaskTodosQuery } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
@@ -287,17 +287,6 @@ export function TaskChatPage() {
       >
         <div className="mx-auto w-full max-w-3xl space-y-4">
         
-        {/* Active run todos - show when task is running and we have todos */}
-        {currentRunStatus === "running" && todos.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Bot className="w-4 h-4" />
-              <span>Claude is working on this task...</span>
-              {isLoadingTodos && <div className="w-3 h-3 border border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>}
-            </div>
-            <CollapsedTodoList todos={todos} />
-          </div>
-        )}
         
         {messages.length === 0 && !finished && !isSending ? (
           <div className="flex-1 flex items-center justify-center p-8">
@@ -354,10 +343,13 @@ export function TaskChatPage() {
                   </div>
                 )}
               </ChatBubble>
-              {isLastUserMsg && phase && (
-                <div className="flex justify-start mt-2">
-                  <AgentThinkingIndicator phase={phase} />
-                </div>
+              {isLastUserMsg && (
+                <InlineRunProgress
+                  phase={phase}
+                  todos={todos}
+                  isLoadingTodos={isLoadingTodos}
+                  className="mt-2"
+                />
               )}
               </div>
             );
