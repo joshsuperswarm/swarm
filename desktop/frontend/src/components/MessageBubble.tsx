@@ -1,5 +1,5 @@
 import { ChatMessage } from '../types'
-import { User, Bot, FileCode, Clipboard, Folder, Loader2, Image } from 'lucide-react'
+import { FileCode, Clipboard, Folder, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Markdown from './Markdown'
 import { useState } from 'react'

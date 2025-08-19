@@ -195,6 +195,7 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
               <List
                 ref={listRef}
                 height={400} // Fixed height for virtualization
+                width="100%" // Required width property
                 itemCount={filteredItems.length}
                 itemSize={40} // Height per item (py-2 = 8px + content ~32px)
                 overscanCount={5} // Render extra items for smooth scrolling
