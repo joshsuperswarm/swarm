@@ -27,15 +27,29 @@ fi
 echo "✓ Rust compilation passed"
 cd ..
 
-# Run TypeScript compiler check
-echo "Checking TypeScript compilation..."
+# Run TypeScript compiler check for web frontend
+echo "Checking TypeScript compilation (web frontend)..."
 cd frontend
 if ! bun run build; then
-    echo "✗ TypeScript compilation failed. Please fix the errors before committing."
+    echo "✗ TypeScript compilation failed (web frontend). Please fix the errors before committing."
     exit 1
 fi
-echo "✓ TypeScript compilation passed"
+echo "✓ TypeScript compilation passed (web frontend)"
 cd ..
+
+# Run TypeScript compiler check for desktop frontend
+echo "Checking TypeScript compilation (desktop frontend)..."
+if [ -f "desktop/frontend/package.json" ]; then
+    cd desktop/frontend
+    if ! bunx tsc -b; then
+        echo "✗ TypeScript compilation failed (desktop frontend). Please fix the errors before committing."
+        exit 1
+    fi
+    echo "✓ TypeScript compilation passed (desktop frontend)"
+    cd ../..
+else
+    echo "✓ Desktop frontend not found, skipping"
+fi
 
 # Format and check JSON files with Prettier
 echo "Formatting JSON files with Prettier..."
