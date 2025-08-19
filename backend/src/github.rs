@@ -1,5 +1,5 @@
 use http;
-use octocrab::{Octocrab, OctocrabBuilder};
+use octocrab::{params::repos::Reference, Octocrab, OctocrabBuilder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,10 +182,13 @@ impl GitHubClient {
 
         tracing::info!("Deleting branch '{}' from {}/{}", branch, owner, repo);
 
-        // Use git refs API to delete the branch: DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}
-        let url = format!("repos/{}/{}/git/refs/heads/{}", owner, repo, branch);
-
-        match self.client._delete(url, None::<&()>).await {
+        // Use octocrab's delete_ref method which properly handles URL encoding and special characters
+        match self
+            .client
+            .repos(owner, repo)
+            .delete_ref(&Reference::Branch(branch.to_string()))
+            .await
+        {
             Ok(_) => {
                 tracing::info!(
                     "Successfully deleted branch '{}' from {}/{}",
