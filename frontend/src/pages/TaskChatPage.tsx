@@ -301,56 +301,58 @@ export function TaskChatPage() {
             const isGrouped = prevRole === message.role;
             const isLastUserMsg = message.role === "user" && idx === messages.length - 1;
             return (
-              <div
-                key={message.id}
-                className={`${
-                  message.role === "user" ? "flex justify-end" : "flex justify-start"
-                } ${isGrouped ? "mt-1" : "mt-4"}`}
-              >
-              <ChatBubble
-                variant={message.role === "user" ? "user" : "assistant"}
-                fullWidth={message.role === "assistant"}
-                content={message.content}
-              >
-                {message.role === "assistant" ? (
-                  <div>
-                    <MarkdownRenderer content={message.content} />
-                    {message.metadata?.pending && (
-                      <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="whitespace-pre-wrap break-words">
-                    {message.content}
-                    {message.metadata?.pending && (
-                      <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-                    )}
-                  </div>
-                )}
+              <div key={message.id} className={isGrouped ? "mt-1" : "mt-4"}>
                 <div
-                  className="mt-2 text-xs opacity-70"
-                  title={new Date(message.created_at || new Date().toISOString()).toLocaleString()}
+                  className={`${
+                    message.role === "user" ? "flex justify-end" : "flex justify-start"
+                  }`}
                 >
-                  {formatTime(message.created_at || new Date().toISOString())}
-                </div>
-
-                {/* ─── NEW: per-message run meta ─── */}
-                {message.role === "assistant" && message.run && (
-                  <div className="mt-3 space-y-3">
-                    {message.run.todos?.length > 0 && (
-                      <CollapsedTodoList todos={message.run.todos} />
+                  <ChatBubble
+                    variant={message.role === "user" ? "user" : "assistant"}
+                    fullWidth={message.role === "assistant"}
+                    content={message.content}
+                  >
+                    {message.role === "assistant" ? (
+                      <div>
+                        <MarkdownRenderer content={message.content} />
+                        {message.metadata?.pending && (
+                          <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words">
+                        {message.content}
+                        {message.metadata?.pending && (
+                          <span className="ml-2 inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                        )}
+                      </div>
                     )}
+                    <div
+                      className="mt-2 text-xs opacity-70"
+                      title={new Date(message.created_at || new Date().toISOString()).toLocaleString()}
+                    >
+                      {formatTime(message.created_at || new Date().toISOString())}
+                    </div>
+
+                    {/* ─── NEW: per-message run meta ─── */}
+                    {message.role === "assistant" && message.run && (
+                      <div className="mt-3 space-y-3">
+                        {message.run.todos?.length > 0 && (
+                          <CollapsedTodoList todos={message.run.todos} />
+                        )}
+                      </div>
+                    )}
+                  </ChatBubble>
+                </div>
+                {isLastUserMsg && (
+                  <div className="flex justify-start mt-2">
+                    <InlineRunProgress
+                      phase={phase}
+                      todos={todos}
+                      isLoadingTodos={isLoadingTodos}
+                    />
                   </div>
                 )}
-              </ChatBubble>
-              {isLastUserMsg && (
-                <InlineRunProgress
-                  phase={phase}
-                  todos={todos}
-                  isLoadingTodos={isLoadingTodos}
-                  className="mt-2"
-                />
-              )}
               </div>
             );
           })
