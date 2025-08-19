@@ -361,7 +361,7 @@ pub async fn run_full_task_pipeline(
 }
 
 /// Determine branch based on whether this is the first run and mode
-/// First run: plan/review use main, execute creates new branch
+/// First run: all modes create feature branch for consistent session reuse
 /// Subsequent runs: all modes use the same existing branch
 async fn determine_branch_for_task(
     app_state: &AppState,
@@ -376,24 +376,15 @@ async fn determine_branch_for_task(
         .unwrap_or(true); // Default to first run if query fails
 
     if is_first_run {
-        // First run logic
-        if mode == "plan" || mode == "review" {
-            tracing::info!(
-                "First run: Using main branch for {} mode task {}",
-                mode,
-                task_id
-            );
-            return Ok("main".to_string());
-        } else if mode == "execute" {
-            // Execute mode on first run: create new branch
-            let new_branch = format!("swarm/task-{}", task_id);
-            tracing::info!(
-                "First run: Creating new branch '{}' for execute mode task {}",
-                new_branch,
-                task_id
-            );
-            return Ok(new_branch);
-        }
+        // First run logic: create feature branch for all modes to enable session reuse
+        let new_branch = format!("swarm/task-{}", task_id);
+        tracing::info!(
+            "First run: Creating new branch '{}' for {} mode task {} (enables session reuse across modes)",
+            new_branch,
+            mode,
+            task_id
+        );
+        return Ok(new_branch);
     } else {
         // Not first run - use same branch for all modes
         if let Ok(Some(existing_branch)) = app_state
@@ -425,28 +416,16 @@ async fn determine_branch_for_task(
             return Ok(existing_branch);
         }
 
-        // Final fallback: create new branch for execute mode or use main for others
-        if mode == "execute" {
-            let new_branch = format!("swarm/task-{}", task_id);
-            tracing::info!(
-                "Not first run fallback: Creating new branch '{}' for execute mode task {}",
-                new_branch,
-                task_id
-            );
-            return Ok(new_branch);
-        } else {
-            tracing::info!(
-                "Not first run fallback: Using main branch for {} mode task {}",
-                mode,
-                task_id
-            );
-            return Ok("main".to_string());
-        }
+        // Final fallback: create new branch for all modes (consistent behavior)
+        let new_branch = format!("swarm/task-{}", task_id);
+        tracing::info!(
+            "Not first run fallback: Creating new branch '{}' for {} mode task {}",
+            new_branch,
+            mode,
+            task_id
+        );
+        return Ok(new_branch);
     }
-
-    // Should not reach here, but fallback to old behavior
-    tracing::warn!("Unexpected path in determine_branch_for_task, falling back to main");
-    Ok("main".to_string())
 }
 
 /// Check for existing active sandbox for this task and branch
