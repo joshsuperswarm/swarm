@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { ThreeDotsAnimation } from "@/components/ThreeDotsAnimation"
 
 interface AnimatedTitleProps {
   title: string
@@ -94,23 +95,7 @@ export function AnimatedTitle({
         aria-label={ariaLabelPending}
       >
         <span>Generating title</span>
-        <motion.span
-          className="ml-1 inline-flex"
-          initial="start"
-          animate="pulse"
-          variants={{ pulse: { transition: { staggerChildren: 0.12, repeat: Infinity } } }}
-        >
-          {[0,1,2].map(i => (
-            <motion.span
-              key={i}
-              className="mx-[1px]"
-              variants={{ start: { y: 0, opacity: 0.4 }, pulse: { y: [0, -2, 0], opacity: [0.4, 1, 0.4] } }}
-              transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
-            >
-              ·
-            </motion.span>
-          ))}
-        </motion.span>
+        <ThreeDotsAnimation className="ml-1" />
         <span className="ml-1 blink">▌</span>
       </div>
     )

@@ -1,5 +1,6 @@
 import { Loader2, Bot } from 'lucide-react'
 import { CollapsedTodoList } from '@/components/CollapsedTodoList'
+import { ThreeDotsAnimation } from '@/components/ThreeDotsAnimation'
 import type { AgentTodo } from '@/types/generated/AgentTodo'
 
 type Phase = 'spinning' | 'running' | null
@@ -30,7 +31,7 @@ export function InlineRunProgress({
       {icon === 'loader' ? (
         <Loader2 className="w-4 h-4 animate-spin" />
       ) : (
-        <Bot className="w-4 h-4" />
+        <ThreeDotsAnimation />
       )}
       <span>{label}</span>
       {isLoadingTodos && (
@@ -46,7 +47,7 @@ export function InlineRunProgress({
       )}
       {phase === 'running' && (
         <>
-          <Row icon="bot" label="Claude is working on this task…" />
+          <Row icon="bot" label="Claude is working on this task" />
           {todos.length > 0 && (
             <div className="mt-2">
               <CollapsedTodoList todos={todos} />
