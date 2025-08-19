@@ -31,7 +31,7 @@ use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
 use config::Config;
 use database::Database;
 use error::{AppError, AppResult};
-use github::GitHubClient;
+use github::{delete_branch_background, GitHubClient};
 use github_pr::GitHubPRClient;
 use models::{
     AgentTodo, ApiKeysStatus, ArchiveMultipleTasksRequest, CreateGitHubToken, CreateMessage,
@@ -81,6 +81,67 @@ async fn get_or_create_user(
         .create_user(create_user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+/// Helper function to spawn background branch deletion for tasks with branch info
+async fn handle_background_branch_deletion(
+    tasks_with_branches: Vec<models::TaskWithBranchInfo>,
+    user_id: i32,
+    database: &Database,
+) {
+    // Only process tasks that have all required info for branch deletion
+    let deletable_tasks: Vec<_> = tasks_with_branches
+        .into_iter()
+        .filter(|task| {
+            task.branch.is_some() &&
+            task.repo_owner.is_some() &&
+            task.repo_name.is_some() &&
+            // Safety check: never delete main/master branches
+            !matches!(task.branch.as_deref(), Some("main") | Some("master"))
+        })
+        .collect();
+
+    if deletable_tasks.is_empty() {
+        return;
+    }
+
+    // Get GitHub token for the user
+    let access_token = match database.get_github_token(user_id).await {
+        Ok(Some(token)) => token.access_token,
+        Ok(None) => {
+            tracing::warn!(
+                "No GitHub token available for user {} - cannot delete branches for {} tasks",
+                user_id,
+                deletable_tasks.len()
+            );
+            return;
+        }
+        Err(e) => {
+            tracing::error!(
+                "Error getting GitHub token for user {} - cannot delete branches: {}",
+                user_id,
+                e
+            );
+            return;
+        }
+    };
+
+    // Spawn background deletion for each task
+    for task in deletable_tasks {
+        let branch = task.branch.unwrap();
+        let owner = task.repo_owner.unwrap();
+        let repo = task.repo_name.unwrap();
+
+        tracing::info!(
+            "Spawning background branch deletion for task {}: '{}' in {}/{}",
+            task.task_id,
+            branch,
+            owner,
+            repo
+        );
+
+        delete_branch_background(access_token.clone(), owner, repo, branch, task.task_id);
+    }
 }
 
 async fn store_github_token(
@@ -2038,13 +2099,27 @@ async fn archive_task(
         }
     }
 
-    // Verify task belongs to user and archive it
-    match app_state.database.archive_task(task_id, db_user.id).await {
-        Ok(Some(_)) => Ok(Json(json!({
-            "success": true,
-            "task_id": task_id,
-            "message": "Task archived successfully"
-        }))),
+    // Verify task belongs to user and archive it with branch info
+    match app_state
+        .database
+        .archive_task_with_branch_info(task_id, db_user.id)
+        .await
+    {
+        Ok(Some(task_with_branch)) => {
+            // Spawn background branch deletion
+            handle_background_branch_deletion(
+                vec![task_with_branch],
+                db_user.id,
+                &app_state.database,
+            )
+            .await;
+
+            Ok(Json(json!({
+                "success": true,
+                "task_id": task_id,
+                "message": "Task archived successfully"
+            })))
+        }
         Ok(None) => {
             // Task not found or user doesn't have permission
             Err(StatusCode::NOT_FOUND)
@@ -2073,17 +2148,26 @@ async fn archive_multiple_tasks(
         }
     }
 
-    // Verify tasks belong to user and archive them
+    // Verify tasks belong to user and archive them with branch info
     match app_state
         .database
-        .archive_multiple_tasks(&payload.task_ids, db_user.id)
+        .archive_multiple_tasks_with_branch_info(&payload.task_ids, db_user.id)
         .await
     {
-        Ok(archived_ids) => Ok(Json(json!({
-            "success": true,
-            "archived_task_ids": archived_ids,
-            "message": format!("Successfully archived {} task(s)", archived_ids.len())
-        }))),
+        Ok(tasks_with_branches) => {
+            let archived_count = tasks_with_branches.len();
+            let archived_ids: Vec<i32> = tasks_with_branches.iter().map(|t| t.task_id).collect();
+
+            // Spawn background branch deletion
+            handle_background_branch_deletion(tasks_with_branches, db_user.id, &app_state.database)
+                .await;
+
+            Ok(Json(json!({
+                "success": true,
+                "archived_task_ids": archived_ids,
+                "message": format!("Successfully archived {} task(s)", archived_count)
+            })))
+        }
         Err(e) => {
             tracing::error!("Error archiving multiple tasks: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

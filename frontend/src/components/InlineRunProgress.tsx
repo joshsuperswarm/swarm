@@ -1,4 +1,4 @@
-import { Loader2, Bot } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { CollapsedTodoList } from '@/components/CollapsedTodoList'
 import { ThreeDotsAnimation } from '@/components/ThreeDotsAnimation'
 import type { AgentTodo } from '@/types/generated/AgentTodo'

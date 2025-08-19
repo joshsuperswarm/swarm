@@ -2,7 +2,8 @@ use crate::error::{AppError, AppResult};
 use crate::models::{
     AgentTodo, CreateGitHubToken, CreateMessage, CreateRepository, CreateTask, CreateUser,
     GitHubToken, Message, MessageWithRun, Repository, RepositoryWithTasks, Run, RunWithMeta, Task,
-    TaskDetails, TaskId, TaskLog, TaskLogsPaginated, TaskWithRun, TaskWithRunDB, User,
+    TaskDetails, TaskId, TaskLog, TaskLogsPaginated, TaskWithBranchInfo, TaskWithRun,
+    TaskWithRunDB, User,
 };
 use sqlx::PgPool;
 
@@ -340,6 +341,38 @@ impl Database {
                 .fetch_all(&self.pool)
                 .await?;
         Ok(result.into_iter().map(|r| r.id).collect())
+    }
+
+    pub async fn archive_task_with_branch_info(
+        &self,
+        task_id: i32,
+        user_id: i32,
+    ) -> AppResult<Option<TaskWithBranchInfo>> {
+        let result = sqlx::query_file_as!(
+            TaskWithBranchInfo,
+            "sql/archive_task_with_branch_info.sql",
+            task_id,
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
+    pub async fn archive_multiple_tasks_with_branch_info(
+        &self,
+        task_ids: &[i32],
+        user_id: i32,
+    ) -> AppResult<Vec<TaskWithBranchInfo>> {
+        let result = sqlx::query_file_as!(
+            TaskWithBranchInfo,
+            "sql/archive_multiple_tasks_with_branch_info.sql",
+            task_ids,
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(result)
     }
 
     // Task log operations

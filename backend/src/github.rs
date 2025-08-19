@@ -161,6 +161,87 @@ impl GitHubClient {
             Err(e) => Err(e),
         }
     }
+
+    /// Delete a branch from a GitHub repository
+    pub async fn delete_branch(
+        &self,
+        owner: &str,
+        repo: &str,
+        branch: &str,
+    ) -> Result<(), octocrab::Error> {
+        // Safety check: never delete main or master branches
+        if branch == "main" || branch == "master" {
+            tracing::warn!(
+                "Attempted to delete protected branch '{}' in {}/{}",
+                branch,
+                owner,
+                repo
+            );
+            return Ok(()); // Return success but don't actually delete
+        }
+
+        tracing::info!("Deleting branch '{}' from {}/{}", branch, owner, repo);
+
+        // Use git refs API to delete the branch: DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}
+        let url = format!("repos/{}/{}/git/refs/heads/{}", owner, repo, branch);
+
+        match self.client._delete(url, None::<&()>).await {
+            Ok(_) => {
+                tracing::info!(
+                    "Successfully deleted branch '{}' from {}/{}",
+                    branch,
+                    owner,
+                    repo
+                );
+                Ok(())
+            }
+            Err(octocrab::Error::GitHub { source, .. }) => {
+                if source.status_code == http::StatusCode::NOT_FOUND {
+                    // Branch doesn't exist (already deleted), treat as success
+                    tracing::info!(
+                        "Branch '{}' not found in {}/{} (already deleted or never existed)",
+                        branch,
+                        owner,
+                        repo
+                    );
+                    Ok(())
+                } else if source.status_code == http::StatusCode::FORBIDDEN {
+                    tracing::warn!(
+                        "Insufficient permissions to delete branch '{}' from {}/{}",
+                        branch,
+                        owner,
+                        repo
+                    );
+                    Err(octocrab::Error::GitHub {
+                        source,
+                        backtrace: std::backtrace::Backtrace::disabled(),
+                    })
+                } else {
+                    tracing::error!(
+                        "Failed to delete branch '{}' from {}/{}: HTTP {}",
+                        branch,
+                        owner,
+                        repo,
+                        source.status_code
+                    );
+                    Err(octocrab::Error::GitHub {
+                        source,
+                        backtrace: std::backtrace::Backtrace::disabled(),
+                    })
+                }
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Network error deleting branch '{}' from {}/{}: {}",
+                    branch,
+                    owner,
+                    repo,
+                    e
+                );
+                Err(e)
+            }
+        }
+    }
 }
 
 pub async fn fetch_current_user(access_token: &str) -> anyhow::Result<(String, i32)> // (login, id)
@@ -182,6 +263,59 @@ pub fn parse_repo_full_name(full_name: &str) -> Option<(String, String)> {
     } else {
         None
     }
+}
+
+/// Delete a branch in the background using a spawned thread
+pub fn delete_branch_background(
+    access_token: String,
+    owner: String,
+    repo: String,
+    branch: String,
+    task_id: i32,
+) {
+    tokio::spawn(async move {
+        tracing::info!(
+            "Starting background branch deletion for task {}: branch '{}' in {}/{}",
+            task_id,
+            branch,
+            owner,
+            repo
+        );
+
+        let client = match GitHubClient::new(&access_token) {
+            Ok(client) => client,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to create GitHub client for background branch deletion (task {}): {}",
+                    task_id,
+                    e
+                );
+                return;
+            }
+        };
+
+        match client.delete_branch(&owner, &repo, &branch).await {
+            Ok(()) => {
+                tracing::info!(
+                    "Background branch deletion completed successfully for task {}: branch '{}' in {}/{}",
+                    task_id,
+                    branch,
+                    owner,
+                    repo
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Background branch deletion failed for task {}: branch '{}' in {}/{}: {}",
+                    task_id,
+                    branch,
+                    owner,
+                    repo,
+                    e
+                );
+            }
+        }
+    });
 }
 
 #[cfg(test)]

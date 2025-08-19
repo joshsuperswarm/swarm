@@ -8,6 +8,14 @@ pub struct TaskId {
     pub id: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct TaskWithBranchInfo {
+    pub task_id: i32,
+    pub branch: Option<String>,
+    pub repo_owner: Option<String>,
+    pub repo_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchiveMultipleTasksRequest {
     pub task_ids: Vec<i32>,
