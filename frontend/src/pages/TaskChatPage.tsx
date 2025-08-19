@@ -51,9 +51,9 @@ export function TaskChatPage() {
   
   // Get todos for the current task
   const { data: todos = [], isLoading: isLoadingTodos } = useTaskTodosQuery(
-    taskId, 
+    taskId || 0, 
     currentRunStatus || undefined,
-    taskId > 0
+    taskId !== null && taskId > 0
   );
   
   // Get run status and phase early for hooks
