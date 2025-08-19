@@ -758,8 +758,8 @@ impl Database {
         body_md: &str,
         sha: &str,
         role: &str,
-    ) -> AppResult<()> {
-        sqlx::query!(
+    ) -> AppResult<i64> {
+        let result = sqlx::query!(
             r#"
             INSERT INTO messages (task_id, run_id, mode, body_md, sha, role)
             VALUES ($1, $2, $3, $4, $5, $6)
@@ -768,7 +768,8 @@ impl Database {
                 body_md = EXCLUDED.body_md,
                 sha = EXCLUDED.sha,
                 role = EXCLUDED.role,
-                created_at = NOW()
+                updated_at = NOW()
+            RETURNING id
             "#,
             task_id,
             run_id,
@@ -777,9 +778,9 @@ impl Database {
             sha,
             role
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(result.id)
     }
 
     // Message operations for the new chat architecture
@@ -901,6 +902,17 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
+        Ok(())
+    }
+
+    pub async fn update_run_message_id(&self, run_id: i32, message_id: i64) -> AppResult<()> {
+        sqlx::query!(
+            "UPDATE runs SET message_id = $1 WHERE id = $2",
+            message_id,
+            run_id
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -1347,24 +1359,26 @@ mod tests {
             .unwrap();
 
         // Create run
-        let run = db.create_run(task.id, "execute").await.unwrap();
+        let run = db.create_run(task.id, "execute", "sonnet").await.unwrap();
 
         // Create placeholder assistant message
-        db.upsert_message(task.id, run.id, "execute", "", "", "assistant")
+        let _message_id = db
+            .upsert_message(task.id, run.id, "execute", "", "", "assistant")
             .await
             .unwrap();
 
         // Update assistant message with content
-        db.upsert_message(
-            task.id,
-            run.id,
-            "execute",
-            "Agent reply",
-            "abc123",
-            "assistant",
-        )
-        .await
-        .unwrap();
+        let _message_id = db
+            .upsert_message(
+                task.id,
+                run.id,
+                "execute",
+                "Agent reply",
+                "abc123",
+                "assistant",
+            )
+            .await
+            .unwrap();
 
         // Verify messages are separate
         let msgs = db.get_task_messages(task.id).await.unwrap();

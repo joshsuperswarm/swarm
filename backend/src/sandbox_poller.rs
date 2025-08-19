@@ -383,20 +383,34 @@ async fn finalize_success(
             .map(|b| format!("{:02x}", b))
             .collect::<String>();
 
-        if let Err(e) = app_state
+        match app_state
             .database
             .upsert_message(task_id, run_id, run_mode, final_md, &sha, "assistant")
             .await
         {
-            warn!(
-                "Failed to upsert final chat for task {} (mode {}): {}",
-                task_id, run_mode, e
-            );
-        } else {
-            info!(
-                "Stored final chat message for task {} (mode {})",
-                task_id, run_mode
-            );
+            Ok(assistant_message_id) => {
+                info!(
+                    "Stored final chat message for task {} (mode {})",
+                    task_id, run_mode
+                );
+                // Update run to point to assistant message instead of user message
+                if let Err(e) = app_state
+                    .database
+                    .update_run_message_id(run_id, assistant_message_id)
+                    .await
+                {
+                    warn!(
+                        "Failed to update run {} message_id to assistant message {}: {}",
+                        run_id, assistant_message_id, e
+                    );
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to upsert final chat for task {} (mode {}): {}",
+                    task_id, run_mode, e
+                );
+            }
         }
     } else {
         warn!(

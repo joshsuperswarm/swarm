@@ -1973,20 +1973,6 @@ async fn post_task_message(
         .await
     {
         Ok(run) => {
-            // Attach the run to the message
-            if let Err(e) = app_state
-                .database
-                .attach_run_to_message(message.id, run.id)
-                .await
-            {
-                tracing::error!(
-                    "Error attaching run {} to message {}: {}",
-                    run.id,
-                    message.id,
-                    e
-                );
-            }
-
             // Spawn the task pipeline for this run
             let pipeline_state = app_state.clone();
             let task_clone = _task.clone();
