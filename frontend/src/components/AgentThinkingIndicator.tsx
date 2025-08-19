@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Zap } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AgentThinkingIndicatorProps = {
@@ -8,7 +8,7 @@ type AgentThinkingIndicatorProps = {
 };
 
 export function AgentThinkingIndicator({ phase, className }: AgentThinkingIndicatorProps) {
-  const label = phase === "spinning" ? "Model is thinking…" : "Agent is running…";
+  const label = phase === "spinning" ? "Modal sandbox spinning up…" : "Agent is running…";
 
   return (
     <AnimatePresence mode="popLayout">
@@ -30,7 +30,7 @@ export function AgentThinkingIndicator({ phase, className }: AgentThinkingIndica
             animate={{ rotate: 360 }}
             transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
           >
-            <Brain className="h-4 w-4 text-gray-600" />
+            <Loader2 className="h-4 w-4 text-gray-600" />
           </motion.div>
         ) : (
           <Zap className="h-4 w-4 text-blue-600" />

@@ -1,4 +1,4 @@
-import { Brain, Bot } from 'lucide-react'
+import { Loader2, Bot } from 'lucide-react'
 import { CollapsedTodoList } from '@/components/CollapsedTodoList'
 import type { AgentTodo } from '@/types/generated/AgentTodo'
 
@@ -23,12 +23,12 @@ export function InlineRunProgress({
     icon,
     label,
   }: {
-    icon: 'brain' | 'bot'
+    icon: 'loader' | 'bot'
     label: string
   }) => (
     <div className="flex items-center gap-2 text-sm text-gray-600">
-      {icon === 'brain' ? (
-        <Brain className="w-4 h-4" />
+      {icon === 'loader' ? (
+        <Loader2 className="w-4 h-4" />
       ) : (
         <Bot className="w-4 h-4" />
       )}
@@ -42,7 +42,7 @@ export function InlineRunProgress({
   return (
     <div className={className}>
       {phase === 'spinning' && (
-        <Row icon="brain" label="Model is thinking…" />
+        <Row icon="loader" label="Modal sandbox spinning up…" />
       )}
       {phase === 'running' && (
         <>
