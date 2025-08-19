@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# Pre-commit hook to run Rust and TypeScript compilers
+# This prevents commits when there are compilation errors
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Get the git root directory
+GIT_ROOT=$(git rev-parse --show-toplevel)
+cd "$GIT_ROOT"
+
+# Check if we're in the right directory structure
+if [ ! -f "backend/Cargo.toml" ] || [ ! -f "frontend/package.json" ]; then
+    echo "Error: Expected backend/Cargo.toml and frontend/package.json to exist"
+    exit 1
+fi
+
+# Run Rust compiler check
+echo "Checking Rust compilation..."
+cd backend
+if ! cargo check --quiet; then
+    echo "✗ Rust compilation failed. Please fix the errors before committing."
+    exit 1
+fi
+echo "✓ Rust compilation passed"
+cd ..
+
+# Run TypeScript compiler check
+echo "Checking TypeScript compilation..."
+cd frontend
+if ! bun run build; then
+    echo "✗ TypeScript compilation failed. Please fix the errors before committing."
+    exit 1
+fi
+echo "✓ TypeScript compilation passed"
+cd ..
+
+# Format and check JSON files with Prettier
+echo "Formatting JSON files with Prettier..."
+JSON_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(json|md)$' || true)
+if [ -n "$JSON_FILES" ]; then
+    cd frontend
+    for file in $JSON_FILES; do
+        if [ -f "../$file" ]; then
+            npx prettier --write "../$file"
+        fi
+    done
+    cd ..
+    # Add formatted files back to staging
+    echo "$JSON_FILES" | xargs git add
+    echo "✓ JSON files formatted with Prettier"
+else
+    echo "✓ No JSON files to format"
+fi
+
+# Format Rust code with rustfmt
+echo "Formatting Rust code with rustfmt..."
+RUST_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.rs$' || true)
+if [ -n "$RUST_FILES" ]; then
+    for file in $RUST_FILES; do
+        if [ -f "$file" ]; then
+            rustfmt --edition 2021 "$file"
+        fi
+    done
+    # Add formatted files back to staging
+    echo "$RUST_FILES" | xargs git add
+    echo "✓ Rust code formatted with rustfmt"
+else
+    echo "✓ No Rust files to format"
+fi
+
+# Format Python code with Ruff
+echo "Formatting Python code with Ruff..."
+PYTHON_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$' || true)
+if [ -n "$PYTHON_FILES" ]; then
+    # Filter for files in the modal/ directory
+    MODAL_PYTHON_FILES=$(echo "$PYTHON_FILES" | grep "^modal/" || true)
+    if [ -n "$MODAL_PYTHON_FILES" ]; then
+        uv tool run ruff format $MODAL_PYTHON_FILES
+        # Add formatted files back to staging
+        echo "$MODAL_PYTHON_FILES" | xargs git add
+        echo "✓ Python code in modal/ formatted with Ruff"
+    else
+        echo "✓ No Python files in modal/ to format"
+    fi
+else
+    echo "✓ No Python files to format"
+fi
+
+echo "All compilation checks passed! ✓"
