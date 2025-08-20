@@ -19,9 +19,26 @@ use crate::{
     sandbox::{self, SandboxProvider, SandboxStatus},
     AppState,
 };
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, warn};
+
+// ——————————————————————————————————————————————————————————————
+//  In-memory retry counter for sandbox deletion failures
+// ——————————————————————————————————————————————————————————————
+
+type DeletionRetryCounters = Arc<Mutex<HashMap<String, i32>>>;
+
+static DELETION_RETRY_COUNTERS: OnceLock<DeletionRetryCounters> = OnceLock::new();
+
+fn get_deletion_retry_counters() -> DeletionRetryCounters {
+    DELETION_RETRY_COUNTERS
+        .get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+        .clone()
+}
 
 // ——————————————————————————————————————————————————————————————
 //  Helper functions
@@ -474,9 +491,10 @@ async fn mark_failed(
     Ok(())
 }
 
-/// Handle idle timeout management for session persistence
+/// Handle idle timeout management for session persistence with retry logic
 async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
     let provider = app_state.sandbox.clone();
+    let retry_counters = get_deletion_retry_counters();
 
     // Get expired sessions and clean them up
     let expired_sessions = app_state.database.get_expired_sessions().await?;
@@ -484,27 +502,77 @@ async fn handle_idle_timeouts(app_state: &AppState) -> anyhow::Result<()> {
     let expired_count = expired_sessions.len();
     for run in expired_sessions {
         if let Some(sandbox_id) = &run.sandbox_id {
-            info!(
-                "Session for run {} has expired, cleaning up sandbox {}",
-                run.id, sandbox_id
-            );
+            // Check current retry count
+            let current_retry_count = {
+                let counters = retry_counters.lock().await;
+                counters.get(sandbox_id).copied().unwrap_or(0)
+            };
 
-            // Delete the sandbox
-            if let Err(e) = provider.delete_sandbox(sandbox_id).await {
-                error!("Failed to delete expired sandbox {}: {}", sandbox_id, e);
-            } else {
-                info!("Successfully cleaned up expired sandbox {}", sandbox_id);
+            if current_retry_count >= 3 {
+                // Give up after 3 attempts - set sandbox_id to NULL to prevent further retries
+                warn!(
+                    "Giving up on deleting sandbox {} after {} attempts for run {}",
+                    sandbox_id, current_retry_count, run.id
+                );
 
-                // Clear the idle timeout only after successful termination
+                // Set sandbox_id to NULL and clear idle timeout to stop retry loops
+                if let Err(e) =
+                    sqlx::query!("UPDATE runs SET sandbox_id = NULL WHERE id = $1", run.id)
+                        .execute(&app_state.database.pool)
+                        .await
+                {
+                    error!("Failed to clear sandbox_id for run {}: {}", run.id, e);
+                }
+
                 if let Err(e) = app_state.database.clear_run_idle_timeout(run.id).await {
                     error!("Failed to clear idle timeout for run {}: {}", run.id, e);
+                }
+
+                // Remove from retry counter
+                let mut counters = retry_counters.lock().await;
+                counters.remove(sandbox_id);
+                continue;
+            }
+
+            info!(
+                "Session for run {} has expired, cleaning up sandbox {} (attempt {})",
+                run.id,
+                sandbox_id,
+                current_retry_count + 1
+            );
+
+            // Attempt to delete the sandbox
+            match provider.delete_sandbox(sandbox_id).await {
+                Ok(()) => {
+                    info!("Successfully cleaned up expired sandbox {}", sandbox_id);
+
+                    // Clear the idle timeout only after successful termination
+                    if let Err(e) = app_state.database.clear_run_idle_timeout(run.id).await {
+                        error!("Failed to clear idle timeout for run {}: {}", run.id, e);
+                    }
+
+                    // Remove from retry counter on success
+                    let mut counters = retry_counters.lock().await;
+                    counters.remove(sandbox_id);
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to delete expired sandbox {} (attempt {}): {}",
+                        sandbox_id,
+                        current_retry_count + 1,
+                        e
+                    );
+
+                    // Increment retry counter
+                    let mut counters = retry_counters.lock().await;
+                    counters.insert(sandbox_id.clone(), current_retry_count + 1);
                 }
             }
         }
     }
 
     if expired_count > 0 {
-        info!("Cleaned up {} expired sessions", expired_count);
+        info!("Processed {} expired sessions", expired_count);
     }
 
     Ok(())
