@@ -51,8 +51,7 @@ function flushPending(
       return {
         ...conv,
         messages: msgs,
-        apiMessages: apis,
-        updatedAt: Date.now()
+        apiMessages: apis
       }
     })
     
