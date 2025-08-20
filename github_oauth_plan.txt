@@ -1,0 +1,253 @@
+Awesome—let’s do this in clean, bite-sized phases. Each phase has:
+	•	a copy-paste prompt for Claude Code (it says exactly what to change, file by file), and
+	•	a how to test checklist.
+
+Assumption: Backend runs at http://localhost:3001, frontend at http://localhost:5173.
+
+⸻
+
+Phase 1 — Purge Clerk completely + add barebones GitHub login (callback stub)
+
+Prompt for Claude Code (paste this)
+
+You are my refactor assistant. Apply the following changes exactly.
+
+Goal: Remove Clerk entirely from both frontend & backend. Add a minimal GitHub login button that sends users to GitHub’s authorize page. Implement a backend /auth/callback that only parses & logs the code for now and returns a simple success page. No DB writes. No JWT yet.
+
+Backend
+	•	Remove/ignore any clerk_* code paths and middleware wiring. Do not reference Clerk types in auth.rs or main.rs.
+	•	Add a new route:
+	•	GET /auth/callback handler:
+	•	Read code and optional state from the query string.
+	•	Log them with tracing::info!.
+	•	Return a minimal HTML 200 page like: “GitHub OAuth code received. You can close this tab.”
+	•	Ensure CORS allows http://localhost:5173.
+	•	Confirm .env.example includes:
+
+BACKEND_URL=http://localhost:3001
+FRONTEND_URL=http://localhost:5173
+
+
+	•	Do not add any auth middleware yet (we’ll enable it later).
+
+Frontend
+	•	Remove all @clerk/* dependencies, providers, and components.
+	•	Delete imports/usages of ClerkProvider, SignIn, PricingTable, UserButton, useAuth/useUser from Clerk.
+	•	Create a minimal AuthProvider that only holds token: null and isSignedIn: false (no real login yet).
+	•	Make / route show a LoginPage with a single “Continue with GitHub” button that links directly to:
+
+https://github.com/login/oauth/authorize?client_id=${VITE_GITHUB_CLIENT_ID}&redirect_uri=http://localhost:3001/auth/callback&scope=user:email,repo
+
+
+	•	Add VITE_GITHUB_CLIENT_ID to frontend/.env.example.
+	•	Remove any “plan gating” and show an unauthenticated login screen until we wire sessions.
+
+Deliverables:
+	•	Updated code with Clerk removed.
+	•	LoginPage with the button above.
+	•	/auth/callback backend route that logs the code and returns a simple HTML page.
+
+How to test
+	1.	Create a GitHub OAuth App (Dev):
+	•	Homepage: http://localhost:5173
+	•	Callback: http://localhost:3001/auth/callback
+	•	Copy Client ID → put into VITE_GITHUB_CLIENT_ID (frontend).
+	2.	Run frontend (:5173) and backend (:3001).
+	3.	Click Continue with GitHub → authorize → you should land on /auth/callback and see the success page.
+	4.	Confirm backend logs include code=....
+
+⸻
+
+Phase 2 — Exchange code for GitHub access token (still no DB/JWT)
+
+Prompt for Claude Code (paste this)
+
+Goal: At /auth/callback, exchange code for a GitHub access token and return the token JSON to the browser (temporary).
+
+Backend
+	•	In github_oauth.rs (or new module), implement:
+	•	exchange_code_for_token(code): POST to https://github.com/login/oauth/access_token with { client_id, client_secret, code }, header Accept: application/json.
+	•	Return { access_token, token_type, scope }.
+	•	Change GET /auth/callback to:
+	•	Read code.
+	•	Call exchange_code_for_token(code).
+	•	Return JSON { access_token, token_type, scope } (200).
+	•	Ensure .env contains:
+
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+
+
+
+Frontend
+	•	Temporarily, after redirect you’ll just see raw JSON in the browser. No UI change needed yet.
+
+How to test
+	1.	Repeat login flow. After callback, you should see JSON with access_token.
+	2.	Verify token works:
+
+curl -H "Authorization: Bearer <access_token>" https://api.github.com/user
+
+Should return your GitHub profile.
+
+⸻
+
+Phase 3 — Fetch GitHub user server-side, return {user, token: null} (no app JWT yet)
+
+Prompt for Claude Code (paste this)
+
+Goal: Use the access token server-side to fetch /user, then return both to the frontend (still no app JWT).
+
+Backend
+	•	After token exchange in /auth/callback, call GET https://api.github.com/user with Authorization: Bearer <access_token>.
+	•	Return JSON:
+
+{
+  "github_user": { "id": 123, "login": "me", "email": null, "avatar_url": "..." },
+  "access_token": "gho_xxx",
+  "scope": "..."
+}
+
+
+	•	Keep everything read-only. No DB yet.
+
+Frontend
+	•	Create an AuthCallbackPage that:
+	•	Parses the browser URL (still hitting backend directly).
+	•	Displays a friendly “Authentication complete” screen and a “Continue” button (we’ll wire sessions in Phase 4).
+
+How to test
+	1.	Login → callback returns JSON with github_user.
+	2.	Confirm the returned id and login match your account.
+
+⸻
+
+Phase 4 — Issue app JWT and persist session in frontend (no DB writes yet)
+
+Prompt for Claude Code (paste this)
+
+Goal: Create an application JWT from GitHub identity; store it in the frontend and protect APIs with middleware.
+
+Backend
+	•	Add JWT_SECRET to .env.
+	•	Create a create_app_jwt(user) that signs claims:
+
+{ sub: "<github_id>", github_username: "<login>", email: "<email|null>", iat, exp(+24h) }
+
+HS256 with JWT_SECRET.
+
+	•	Change /auth/callback response to:
+
+{
+  "token": "<app_jwt>",
+  "user": { "id": <internal: same as github_id for now>, "github_user_id": <id>, "github_username": "<login>", "email": "<null|email>" }
+}
+
+
+	•	Add an auth middleware that:
+	•	Reads Authorization: Bearer <app_jwt>.
+	•	Verifies JWT with JWT_SECRET.
+	•	Injects AuthenticatedUser into request extensions.
+	•	Apply the middleware to your protected routes (leave /health and /auth/* public).
+
+Frontend
+	•	Implement AuthProvider with:
+	•	signIn(token, user) → store in localStorage.
+	•	getToken() → return stored token.
+	•	isSignedIn derived from token presence.
+	•	AuthCallbackPage: call /auth/callback?code=..., then signIn(token,user), then navigate('/').
+	•	Update API client to include Authorization: Bearer <token> from AuthProvider.
+
+How to test
+	1.	Login → app redirects home and shows you as signed in (e.g., UserMenu).
+	2.	Call a protected API from the frontend—should succeed.
+	3.	Manually hit a protected API with curl and wrong token—should 401.
+
+⸻
+
+Phase 5 — DB integration: lookup or create user; store GitHub token
+
+Prompt for Claude Code (paste this)
+
+Goal: Persist accounts & tokens. If the user exists by github_user_id, reuse; else create. Store the GitHub access_token.
+
+Backend
+	•	In /auth/callback after fetching github_user:
+	•	Try get_user_by_github_id(github_user.id).
+	•	If not found, create:
+
+CreateUser { clerk_user_id: None, github_username: Some(login), github_user_id: Some(id), email }
+
+
+	•	Persist token via CreateGitHubToken { user_id, access_token, token_type, scope }.
+	•	Create app JWT with internal user.id + github fields.
+	•	Return { token, user } (where user.id is your internal user id).
+
+	•	Ensure unique indexes exist for github_user_id.
+
+Frontend
+	•	No change beyond Phase 4; you already store { token, user }.
+
+How to test
+	1.	First login creates user+token rows (check DB).
+	2.	Second login reuses user (no duplicate).
+	3.	Hitting your “list repositories” endpoint (if implemented) should now work using stored token.
+
+⸻
+
+Phase 6 — Harden: generate state server-side, store in cookie, verify in callback
+
+Prompt for Claude Code (paste this)
+
+Goal: Add CSRF protection to OAuth.
+
+Backend
+	•	Add GET /auth/github:
+	•	Generate random state (UUID).
+	•	Set Set-Cookie: gh_oauth_state=<state>; HttpOnly; Secure (if https); SameSite=Lax; Path=/; Max-Age=300.
+	•	Return { auth_url: "https://github.com/login/oauth/authorize?client_id=...&redirect_uri=http://localhost:3001/auth/callback&scope=user:email,repo&state=<state>" }.
+	•	Update /auth/callback:
+	•	Read state from query and cookie.
+	•	If missing/mismatch → 400.
+	•	Proceed with exchange → upsert user/token → issue app JWT (as in Phase 5).
+
+Frontend
+	•	Change LoginPage button to call GET /auth/github and window.location.href = auth_url (instead of the hardcoded link).
+
+How to test
+	1.	Normal login → works.
+	2.	Manually change state in the URL during redirect → backend should reject with 400.
+	3.	Clear cookies and try again → still works.
+
+⸻
+
+Minimal envs (recap)
+
+backend/.env
+
+DATABASE_URL=postgresql://swarm:password@localhost:5432/swarm
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+JWT_SECRET=openssl rand -base64 32
+BACKEND_URL=http://localhost:3001
+FRONTEND_URL=http://localhost:5173
+RUST_LOG=info,swarm_backend=debug
+
+frontend/.env
+
+VITE_GITHUB_CLIENT_ID=...   # only needed during Phase 1; removed in Phase 6
+VITE_API_BASE=http://localhost:3001
+
+
+⸻
+
+What you’ll have at the end
+	•	Clerk fully removed from codebase in Phase 1.
+	•	A working GitHub OAuth flow with:
+	•	Token exchange
+	•	User fetch
+	•	App JWT sessions
+	•	DB persistence of users and GitHub tokens
+	•	CSRF-safe state round-trip
+
+If you want, I can generate tiny patch-style prompts for any one phase (e.g., “Phase 4 exact diffs by file”)—just tell me which phase you want implemented first.
