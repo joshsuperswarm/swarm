@@ -268,6 +268,10 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
           const fileContent = fileMap[relpath] ?? ''
           fullContent += `\n--- ${relpath} ---\n${fileContent}\n`
         }
+        
+        // Clear all files after sending
+        const { clearFiles } = useRepoStore.getState()
+        clearFiles()
       }
       
       // Create user message with just the user's text for display, but full content for API
