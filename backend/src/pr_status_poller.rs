@@ -48,6 +48,7 @@ impl PrStatusPoller {
         tracing::info!("PR poll: {} tasks", tasks.len());
 
         let mut merged = 0usize;
+        let mut closed = 0usize;
         let mut errors = 0usize;
 
         for task in tasks {
@@ -86,6 +87,7 @@ impl PrStatusPoller {
                 }
             };
 
+            // Check if PR is merged first
             match client.is_merged(&owner, &repo, number).await {
                 Ok(true) => {
                     if let Err(e) = self.db.update_task_to_pr_merged(task.id).await {
@@ -95,8 +97,27 @@ impl PrStatusPoller {
                         merged += 1;
                         tracing::info!("Task {} PR merged (#{})", task.id, number);
                     }
+                    continue; // Skip closed check if merged
                 }
-                Ok(false) => { /* not merged yet */ }
+                Ok(false) => {
+                    // Not merged, check if closed
+                    match client.is_closed(&owner, &repo, number).await {
+                        Ok(true) => {
+                            if let Err(e) = self.db.update_task_to_pr_closed(task.id).await {
+                                errors += 1;
+                                tracing::error!("Mark closed failed for task {}: {}", task.id, e);
+                            } else {
+                                closed += 1;
+                                tracing::info!("Task {} PR closed (#{})", task.id, number);
+                            }
+                        }
+                        Ok(false) => { /* not closed yet */ }
+                        Err(e) => {
+                            errors += 1;
+                            tracing::error!("Check closed failed (task {}): {}", task.id, e);
+                        }
+                    }
+                }
                 Err(e) => {
                     errors += 1;
                     tracing::error!("Check merged failed (task {}): {}", task.id, e);
@@ -104,8 +125,13 @@ impl PrStatusPoller {
             }
         }
 
-        if merged > 0 || errors > 0 {
-            tracing::info!("PR poll: {} merged, {} errors", merged, errors);
+        if merged > 0 || closed > 0 || errors > 0 {
+            tracing::info!(
+                "PR poll: {} merged, {} closed, {} errors",
+                merged,
+                closed,
+                errors
+            );
         }
         Ok(())
     }

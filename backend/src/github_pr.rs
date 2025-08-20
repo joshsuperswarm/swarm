@@ -245,6 +245,43 @@ impl GitHubPRClient {
         }
     }
 
+    /// Check if a pull request is closed (but not merged)
+    pub async fn is_closed(&self, owner: &str, repo: &str, pr_number: u64) -> Result<bool> {
+        tracing::debug!(
+            "Checking closed status for PR #{} in {}/{}",
+            pr_number,
+            owner,
+            repo
+        );
+
+        match self.octocrab.pulls(owner, repo).get(pr_number).await {
+            Ok(pr) => {
+                let is_closed = pr.state == Some(octocrab::models::IssueState::Closed)
+                    && pr.merged_at.is_none();
+                tracing::debug!(
+                    "PR #{} in {}/{} closed status: {} (state: {:?}, merged_at: {:?})",
+                    pr_number,
+                    owner,
+                    repo,
+                    if is_closed { "closed" } else { "not closed" },
+                    pr.state,
+                    pr.merged_at.is_some()
+                );
+                Ok(is_closed)
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to check PR closed status for #{} in {}/{}: {}",
+                    pr_number,
+                    owner,
+                    repo,
+                    e
+                );
+                Err(e.into())
+            }
+        }
+    }
+
     /// Add a comment to a pull request
     pub async fn add_pr_comment(
         &self,
@@ -340,6 +377,7 @@ mod tests {
             pr_title: None,
             pr_body: None,
             pr_merged_at: None,
+            pr_closed_at: None,
             is_archived: false,
             created_at: None,
             updated_at: None,
