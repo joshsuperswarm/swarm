@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
 
-export default function ScrollToBottom({ container }: { container: HTMLElement | null }) {
+export default function ScrollToBottom({
+  container,
+  atBottom,
+}: {
+  container: HTMLElement | null
+  atBottom?: boolean
+}) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
+    if (atBottom !== undefined) {
+      setShow(!atBottom);
+      return;
+    }
     if (!container) return;
     const onScroll = () => {
       const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 160;
@@ -12,7 +22,7 @@ export default function ScrollToBottom({ container }: { container: HTMLElement |
     onScroll();
     container.addEventListener('scroll', onScroll, { passive: true });
     return () => container.removeEventListener('scroll', onScroll);
-  }, [container]);
+  }, [container, atBottom]);
 
   if (!show) return null;
 

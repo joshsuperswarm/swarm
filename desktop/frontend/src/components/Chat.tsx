@@ -26,6 +26,7 @@ export default function Chat({ textareaRef }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   
   // Use the passed ref if available, otherwise use the internal ref
   const activeTextareaRef = textareaRef || internalTextareaRef
@@ -33,13 +34,25 @@ export default function Chat({ textareaRef }: ChatProps) {
   const scrollToBottom = (smooth = true) =>
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
 
-  // autoscroll only when user is near bottom
+  // Observe whether the bottom sentinel is visible inside the container
   useEffect(() => {
     const container = scrollContainerRef.current
-    if (!container) return
-    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 160
-    if (nearBottom) scrollToBottom(false)
-  }, [messages])
+    const sentinel = messagesEndRef.current
+    if (!container || !sentinel) return
+
+    const io = new IntersectionObserver(
+      ([entry]) => setIsAtBottom(entry.isIntersecting),
+      { root: container, threshold: 1 }
+    )
+
+    io.observe(sentinel)
+    return () => io.disconnect()
+  }, [])
+
+  // Only autoscroll if the user is actually at the bottom
+  useEffect(() => {
+    if (isAtBottom) scrollToBottom(false)
+  }, [messages, isAtBottom])
 
 
   // auto-grow textarea
@@ -150,7 +163,7 @@ export default function Chat({ textareaRef }: ChatProps) {
         </div>
       </div>
 
-      <ScrollToBottom container={scrollContainerRef.current} />
+      <ScrollToBottom container={scrollContainerRef.current} atBottom={isAtBottom} />
 
       {/* Floating Composer */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
