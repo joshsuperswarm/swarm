@@ -796,7 +796,7 @@ impl Database {
             r#"
             INSERT INTO messages (task_id, run_id, mode, body_md, sha, role)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (task_id, run_id, mode) WHERE run_id IS NOT NULL
+            ON CONFLICT (task_id, run_id, mode, role) WHERE run_id IS NOT NULL
             DO UPDATE SET
                 body_md = EXCLUDED.body_md,
                 sha = EXCLUDED.sha,
