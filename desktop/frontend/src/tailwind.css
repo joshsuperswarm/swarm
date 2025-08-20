@@ -18,6 +18,9 @@ body, #root { @apply bg-gray-50; }
 /* Chat column */
 .chat-container { @apply mx-auto w-full px-4 sm:px-6 lg:px-8; }
 
+/* Scroll gutter utility */
+.scroll-gutter-stable { scrollbar-gutter: stable; }
+
 /* Message card look - legacy classes kept for any remaining usage */
 .msg-card { @apply rounded-lg border border-gray-200 bg-white shadow-sm; }
 .msg-user  { @apply bg-gray-100 border border-gray-200; }

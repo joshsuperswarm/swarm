@@ -71,9 +71,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-hidden">
-        <div className="chat-container h-full">
-          <Chat textareaRef={chatTextareaRef} />
-        </div>
+        <Chat textareaRef={chatTextareaRef} />
       </main>
 
       <FilePicker open={isPickerOpen} onOpenChange={setPickerOpen} onFileSelected={handleFileSelection} />

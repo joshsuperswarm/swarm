@@ -115,25 +115,28 @@ export default function Chat({ textareaRef }: ChatProps) {
       onDrop={handleDrop}
     >
       {/* Messages */}
-      <div ref={scrollContainerRef} className="h-full overflow-y-auto pb-36 md:pb-40 pt-3 px-3">
-        <div className="mx-auto w-full max-w-4xl space-y-4">
-          {messages.map((message, i) => {
-            const isLast = i === messages.length - 1
-            const isStreamingAssistant = isStreaming && isLast && message.role === 'assistant'
-            return (
-              <MessageBubble key={i} message={message} streaming={isStreamingAssistant} />
-            )
-          })}
-          <div ref={messagesEndRef} />
+      <div ref={scrollContainerRef} className="h-full overflow-y-auto pb-36 md:pb-40 pt-3 scroll-gutter-stable">
+        <div className="chat-container">
+          <div className="mx-auto w-full max-w-4xl space-y-4">
+            {messages.map((message, i) => {
+              const isLast = i === messages.length - 1
+              const isStreamingAssistant = isStreaming && isLast && message.role === 'assistant'
+              return (
+                <MessageBubble key={i} message={message} streaming={isStreamingAssistant} />
+              )
+            })}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
       </div>
 
       <ScrollToBottom container={scrollContainerRef.current} />
 
       {/* Floating Composer */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-3 pb-3">
-        <div className="mx-auto w-full max-w-4xl pointer-events-auto">
-          <div className={`rounded-xl md:rounded-2xl border ${isDragging ? 'border-blue-500 border-2' : 'border-gray-200'} bg-white/90 backdrop-blur shadow-lg transition-colors`}>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
+        <div className="chat-container pointer-events-auto pb-3">
+            <div className="mx-auto w-full max-w-4xl">
+              <div className={`rounded-xl md:rounded-2xl border ${isDragging ? 'border-blue-500 border-2' : 'border-gray-200'} bg-white/90 backdrop-blur shadow-lg transition-colors`}>
             <div className="flex flex-col gap-2 p-2">
               {/* Image pills row - above file pills */}
               {droppedImages.length > 0 && (
@@ -186,6 +189,7 @@ export default function Chat({ textareaRef }: ChatProps) {
                   </button>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
