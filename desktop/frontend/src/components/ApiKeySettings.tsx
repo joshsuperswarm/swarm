@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { Dialog, DialogContent, DialogTrigger } from './ui/dialog'
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from './ui/dialog'
 import { Settings, Eye, EyeOff } from 'lucide-react'
 
 interface ApiKeySettingsProps {
@@ -73,6 +73,9 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
 
   const content = (
     <DialogContent className="max-w-md" aria-describedby="api-key-description">
+      <DialogTitle className="sr-only">
+        OpenAI API Key
+      </DialogTitle>
       <div className="space-y-4">
         <div className="space-y-2">
           <h2 className="text-lg font-semibold">

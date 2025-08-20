@@ -10,6 +10,8 @@ const DialogPortal = DialogPrimitive.Portal
 
 const DialogClose = DialogPrimitive.Close
 
+const DialogTitle = DialogPrimitive.Title
+
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
@@ -52,4 +54,5 @@ export {
   DialogClose,
   DialogTrigger,
   DialogContent,
+  DialogTitle,
 }

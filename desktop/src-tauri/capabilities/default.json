@@ -8,6 +8,8 @@
     "core:event:allow-emit",
     "core:event:default",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "core:path:default",
+    "core:path:allow-resolve-directory"
   ]
 }
