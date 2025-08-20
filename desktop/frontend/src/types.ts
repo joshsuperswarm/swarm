@@ -39,3 +39,17 @@ export interface ChatMessage {
   includedFiles?: string[]; // Files included in this message (for user messages)
   images?: ImageAttachment[]; // Image attachments
 }
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  apiMessages: ChatMessage[];
+  isStreaming: boolean;
+  activeRequestId: string | null;
+  archived: boolean;
+  createdAt: number;
+  updatedAt: number;
+  droppedImages: ImageAttachment[];
+  filesAlreadySent: boolean;
+}

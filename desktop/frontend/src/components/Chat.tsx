@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-// Removed unused imports
-import { useChatStore } from '../store/useChatStore'
+import { useConversationsStore } from '../store/useConversationsStore'
 import { useRepoStore } from '../store/useRepoStore'
 import MessageBubble from './MessageBubble'
 import FilePills from './FilePills'
@@ -14,8 +13,14 @@ interface ChatProps {
 }
 
 export default function Chat({ textareaRef }: ChatProps) {
-  const { messages, isStreaming, sendMessage, cancelStream, droppedImages, setDroppedImages } = useChatStore()
+  const { conversations, activeId, sendMessage, cancelStream, setDroppedImages } = useConversationsStore()
   const { selectedFiles, selectedFolders } = useRepoStore()
+  
+  // Get the active conversation
+  const activeConversation = conversations.find(c => c.id === activeId)
+  const messages = activeConversation?.messages || []
+  const isStreaming = activeConversation?.isStreaming || false
+  const droppedImages = activeConversation?.droppedImages || []
   const [input, setInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -47,10 +52,9 @@ export default function Chat({ textareaRef }: ChatProps) {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    if (!input.trim() || isStreaming) return
+    if (!input.trim() || isStreaming || !activeId) return
     setInput('')
-    await sendMessage(input, droppedImages)
-    setDroppedImages([])
+    await sendMessage(activeId, input, droppedImages)
   }
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -99,11 +103,27 @@ export default function Chat({ textareaRef }: ChatProps) {
       }
     }
 
-    setDroppedImages([...droppedImages, ...newImages])
+    if (activeId) {
+      setDroppedImages(activeId, [...droppedImages, ...newImages])
+    }
   }
 
   const removeImage = (index: number) => {
-    setDroppedImages(droppedImages.filter((_, i) => i !== index))
+    if (activeId) {
+      setDroppedImages(activeId, droppedImages.filter((_, i) => i !== index))
+    }
+  }
+
+  // Show empty state if no conversation is active
+  if (!activeId || !activeConversation) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <p className="text-xl mb-2">No conversation selected</p>
+          <p className="text-sm">Create a new chat or select an existing one</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -181,7 +201,7 @@ export default function Chat({ textareaRef }: ChatProps) {
                   />
                   <button
                     type={isStreaming ? 'button' : 'submit'}
-                    onClick={isStreaming ? cancelStream : handleSubmit}
+                    onClick={isStreaming && activeId ? () => cancelStream(activeId) : handleSubmit}
                     disabled={!input.trim() && !isStreaming}
                     className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center flex-shrink-0"
                   >

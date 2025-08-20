@@ -40,12 +40,14 @@ pub struct ChatMsg {
 #[derive(Debug, Clone, Serialize)]
 pub struct StreamToken {
     pub request_id: String,
+    pub conversation_id: String,
     pub delta: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct StreamDone {
     pub request_id: String,
+    pub conversation_id: String,
     pub finish_reason: Option<String>,
     pub canceled: bool,
 }
@@ -196,7 +198,7 @@ pub async fn repo_count_tokens(relpaths: Vec<String>) -> Result<TokenReport, Str
 }
 
 #[tauri::command]
-pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result<String, String> {
+pub async fn chat_stream_start(app: AppHandle, conversation_id: String, messages: Vec<ChatMsg>) -> Result<String, String> {
     info!("Starting chat stream with {} messages", messages.len());
     for (i, msg) in messages.iter().enumerate() {
         debug!(
@@ -212,10 +214,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
 
     {
         let mut cancels = STREAM_CANCELS.lock().await;
-        for (_, token) in cancels.iter() {
-            token.cancel();
-        }
-        cancels.clear();
+        // Do not cancel all existing streams, allow concurrent streaming
         cancels.insert(request_id.clone(), cancel_token.clone());
     }
 
@@ -276,6 +275,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
     );
 
     let req_id_clone = request_id.clone();
+    let conv_id_clone = conversation_id.clone();
     let app_clone = app.clone();
 
     tokio::spawn(async move {
@@ -291,6 +291,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
                 &body,
                 &app_clone,
                 &req_id_clone,
+                &conv_id_clone,
                 cancel_token.clone(),
             )
             .await
@@ -306,6 +307,7 @@ pub async fn chat_stream_start(app: AppHandle, messages: Vec<ChatMsg>) -> Result
                             "chat_done",
                             StreamDone {
                                 request_id: req_id_clone.clone(),
+                                conversation_id: conv_id_clone.clone(),
                                 finish_reason: Some(format!("error: {}", e)),
                                 canceled: false,
                             },
@@ -334,6 +336,7 @@ async fn stream_with_retry(
     body: &serde_json::Value,
     app: &AppHandle,
     request_id: &str,
+    conversation_id: &str,
     cancel_token: CancellationToken,
 ) -> Result<(), String> {
     // Log the size of the request
@@ -409,6 +412,7 @@ async fn stream_with_retry(
         _ = cancel_token.cancelled() => {
             let _ = app.emit("chat_done", StreamDone {
                 request_id: request_id.to_string(),
+                conversation_id: conversation_id.to_string(),
                 finish_reason: None,
                 canceled: true,
             });
@@ -448,6 +452,7 @@ async fn stream_with_retry(
                                 "chat_token",
                                 StreamToken {
                                     request_id: request_id.to_string(),
+                                    conversation_id: conversation_id.to_string(),
                                     delta: delta.to_string(),
                                 },
                             );
@@ -476,6 +481,7 @@ async fn stream_with_retry(
                             "chat_done",
                             StreamDone {
                                 request_id: request_id.to_string(),
+                                conversation_id: conversation_id.to_string(),
                                 finish_reason: Some(finish.to_string()),
                                 canceled: false,
                             },
@@ -496,6 +502,7 @@ async fn stream_with_retry(
                             "chat_done",
                             StreamDone {
                                 request_id: request_id.to_string(),
+                                conversation_id: conversation_id.to_string(),
                                 finish_reason: Some(format!("error: {}", msg)),
                                 canceled: false,
                             },

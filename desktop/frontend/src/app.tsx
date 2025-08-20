@@ -1,23 +1,36 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRepoStore } from './store/useRepoStore'
-import { useChatStore } from './store/useChatStore'
+import { useConversationsStore } from './store/useConversationsStore'
 import { useApiKey } from './hooks/useApiKey'
 import OpenFolderEmptyState from './components/OpenFolderEmptyState'
 import FilePicker from './components/FilePicker'
 import TokenCountBadge from './components/TokenCountBadge'
 import ApiKeySettings from './components/ApiKeySettings'
+import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 export default function App() {
   const { repo, loadRecent, clearFiles } = useRepoStore()
-  const { isPickerOpen, setPickerOpen, resetChat, isStreaming, clearDroppedImages } = useChatStore()
+  const { 
+    conversations, 
+    activeId, 
+    createConversation, 
+    setActive, 
+    clearDroppedImages, 
+    loadFromDisk 
+  } = useConversationsStore()
   const { hasApiKey, isLoading: isLoadingApiKey, recheckApiKey } = useApiKey()
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isPickerOpen, setPickerOpen] = useState(false)
+  
+  // Check if any conversation is currently streaming
+  const isStreaming = conversations.some(c => c.isStreaming)
 
   useEffect(() => {
     loadRecent()
-  }, [loadRecent])
+    loadFromDisk()
+  }, [loadRecent, loadFromDisk])
 
   useHotkeys('mod+p', (e) => {
     e.preventDefault()
@@ -29,7 +42,12 @@ export default function App() {
   // New Chat: Cmd/Ctrl+N
   useHotkeys('mod+n', (e) => {
     e.preventDefault()
-    resetChat()
+    const newId = createConversation()
+    setActive(newId)
+    // Focus textarea after creating new conversation
+    setTimeout(() => {
+      chatTextareaRef.current?.focus()
+    }, 100)
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
   // Clear files and images: ESC (only when not streaming)
@@ -37,7 +55,9 @@ export default function App() {
     if (!isStreaming) {
       e.preventDefault()
       clearFiles()
-      clearDroppedImages()
+      if (activeId) {
+        clearDroppedImages(activeId)
+      }
     }
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
@@ -56,23 +76,29 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
-        <div className="chat-container flex h-12 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-sm font-semibold text-gray-900">{repo.name}</h1>
-            <span className="text-xs text-gray-500">{repo.file_count} files</span>
+    <div className="flex h-screen">
+      {/* Sidebar */}
+      <Sidebar />
+      
+      {/* Main content */}
+      <div className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
+          <div className="flex h-12 items-center justify-between px-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-sm font-semibold text-gray-900">{repo.name}</h1>
+              <span className="text-xs text-gray-500">{repo.file_count} files</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TokenCountBadge />
+              <ApiKeySettings onApiKeySet={recheckApiKey} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <TokenCountBadge />
-            <ApiKeySettings onApiKeySet={recheckApiKey} />
-          </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="flex-1 overflow-hidden">
-        <Chat textareaRef={chatTextareaRef} />
-      </main>
+        <main className="flex-1 overflow-hidden">
+          <Chat textareaRef={chatTextareaRef} />
+        </main>
+      </div>
 
       <FilePicker open={isPickerOpen} onOpenChange={setPickerOpen} onFileSelected={handleFileSelection} />
     </div>
