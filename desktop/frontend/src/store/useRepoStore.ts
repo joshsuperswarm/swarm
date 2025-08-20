@@ -2,10 +2,6 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { RepoSummary, FileMeta, TokenReport } from '../types'
 
-// Optional switch if you want a flag you can toggle later
-const RESTORE_ON_STARTUP =
-  (import.meta.env.VITE_RESTORE_SELECTIONS_ON_STARTUP ?? 'false') === 'true'
-
 // Debounce handle for token counting
 let debounceHandle: any
 
@@ -79,17 +75,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           tokenReport: null,
         })
         await get().loadFiles()
-
-        // Do not restore saved selections on startup
-        // If you want a toggle via `.env`, use:
-        // if (RESTORE_ON_STARTUP) {
-        //   const savedFiles = await invoke<string[]>('load_selected_files')
-        //   const savedFolders = await invoke<string[]>('load_selected_folders')
-        //   if (savedFiles.length > 0 || savedFolders.length > 0) {
-        //     set({ selectedFiles: savedFiles, selectedFolders: savedFolders })
-        //     await get().updateTokens()
-        //   }
-        // }
       }
     } catch (error) {
       console.error('Failed to load recent repo:', error)
