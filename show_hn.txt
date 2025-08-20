@@ -1,0 +1,7 @@
+- voice control for mobile
+- people will ask about privacy policy and what we store
+- claude code web app is coming -> how do i differentiate
+- setting up dev environments for agents are a pain
+- github app sign in
+- 10 tasks a month free
+- subscriptions without clerk
