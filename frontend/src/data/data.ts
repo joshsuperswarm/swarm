@@ -8,7 +8,8 @@ import {
   CheckCircle2,
   Circle, 
   XCircle,
-  Clock
+  Clock,
+  CircleX
 } from "lucide-react";
 
 type Option = { 
@@ -31,5 +32,6 @@ export const statuses: Option[] = [
   { label: "Failed", value: "failed", icon: XCircle },
   { label: "PR Opened", value: "pr_opened", icon: CircleDot },
   { label: "PR Merged", value: "pr_merged", icon: CheckCircle2 },
+  { label: "PR Closed", value: "pr_closed", icon: CircleX },
 ];
 
