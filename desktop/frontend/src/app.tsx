@@ -24,8 +24,9 @@ export default function App() {
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [isPickerOpen, setPickerOpen] = useState(false)
   
-  // Check if any conversation is currently streaming
-  const isStreaming = conversations.some(c => c.isStreaming)
+  // Check if the active conversation is currently streaming
+  const activeConversation = conversations.find(c => c.id === activeId)
+  const isStreaming = activeConversation?.isStreaming ?? false
 
   useEffect(() => {
     loadRecent()
@@ -50,9 +51,9 @@ export default function App() {
     }, 100)
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
-  // Clear files and images: ESC (only when not streaming)
+  // Clear files and images: ESC (only when active conversation is not streaming and FilePicker is not open)
   useHotkeys('escape', (e) => {
-    if (!isStreaming) {
+    if (!isStreaming && !isPickerOpen) {
       e.preventDefault()
       clearFiles()
       if (activeId) {
