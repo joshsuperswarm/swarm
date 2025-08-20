@@ -1,0 +1,319 @@
+Here’s a pragmatic plan to detect Anthropic/Claude API errors coming out of the sandbox logs and surface a clear “API error” state in the UI with a retry path.
+
+High-level goals
+- Detect `is_error: true` result events in sandbox logs (e.g. 529 overloaded).
+- Persist a structured error on the `run` so the API/clients don’t need to parse
+  raw logs.
+- Prevent the normal “success” post‑processing (PR synthesis, etc.) after API
+  error.
+- Expose a dedicated `run.status = 'api_error'` (or similar) plus error metadata
+  to the UI and render a friendly state with a one‑click retry.
+
+1) Error taxonomy
+- api_overloaded: Anthropic 529 or `"error.type":"overloaded_error"`
+- api_rate_limited: 429 (and `Retry-After`)
+- api_auth: 401/403
+- api_server: other 5xx
+- api_other: default fallback
+
+Each error marked `retryable: true` for 429/5xx/529; false for auth.
+
+2) Minimal schema change
+Add structured error metadata to runs so UI can render a specific state and
+reason without parsing logs.
+
+- Add columns to `runs`:
+  - `error_meta jsonb`
+  - `error_at timestamptz`
+
+Example migration:
+
+```sql
+ALTER TABLE runs
+  ADD COLUMN error_meta jsonb,
+  ADD COLUMN error_at timestamptz;
+```
+
+3) Model and DB method additions
+- Add fields to `models::Run` (and TS export types if used in the UI) for
+  `error_meta` and `error_at`.
+- Add a helper to set run error metadata and update status.
+
+```rust
+// models.rs – add fields
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, TS)]
+#[ts(export)]
+pub struct Run {
+    pub id: i32,
+    pub task_id: i32,
+    pub message_id: Option<i64>,
+    pub sandbox_id: Option<String>,
+    pub sandbox_hostname: Option<String>,
+    pub session_id: Option<String>,
+    pub command_id: Option<String>,
+    pub branch: Option<String>,
+    pub status: Option<String>,
+    pub commit_title: Option<String>,
+    pub commit_body: Option<String>,
+    pub final_message_md: Option<String>,
+    pub mode: String,
+    pub model: String,
+    pub idle_timeout_at: Option<DateTime<Utc>>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+    #[ts(type = "Record<string, any> | null")]
+    pub error_meta: Option<serde_json::Value>,
+    pub error_at: Option<DateTime<Utc>>,
+}
+```
+
+```rust
+// database.rs – add setter
+pub async fn set_run_error(
+    &self,
+    run_id: i32,
+    status: &str, // "api_error" or "failed"
+    meta: serde_json::Value,
+) -> AppResult<Run> {
+    let run = sqlx::query_as!(
+        Run,
+        r#"
+        UPDATE runs
+           SET status = $2,
+               error_meta = $3,
+               error_at = NOW(),
+               updated_at = NOW()
+         WHERE id = $1
+        RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname,
+                  session_id, command_id, branch, status, commit_title,
+                  commit_body, final_message_md, mode, model,
+                  idle_timeout_at, created_at, updated_at,
+                  error_meta, error_at
+        "#,
+        run_id,
+        status,
+        meta
+    )
+    .fetch_one(&self.pool)
+    .await?;
+    Ok(run)
+}
+```
+
+4) Detect API error in the log stream (sandbox -> backend)
+Augment `ModalProvider::process_modal_log_stream` to:
+- Watch for `{"type":"result", "is_error": true, ...}` lines.
+- Extract code/type/message/request_id (from `result` string and/or JSON).
+- Write `runs.status = 'api_error'` with structured `error_meta`.
+- Write a user‑friendly `final_message_md` (used by UI as inline text).
+- Do not mark the run as `failed` and do not delete sandbox (keep session
+  warm for quick retry).
+
+```rust
+// sandbox/modal.rs – inside process_modal_log_stream loop,
+// after serializing and storing the log line:
+if modal_log.log_type == "result" {
+    let is_err = modal_log
+        .content
+        .get("is_error")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if is_err {
+        // Best-effort parse of "API Error: 529 {...}"
+        let raw = modal_log
+            .content
+            .get("result")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        // Parse helpers (pseudo - keep simple & robust)
+        let (http_status, err_type, err_msg, request_id) =
+            parse_anthropic_error_summary(raw);
+
+        let retryable = matches!(http_status, 429) || (500..=599).contains(&http_status);
+        let meta = serde_json::json!({
+            "source": "anthropic",
+            "http_status": http_status,
+            "type": err_type,
+            "message": err_msg,
+            "request_id": request_id,
+            "retryable": retryable
+        });
+
+        // Set specific error state; keep sandbox warm for retry
+        let _ = db
+            .set_run_error(run_id, "api_error", meta.clone())
+            .await;
+
+        // Friendly final message for inline display in UI
+        let friendly = if http_status == 529 || err_type == "overloaded_error" {
+            "The model is temporarily overloaded. Please retry in a minute."
+                .to_string()
+        } else if http_status == 429 {
+            "You’ve hit rate limits. Please wait a bit, then retry."
+                .to_string()
+        } else if http_status == 401 || http_status == 403 {
+            "Authentication error calling the model API. Check your key."
+                .to_string()
+        } else {
+            format!("Model API error ({}). Please retry.", http_status)
+        };
+
+        let _ = db.set_run_final_message(run_id, friendly).await;
+    }
+}
+```
+
+Note: keep the helper `parse_anthropic_error_summary` very defensive: regex
+out the first integer status code, try to parse embedded JSON if present for
+`error.type`, `message`, `request_id`.
+
+5) Prevent “success path” from running after API error
+- In `wait_for_final_message`, exit early when `run.status == 'api_error'`:
+  - Don’t synthesize PR.
+  - Leave sandbox running with idle timeout (for reuse).
+- In `handle_task`, right after exit code check returns `0`, fetch the run
+  and short‑circuit to error state if needed.
+
+```rust
+// sandbox_poller.rs
+async fn wait_for_final_message(...) -> anyhow::Result<()> {
+    // load run
+    let run = app_state
+        .database
+        .get_run_by_id(run_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Run {} not found", run_id))?;
+
+    // New: bail out if api_error
+    if matches!(run.status.as_deref(), Some("api_error")) {
+        // Keep idle timeout (session reuse). Do not delete sandbox.
+        tracing::warn!(
+            "Run {} ended with api_error; skipping PR synthesis",
+            run_id
+        );
+        // Optionally keep status as 'api_error' (UI shows retry)
+        return Ok(());
+    }
+
+    // ... existing final message path ...
+}
+```
+
+6) API responses: surface error to UI
+- Make sure `GET /api/tasks/:id/details` and `GET /api/tasks` include the
+  new fields (status `'api_error'` and `error_meta`). Update the SQL `SELECT`
+  to project the new columns and plumb them through `TaskWithRun`/`RunWithMeta`
+  as needed.
+- If you prefer not to add fields to the list‑view, at least return the
+  special status and final message; UI can show a badge and message.
+
+7) UI: render dedicated error state with retry
+UI guidelines:
+- Where runs are shown (task list and chat/details):
+  - If `run.status === 'api_error'`:
+    - Show an “API error” banner with:
+      - Title: “Claude is overloaded” (or “Rate limited”, “Auth error”, etc.).
+      - Subtitle: Friendly `run.final_message_md`.
+      - Details link expandable to show `run.error_meta.message` and
+        `run.error_meta.request_id`.
+    - Retry button:
+      - Triggers a new run with the same prompt and mode.
+      - Implementation: call `POST /api/tasks/:id/messages` with the same
+        content as the last user message (this is already supported and
+        creates a new run).
+    - Secondary action: “Change model” (optional) if you support `opus/sonnet`.
+- In the list view, show a pill “Needs retry” or “API error” with tooltip:
+  “Model overloaded (529). Try again.”
+
+8) Retry behavior
+- One‑click retry in the UI posts a new message with same content and mode.
+- Keep the sandbox warm for 15 min (already handled via idle timeout) so the
+  retry is fast and picks up the same branch/session.
+
+Optional: auto‑retry in backend
+- You can add a single auto‑retry in `process_modal_log_stream` for
+  `retryable: true` with a jittered delay. If you do, mark `error_meta.retried`
+  to avoid loops. Not required for the first iteration; UI retry is enough.
+
+9) Observability
+- Add counters to tracing:
+  - `anthropic_api_error_total{type=...,code=...}`
+  - `anthropic_api_error_retryable_total`
+- Log `request_id` when present.
+
+10) Edge cases and safeguards
+- Prevent false success: today `final_message_md` could contain the error
+  string and trick the success path. The early check on `status == 'api_error'`
+  prevents that.
+- Don’t delete sandbox on `api_error` so the user can retry quickly.
+  Consider setting a shorter idle timeout (e.g., 10 minutes) for error runs.
+- If the error is `api_auth`, consider showing an “Add/Update API key”
+  CTA (the backend already stores keys per user).
+
+11) Rollout plan
+- Ship DB migration.
+- Update models and `Database::set_run_error`.
+- Update log processing in `ModalProvider::process_modal_log_stream`.
+- Add early exit in `wait_for_final_message`.
+- Ensure API endpoints include `error_meta` and `status`.
+- UI: add error state rendering and retry button.
+- Add tests:
+  - Unit test: ingest a `result` line with `is_error: true` and assert
+    `runs.status == 'api_error'` and `error_meta` populated.
+  - Integration test: full task flow where Claude returns 529, verify no PR,
+    status `api_error`, and UI shows banner.
+
+Appendix: small helper to parse the error summary
+Keep it defensive to handle both simple strings and embedded JSON.
+
+```rust
+// sandbox/modal.rs
+fn parse_anthropic_error_summary(
+    raw: &str,
+) -> (i32, String, String, Option<String>) {
+    // e.g. "API Error: 529 {\"type\":\"error\",\"error\":{...}}"
+    let code = raw
+        .split_whitespace()
+        .find_map(|tok| tok.parse::<i32>().ok())
+        .unwrap_or(500);
+
+    let mut err_type = "api_error".to_string();
+    let mut msg = "Unknown error".to_string();
+    let mut req_id: Option<String> = None;
+
+    if let Some(idx) = raw.find('{') {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw[idx..]) {
+            err_type = v
+                .get("error")
+                .and_then(|e| e.get("type"))
+                .and_then(|s| s.as_str())
+                .unwrap_or("api_error")
+                .to_string();
+            msg = v
+                .get("error")
+                .and_then(|e| e.get("message"))
+                .and_then(|s| s.as_str())
+                .unwrap_or("API error")
+                .to_string();
+            req_id = v
+                .get("request_id")
+                .and_then(|s| s.as_str())
+                .map(|s| s.to_string());
+        }
+    }
+
+    (code, err_type, msg, req_id)
+}
+```
+
+What you’ll see in the UI after this change
+- A run will appear as `status = 'api_error'`.
+- A banner explains “Claude is overloaded. Please retry in a minute.”
+- A Retry button repeats the last user message to create a new run (fast,
+  reusing the same sandbox/branch).
+- Optional details show the provider error message and `request_id`.
+
+This gives users a clear, actionable state for transient provider failures
+and avoids confusing “success but nothing happened” outcomes.
