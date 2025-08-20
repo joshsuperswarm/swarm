@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Zap, Brain } from 'lucide-react';
+import { X, Zap, Sparkles } from 'lucide-react';
 import { RunModeButton } from '@/components/RunModeButton';
 import type { RunMode, ClaudeModel } from '@/services/api';
 import type { RepositoryTS } from '@/types/generated/RepositoryTS';
@@ -68,7 +68,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       case 'sonnet':
         return { icon: Zap, label: 'Sonnet', color: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700', description: 'Fast and cost-effective' };
       case 'opus':
-        return { icon: Brain, label: 'Opus', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', description: 'Advanced reasoning (5x cost)' };
+        return { icon: Sparkles, label: 'Opus', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700', description: 'Advanced reasoning (5x cost)' };
     }
   };
   

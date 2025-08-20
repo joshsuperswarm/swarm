@@ -12,7 +12,7 @@ import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 import { useRunPhase } from "@/hooks/useRunPhase";
-import { Bot, ArrowLeft, Brain, Zap } from 'lucide-react';
+import { Bot, ArrowLeft, Sparkles, Zap } from 'lucide-react';
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { RunMode, ClaudeModel } from "@/services/api";
@@ -121,7 +121,7 @@ export function TaskChatPage() {
       case 'sonnet':
         return { icon: Zap, label: 'Sonnet', color: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700' };
       case 'opus':
-        return { icon: Brain, label: 'Opus', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' };
+        return { icon: Sparkles, label: 'Opus', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' };
     }
   };
   

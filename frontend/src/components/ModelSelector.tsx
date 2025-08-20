@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, Zap } from 'lucide-react';
+import { Sparkles, Zap } from 'lucide-react';
 
 export type ClaudeModel = 'sonnet' | 'opus';
 
@@ -18,7 +18,7 @@ const modelInfo = {
   opus: {
     name: 'Opus',
     description: 'Advanced reasoning for complex problems (5x cost)',
-    icon: Brain,
+    icon: Sparkles,
   },
 };
 
