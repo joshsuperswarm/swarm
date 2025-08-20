@@ -4,6 +4,45 @@ import { listen } from '@tauri-apps/api/event'
 import { ChatMessage, ImageAttachment } from '../types'
 import { useRepoStore } from './useRepoStore'
 
+// Helper functions for structured repo context
+function langFromPath(p: string): string {
+  const ext = p.toLowerCase().split('.').pop() || ''
+  const map: Record<string, string> = {
+    ts: 'ts',
+    tsx: 'tsx',
+    js: 'js',
+    jsx: 'jsx',
+    json: 'json',
+    rs: 'rust',
+    toml: 'toml',
+    md: 'md',
+    css: 'css',
+    html: 'html',
+    go: 'go',
+    py: 'python',
+    rb: 'ruby',
+    java: 'java',
+    kt: 'kotlin',
+    cs: 'csharp',
+    sh: 'bash',
+    yml: 'yaml',
+    yaml: 'yaml',
+  }
+  return map[ext] ?? ''
+}
+
+function makeFence(content: string): { open: string; close: string } {
+  const candidates = ['```', '````', '~~~~', '~~~~~']
+  const pick = candidates.find(f => !content.includes(f)) ?? '`````'
+  return { open: pick, close: pick }
+}
+
+function fenceCode(content: string, lang: string): string {
+  const f = makeFence(content)
+  const head = lang ? `${f.open}${lang}\n` : `${f.open}\n`
+  return `${head}${content}\n${f.close}`
+}
+
 // Batching for stream tokens (module scope)
 const tokenBuffers = new Map<string, string[]>()
 let rafHandle: number | null = null
@@ -99,7 +138,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 - Keep code lines under 80 characters when possible. Break long lines appropriately with proper indentation.
 - Do not wrap short identifiers or single-line expressions in code blocks - use inline backticks instead.
 - Do not use inline HTML unless explicitly requested.
-- Use proper headings, lists, and tables where appropriate.`
+- Use proper headings, lists, and tables where appropriate.
+
+The user message may include a structured repo context:
+
+<repo_context>
+  <file path="relative/path" lang="ts">
+\`\`\`ts
+// file content
+\`\`\`
+  </file>
+  ...
+</repo_context>
+
+The user question will be enclosed in <user_question>…</user_question>.`
     }
     
     // Determine which files to send (only on first message)
@@ -109,25 +161,32 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     let fullContent = content
     
     if (filesToSend.length > 0) {
-      // Use bulk read API for efficiency
-      const fileMap = await invoke<Record<string, string>>('repo_read_files_bulk', { 
-        relpaths: filesToSend 
-      })
-      
-      // For display, show folders and individual files (not expanded)
+      const fileMap = await invoke<Record<string, string>>(
+        'repo_read_files_bulk',
+        { relpaths: filesToSend }
+      )
+
       includedFiles = [
         ...selectedFolders.map(f => `${f}/`),
-        ...selectedFiles
+        ...selectedFiles,
       ]
-      
-      fullContent += '\n\n--- Selected Files ---\n'
-      
+
+      const parts: string[] = []
+      parts.push('<repo_context>')
       for (const relpath of filesToSend) {
         const fileContent = fileMap[relpath] ?? ''
-        fullContent += `\n--- ${relpath} ---\n${fileContent}\n`
+        const lang = langFromPath(relpath)
+        parts.push(
+          `  <file path="${relpath}" lang="${lang}">`,
+          fenceCode(fileContent, lang),
+          '  </file>'
+        )
       }
-      
-      // Mark files as sent
+      parts.push('</repo_context>', '')
+
+      parts.push('<user_question>', content, '</user_question>')
+      fullContent = parts.join('\n')
+
       set({ filesAlreadySent: true })
     }
     
@@ -232,3 +291,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   
   clearDroppedImages: () => set({ droppedImages: [] }),
 }))
+
+// Reset filesAlreadySent when file/folder selection changes
+useRepoStore.subscribe((state, prev) => {
+  const filesChanged = state.selectedFiles !== prev.selectedFiles
+  const foldersChanged = state.selectedFolders !== prev.selectedFolders
+  if (filesChanged || foldersChanged) {
+    useChatStore.setState({ filesAlreadySent: false })
+  }
+})
