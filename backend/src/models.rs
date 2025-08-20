@@ -402,3 +402,17 @@ pub struct UpdateApiKeysRequest {
 pub struct SetDefaultRepoRequest {
     pub repository_id: i32,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ApiAccessToken {
+    pub id: i32,
+    pub user_id: i32,
+    pub token_id: String,
+    pub token_hash: String,
+    pub name: Option<String>,
+    pub last_four: String,
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+}

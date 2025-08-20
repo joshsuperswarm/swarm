@@ -1268,6 +1268,105 @@ impl Database {
 
         Ok(())
     }
+
+    // API Token operations
+    pub async fn create_api_token(
+        &self,
+        user_id: i32,
+        token_id: &str,
+        token_hash: &str,
+        name: Option<&str>,
+        last_four: &str,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> AppResult<crate::models::ApiAccessToken> {
+        let rec = sqlx::query_as!(
+            crate::models::ApiAccessToken,
+            r#"
+            INSERT INTO user_access_tokens
+              (user_id, token_id, token_hash, name, last_four, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, user_id, token_id, token_hash, name, last_four,
+                      created_at, last_used_at, expires_at, revoked_at
+            "#,
+            user_id,
+            token_id,
+            token_hash,
+            name,
+            last_four,
+            expires_at
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(rec)
+    }
+
+    pub async fn get_api_token_by_id(
+        &self,
+        token_id: &str,
+    ) -> AppResult<Option<crate::models::ApiAccessToken>> {
+        let rec = sqlx::query_as!(
+            crate::models::ApiAccessToken,
+            r#"
+            SELECT id, user_id, token_id, token_hash, name, last_four,
+                   created_at, last_used_at, expires_at, revoked_at
+            FROM user_access_tokens
+            WHERE token_id = $1
+            "#,
+            token_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec)
+    }
+
+    pub async fn list_api_tokens_for_user(
+        &self,
+        user_id: i32,
+    ) -> AppResult<Vec<crate::models::ApiAccessToken>> {
+        let rows = sqlx::query_as!(
+            crate::models::ApiAccessToken,
+            r#"
+            SELECT id, user_id, token_id, token_hash, name, last_four,
+                   created_at, last_used_at, expires_at, revoked_at
+            FROM user_access_tokens
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            "#,
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn revoke_api_token(&self, user_id: i32, token_id: &str) -> AppResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE user_access_tokens
+            SET revoked_at = NOW()
+            WHERE user_id = $1 AND token_id = $2
+            "#,
+            user_id,
+            token_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn touch_api_token_last_used(&self, token_id: &str) -> AppResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE user_access_tokens
+            SET last_used_at = NOW()
+            WHERE token_id = $1
+            "#,
+            token_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

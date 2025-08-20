@@ -1,8 +1,8 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Json, Path, Query, State},
     http::StatusCode,
     middleware,
-    response::Json,
+    response::Json as ResponseJson,
     routing::{get, post, put},
     Router,
 };
@@ -13,6 +13,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 mod agent_log_parser;
 mod auth;
+mod auth_api_tokens;
 mod claude;
 mod clerk_api;
 mod config;
@@ -27,7 +28,7 @@ mod sandbox;
 mod sandbox_poller;
 mod task_pipeline;
 
-use auth::{clerk_middleware, CurrentUser, GitHubTokenBody};
+use auth::{auth_middleware, CurrentUser, GitHubTokenBody};
 use config::Config;
 use database::Database;
 use error::{AppError, AppResult};
@@ -584,6 +585,12 @@ async fn main() -> AppResult<()> {
         )
         .route("/api/user/api-keys", post(update_api_keys))
         .route("/api/user/api-keys/status", get(get_api_keys_status))
+        .route("/api/auth/api-keys", post(create_api_key))
+        .route("/api/auth/api-keys", get(list_api_keys))
+        .route(
+            "/api/auth/api-keys/:token_id",
+            axum::routing::delete(revoke_api_key),
+        )
         .route("/api/user/default-repo", put(set_default_repo_onboarding))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks", post(create_task))
@@ -594,7 +601,10 @@ async fn main() -> AppResult<()> {
         .route("/api/tasks/:id/messages", post(post_task_message))
         .route("/api/tasks/:id/archive", put(archive_task))
         .route("/api/tasks/archive", put(archive_multiple_tasks))
-        .layer(middleware::from_fn(clerk_middleware))
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            auth_middleware,
+        ))
         .layer(cors)
         .with_state(app_state);
 
@@ -612,6 +622,124 @@ async fn main() -> AppResult<()> {
         .map_err(|e| AppError::Internal(format!("Server error: {}", e)))?;
 
     Ok(())
+}
+
+// API Key Management Handlers
+
+#[derive(serde::Deserialize)]
+struct CreateApiKeyRequest {
+    name: Option<String>,
+    ttl_days: Option<i32>, // optional expiry
+}
+
+#[derive(serde::Serialize)]
+struct CreateApiKeyResponse {
+    api_key: String, // shown once
+    token_id: String,
+    name: Option<String>,
+    last_four: String,
+    expires_at: Option<String>,
+    created_at: String,
+}
+
+async fn create_api_key(
+    CurrentUser(user): CurrentUser,
+    State(app): State<AppState>,
+    Json(body): Json<CreateApiKeyRequest>,
+) -> Result<ResponseJson<CreateApiKeyResponse>, StatusCode> {
+    let db_user = app
+        .database
+        .get_user_by_clerk_id(&user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let new = crate::auth_api_tokens::generate_api_token(true)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let expires_at = body
+        .ttl_days
+        .map(|d| chrono::Utc::now() + chrono::Duration::days(d as i64));
+
+    let rec = app
+        .database
+        .create_api_token(
+            db_user.id,
+            &new.token_id,
+            &new.token_hash,
+            body.name.as_deref(),
+            &new.last_four,
+            expires_at,
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(ResponseJson(CreateApiKeyResponse {
+        api_key: new.token_string,
+        token_id: rec.token_id,
+        name: rec.name,
+        last_four: rec.last_four,
+        expires_at: rec.expires_at.map(|d| d.to_rfc3339()),
+        created_at: rec
+            .created_at
+            .map(|d| d.to_rfc3339())
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+    }))
+}
+
+async fn list_api_keys(
+    CurrentUser(user): CurrentUser,
+    State(app): State<AppState>,
+) -> Result<ResponseJson<serde_json::Value>, StatusCode> {
+    let db_user = app
+        .database
+        .get_user_by_clerk_id(&user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let recs = app
+        .database
+        .list_api_tokens_for_user(db_user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let list: Vec<_> = recs
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "token_id": r.token_id,
+                "name": r.name,
+                "last_four": r.last_four,
+                "created_at": r.created_at.map(|d| d.to_rfc3339()),
+                "last_used_at": r.last_used_at.map(|d| d.to_rfc3339()),
+                "expires_at": r.expires_at.map(|d| d.to_rfc3339()),
+                "revoked_at": r.revoked_at.map(|d| d.to_rfc3339()),
+            })
+        })
+        .collect();
+
+    Ok(ResponseJson(serde_json::json!({ "keys": list })))
+}
+
+async fn revoke_api_key(
+    CurrentUser(user): CurrentUser,
+    State(app): State<AppState>,
+    Path(token_id): Path<String>,
+) -> Result<ResponseJson<serde_json::Value>, StatusCode> {
+    let db_user = app
+        .database
+        .get_user_by_clerk_id(&user.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    app.database
+        .revoke_api_token(db_user.id, &token_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(ResponseJson(serde_json::json!({ "success": true })))
 }
 
 #[cfg(test)]
