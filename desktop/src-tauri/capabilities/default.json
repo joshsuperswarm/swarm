@@ -4,12 +4,31 @@
   "description": "Default permissions for the application",
   "windows": ["main"],
   "permissions": [
+    "core:event:default",
     "core:event:allow-listen",
     "core:event:allow-emit",
-    "core:event:default",
     "dialog:default",
-    "fs:default",
-    "core:path:default",
-    "core:path:allow-resolve-directory"
+
+    "fs:scope-applocaldata",
+    "fs:scope-applocaldata-recursive",
+    "fs:create-app-specific-dirs",
+
+    "fs:allow-applocaldata-meta",
+    "fs:allow-applocaldata-meta-recursive",
+
+    "fs:allow-applocaldata-read",
+    "fs:allow-applocaldata-read-recursive",
+
+    "fs:allow-applocaldata-write-recursive",
+
+    "fs:allow-exists",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+
+    "core:path:allow-join",
+    "core:path:allow-resolve",
+    "core:path:allow-resolve-directory",
+    "core:path:allow-dirname",
+    "core:path:allow-basename"
   ]
 }

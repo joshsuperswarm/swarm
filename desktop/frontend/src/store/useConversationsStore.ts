@@ -7,11 +7,12 @@ import {
   Conversation 
 } from '../types'
 import { useRepoStore } from './useRepoStore'
-import { appLocalDataDir } from '@tauri-apps/api/path'
 import { 
   readTextFile, 
   writeTextFile, 
-  exists
+  exists,
+  mkdir,
+  BaseDirectory
 } from '@tauri-apps/plugin-fs'
 import { debounce } from 'lodash-es'
 
@@ -131,10 +132,15 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
   // Debounced save function
   const debouncedSave = debounce(async () => {
     const { conversations } = get()
+    const file = 'conversations.json'
     try {
-      const localDataDir = await appLocalDataDir()
-      const filePath = `${localDataDir}/conversations.json`
-      await writeTextFile(filePath, JSON.stringify(conversations, null, 2))
+      // Ensure dir exists (usually does, but safe)
+      await mkdir('.', { baseDir: BaseDirectory.AppLocalData, recursive: true })
+      await writeTextFile(
+        file, 
+        JSON.stringify(conversations, null, 2),
+        { baseDir: BaseDirectory.AppLocalData }
+      )
     } catch (error) {
       console.error('Failed to save conversations:', error)
     }
@@ -437,12 +443,10 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
     },
 
     loadFromDisk: async () => {
+      const file = 'conversations.json'
       try {
-        const localDataDir = await appLocalDataDir()
-        const filePath = `${localDataDir}/conversations.json`
-        
-        if (await exists(filePath)) {
-          const content = await readTextFile(filePath)
+        if (await exists(file, { baseDir: BaseDirectory.AppLocalData })) {
+          const content = await readTextFile(file, { baseDir: BaseDirectory.AppLocalData })
           const conversations: Conversation[] = JSON.parse(content)
           
           // If no conversations exist, create a default one
