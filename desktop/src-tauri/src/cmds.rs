@@ -52,6 +52,13 @@ pub struct StreamDone {
     pub canceled: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatPayload {
+    pub request_id: String,
+    pub conversation_id: String,
+    pub payload: serde_json::Value,
+}
+
 // Map ChatMsg to Responses API input format
 fn to_responses_input(messages: &[ChatMsg]) -> serde_json::Value {
     let items: Vec<serde_json::Value> = messages
@@ -274,6 +281,7 @@ pub async fn chat_stream_start(
     let body = serde_json::json!({
         "model": model,
         "input": to_responses_input(&messages),
+        "tools": [{ "type": "web_search" }],
         "stream": true
     });
     debug!(
@@ -478,6 +486,20 @@ async fn stream_with_retry(
                             .and_then(|r| r.get("status"))
                             .and_then(|s| s.as_str())
                             .unwrap_or("completed");
+
+                        // Emit full response payload so the UI can parse citations.
+                        let full = parsed
+                            .get("response")
+                            .cloned()
+                            .unwrap_or(serde_json::json!({}));
+                        let _ = app.emit(
+                            "chat_payload",
+                            ChatPayload {
+                                request_id: request_id.to_string(),
+                                conversation_id: conversation_id.to_string(),
+                                payload: full,
+                            },
+                        );
 
                         info!(
                             "Received response.completed signal for request {}, total tokens: {}",

@@ -67,6 +67,35 @@ function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
               })}
             </div>
           ) : null}
+
+          {/* Citations display */}
+          {!isUser && message.citations?.length ? (
+            <div className="mt-3">
+              <hr className="border-t border-gray-200 mb-2" />
+              <div className="text-xs text-gray-600 font-medium mb-1">
+                Sources
+              </div>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                {message.citations.map((c, idx) => (
+                  <li key={`${c.url}-${idx}`}>
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 underline
+                                 decoration-1 underline-offset-2"
+                      title={c.title ?? c.url}
+                    >
+                      {c.domain}
+                    </a>
+                    {c.title ? (
+                      <span className="text-gray-600"> — {c.title}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
         </div>
 
         {/* hover copy */}

@@ -15,6 +15,9 @@ import {
   BaseDirectory
 } from '@tauri-apps/plugin-fs'
 import { debounce } from 'lodash-es'
+import {
+  extractWebSearchCitations,
+} from '../search/parseCitations'
 
 // Batching for stream tokens (module scope)
 const tokenBuffers = new Map<string, string[]>()
@@ -83,6 +86,12 @@ interface StreamDone {
   conversation_id: string
   finish_reason: string | null
   canceled: boolean
+}
+
+interface ChatPayload {
+  request_id: string
+  conversation_id: string
+  payload: any // ResponsesApiPayload shape
 }
 
 interface ConversationsStore {
@@ -305,7 +314,10 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
 - Keep code lines under 80 characters when possible. Break long lines appropriately with proper indentation.
 - Do not wrap short identifiers or single-line expressions in code blocks - use inline backticks instead.
 - Do not use inline HTML unless explicitly requested.
-- Use proper headings, lists, and tables where appropriate.`
+- Use proper headings, lists, and tables where appropriate.
+Use web search when needed for fresh or time-sensitive facts and
+include citations. Sources will be parsed from url_citation annotations
+and rendered as footnotes.`
       }
       
       // Determine which files to send (only on first message)
@@ -429,6 +441,49 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
           }
         })
 
+        const unlistenPayload = await listen<ChatPayload>(
+          'chat_payload',
+          (event) => {
+            if (
+              event.payload.request_id === requestId &&
+              event.payload.conversation_id === conversationId
+            ) {
+              const citations = extractWebSearchCitations(event.payload.payload)
+
+              set((state: any) => {
+                const conversations = state.conversations.map(
+                  (conv: Conversation) => {
+                    if (conv.id !== conversationId) return conv
+                    if (conv.messages.length === 0) return conv
+
+                    const last = conv.messages.length - 1
+                    const msgs = conv.messages.slice()
+                    const apis = conv.apiMessages.slice()
+
+                    msgs[last] = {
+                      ...msgs[last],
+                      citations,
+                    }
+                    apis[last] = {
+                      ...apis[last],
+                      citations,
+                    }
+
+                    return {
+                      ...conv,
+                      messages: msgs,
+                      apiMessages: apis,
+                    }
+                  }
+                )
+                return { conversations }
+              })
+
+              saveToDisk()
+            }
+          }
+        )
+
         const unlistenDone = await listen<StreamDone>('chat_done', (event) => {
           if (event.payload.request_id === requestId && 
               event.payload.conversation_id === conversationId) {
@@ -455,6 +510,7 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
             saveToDisk()
             unlistenToken()
             unlistenDone()
+            unlistenPayload()
           }
         })
       } catch (error) {

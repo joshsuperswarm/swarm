@@ -33,11 +33,19 @@ export interface ImageAttachment {
   name: string; // file name
 }
 
+export interface Citation {
+  url: string;
+  domain: string;
+  title?: string | null;
+  index?: number | null;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   includedFiles?: string[]; // Files included in this message (for user messages)
   images?: ImageAttachment[]; // Image attachments
+  citations?: Citation[]; // NEW: parsed web citations
 }
 
 export interface Conversation {
