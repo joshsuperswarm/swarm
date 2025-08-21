@@ -4,6 +4,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
 import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
+import ApiKeysPanel from './components/account/ApiKeysPanel'
 import { ApiService, type RunMode, type ClaudeModel } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useModalStore } from './store/modalStore'
@@ -123,7 +124,11 @@ function App() {
               >
                 <Edit className="w-4 h-4" />
               </button>
-              <UserButton />
+              <UserButton>
+                <UserButton.UserProfilePage label="API Keys" url="api-keys" labelIcon="🔑">
+                  <ApiKeysPanel />
+                </UserButton.UserProfilePage>
+              </UserButton>
             </div>
           </div>
         </nav>
