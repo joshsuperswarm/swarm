@@ -92,7 +92,7 @@ export default function Chat({ textareaRef }: ChatProps) {
   useEffect(() => {
     const ta = activeTextareaRef.current
     if (!ta) return
-    ta.style.height = '0px'
+    ta.style.height = 'auto'
     ta.style.height = Math.min(ta.scrollHeight, 220) + 'px'
   }, [input, activeTextareaRef])
 
@@ -225,7 +225,7 @@ export default function Chat({ textareaRef }: ChatProps) {
               )}
               {/* Input and button row */}
               <div className="w-full">
-                <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-gray-700 transition-colors">
+                <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-gray-700 transition-colors overflow-hidden">
                   <textarea
                     ref={activeTextareaRef}
                     value={input}
@@ -250,7 +250,7 @@ export default function Chat({ textareaRef }: ChatProps) {
                     placeholder={selectedFiles.length === 0 && selectedFolders.length === 0 ? "Type your message…" : "Ask about the selected files…"}
                     disabled={isStreaming}
                     rows={1}
-                    className="max-h-56 w-full resize-none bg-transparent px-3 py-2 outline-none font-sans text-gray-900 placeholder:text-gray-500"
+                    className="flex-1 min-w-0 max-h-56 resize-none bg-transparent px-3 py-2 outline-none font-sans text-gray-900 placeholder:text-gray-500 box-border overflow-x-hidden"
                   />
                   <button
                     type={isStreaming ? 'button' : 'submit'}
