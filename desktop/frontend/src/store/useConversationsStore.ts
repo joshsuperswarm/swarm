@@ -134,7 +134,6 @@ const createInitialConversation = (): Conversation => ({
   createdAt: Date.now(),
   updatedAt: Date.now(),
   droppedImages: [],
-  filesAlreadySent: false,
 })
 
 const generateChatTitle = async (
@@ -321,7 +320,7 @@ and rendered as footnotes.`
       }
       
       // Determine which files to send (only on first message)
-      const filesToSend = !conversation.filesAlreadySent ? expandedFiles : []
+      const filesToSend = isFirstUserMessage ? expandedFiles : []
       // For UI display, show top-level selections (folders + individual files)
       let includedFiles: string[] = []
       let fullContent = content
@@ -394,7 +393,6 @@ and rendered as footnotes.`
             ...conv,
             messages: displayMessages,
             apiMessages,
-            filesAlreadySent: filesToSend.length > 0 || conv.filesAlreadySent,
             title: newTitle,
             titlePending,
             titleStatus,

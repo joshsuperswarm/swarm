@@ -59,7 +59,6 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   droppedImages: ImageAttachment[];
-  filesAlreadySent: boolean;
   titlePending?: boolean;
   titleStatus?: 'generating' | 'success' | 'error' | 'fallback';
 }
