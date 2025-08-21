@@ -3,6 +3,6 @@ import type { AgentTodo } from "./AgentTodo";
 
 export type TaskWithRun = { run_id: number, task_id: number, title: string, 
 /**
- * Deprecated – will be removed after 2025-Q3
+ * Deprecated  will be removed after 2025-Q3
  */
-description: string | null, repository_id: number, user_id: number, status: string | null, github_branch: string | null, sandbox_id: string | null, sandbox_hostname: string | null, session_id: string | null, command_id: string | null, commit_title: string | null, commit_body: string | null, mode: string | null, model: string | null, pr_title: string | null, pr_body: string | null, is_archived: boolean, created_at: string | null, updated_at: string | null, github_pr_url: string | null, pr_merged_at: string | null, latest_todos: Array<AgentTodo> | null, };
+description: string | null, repository_id: number, user_id: number, status: string | null, github_branch: string | null, sandbox_id: string | null, sandbox_hostname: string | null, session_id: string | null, command_id: string | null, commit_title: string | null, commit_body: string | null, mode: string | null, model: string | null, pr_title: string | null, pr_body: string | null, is_archived: boolean, created_at: string | null, updated_at: string | null, github_pr_url: string | null, pr_merged_at: string | null, pr_closed_at: string | null, latest_todos: Array<AgentTodo> | null, };

@@ -19,6 +19,8 @@ export const taskWithRunSchema = z.object({
   commit_body: z.string().optional().nullable(),
   pr_title: z.string().optional().nullable(),
   pr_body: z.string().optional().nullable(),
+  pr_merged_at: z.string().optional().nullable(),
+  pr_closed_at: z.string().optional().nullable(),
   created_at: z.string().optional().nullable(),
   updated_at: z.string().optional().nullable(),
   github_pr_url: z.string().optional().nullable(),
