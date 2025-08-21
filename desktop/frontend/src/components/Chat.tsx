@@ -32,6 +32,7 @@ export default function Chat({ textareaRef }: ChatProps) {
   const droppedImages = activeConversation?.droppedImages || []
   const [input, setInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const dragCounterRef = useRef(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -96,6 +97,27 @@ export default function Chat({ textareaRef }: ChatProps) {
     setHasNewerBelow(false)
   }, [activeId])
 
+  // Global drag event listeners to handle drag ending outside the window
+  useEffect(() => {
+    // End drag if it finishes or leaves the window
+    const onDragEnd = () => resetDrag()
+    const onDrop = () => resetDrag()
+    const onWindowDragLeave = (e: DragEvent) => {
+      // relatedTarget === null means pointer left the window
+      if (e.relatedTarget == null) resetDrag()
+    }
+
+    window.addEventListener('dragend', onDragEnd)
+    window.addEventListener('drop', onDrop)
+    window.addEventListener('dragleave', onWindowDragLeave)
+
+    return () => {
+      window.removeEventListener('dragend', onDragEnd)
+      window.removeEventListener('drop', onDrop)
+      window.removeEventListener('dragleave', onWindowDragLeave)
+    }
+  }, [])
+
 
   // auto-grow textarea
   useEffect(() => {
@@ -145,29 +167,46 @@ export default function Chat({ textareaRef }: ChatProps) {
     await sendMessage(activeId, input, droppedImages)
   }
 
+  const hasFiles = (e: React.DragEvent | DragEvent) => {
+    const types = Array.from(e.dataTransfer?.types ?? [])
+    return types.includes('Files')
+  }
+
+  const resetDrag = () => {
+    dragCounterRef.current = 0
+    setIsDragging(false)
+  }
+
   const handleDragEnter = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
     e.preventDefault()
     e.stopPropagation()
+    dragCounterRef.current += 1
     setIsDragging(true)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
     e.preventDefault()
     e.stopPropagation()
-    if (e.currentTarget === e.target) {
+    // decrement and clear when fully left (handles nested targets)
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
+    if (dragCounterRef.current === 0) {
       setIsDragging(false)
     }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return
     e.preventDefault()
     e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragging(false)
+    resetDrag()
 
     const files = Array.from(e.dataTransfer.files)
     const imageFiles = files.filter(file => file.type.startsWith('image/'))
