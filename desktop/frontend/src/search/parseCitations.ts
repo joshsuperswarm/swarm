@@ -1,5 +1,4 @@
 import {
-  ResponsesApiPayload,
   ParsedCitation,
   ResponseOutputItem,
 } from "./types";
