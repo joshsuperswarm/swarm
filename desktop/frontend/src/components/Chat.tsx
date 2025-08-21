@@ -27,6 +27,7 @@ export default function Chat({ textareaRef }: ChatProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [hasNewerBelow, setHasNewerBelow] = useState(false)
   
   // Use the passed ref if available, otherwise use the internal ref
   const activeTextareaRef = textareaRef || internalTextareaRef
@@ -34,7 +35,15 @@ export default function Chat({ textareaRef }: ChatProps) {
   const scrollToBottom = (smooth = true) =>
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
 
-  // Observe whether the bottom sentinel is visible inside the container
+  // Helper: tolerant "at bottom" check by math
+  const atBottomByMath = () => {
+    const el = scrollContainerRef.current
+    if (!el) return true
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight
+    return gap <= 2 // allow tiny rounding errors
+  }
+
+  // Observe sentinel visibility inside the container (tolerant threshold)
   useEffect(() => {
     const container = scrollContainerRef.current
     const sentinel = messagesEndRef.current
@@ -42,17 +51,41 @@ export default function Chat({ textareaRef }: ChatProps) {
 
     const io = new IntersectionObserver(
       ([entry]) => setIsAtBottom(entry.isIntersecting),
-      { root: container, threshold: 1 }
+      { root: container, threshold: 0.999 }
     )
 
     io.observe(sentinel)
     return () => io.disconnect()
   }, [])
 
-  // Only autoscroll if the user is actually at the bottom
+  // Also update bottom state on scroll (math fallback)
   useEffect(() => {
-    if (isAtBottom) scrollToBottom(false)
-  }, [messages, isAtBottom])
+    const el = scrollContainerRef.current
+    if (!el) return
+    const onScroll = () => setIsAtBottom(atBottomByMath())
+    el.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // When messages change:
+  // - if user is at bottom, keep them pinned
+  // - if not at bottom, mark that there is newer content below
+  useEffect(() => {
+    const atBottomNow = isAtBottom || atBottomByMath()
+    if (atBottomNow) {
+      setHasNewerBelow(false)
+      scrollToBottom(false)
+    } else {
+      // Only set when content actually changed in this chat
+      if (messages.length > 0) setHasNewerBelow(true)
+    }
+  }, [messages]) // messages only from active conversation
+
+  // Reset unseen flag when switching conversations
+  useEffect(() => {
+    setHasNewerBelow(false)
+  }, [activeId])
 
 
   // auto-grow textarea
@@ -127,6 +160,13 @@ export default function Chat({ textareaRef }: ChatProps) {
     }
   }
 
+  const atBottomCombined = isAtBottom || atBottomByMath()
+
+  // Show pill only if:
+  //  - not at bottom, and
+  //  - this chat is streaming OR there are unseen newer messages in this chat
+  const atBottomForPill = atBottomCombined || !(isStreaming || hasNewerBelow)
+
   // Show empty state if no conversation is active
   if (!activeId || !activeConversation) {
     return (
@@ -163,7 +203,7 @@ export default function Chat({ textareaRef }: ChatProps) {
         </div>
       </div>
 
-      <ScrollToBottom container={scrollContainerRef.current} atBottom={isAtBottom} />
+      <ScrollToBottom container={scrollContainerRef.current} atBottom={atBottomForPill} />
 
       {/* Floating Composer */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
