@@ -600,6 +600,7 @@ async fn main() -> AppResult<()> {
         .route("/api/tasks/:id/messages", get(get_task_messages))
         .route("/api/tasks/:id/messages", post(post_task_message))
         .route("/api/tasks/:id/archive", put(archive_task))
+        .route("/api/tasks/:id/stop", post(stop_task))
         .route("/api/tasks/archive", put(archive_multiple_tasks))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -2257,6 +2258,83 @@ async fn archive_task(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+async fn stop_task(
+    CurrentUser(clerk_user): CurrentUser,
+    State(app_state): State<AppState>,
+    Path(task_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Ensure user exists and owns task
+    let user = get_or_create_user(&app_state.database, &clerk_user)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    app_state
+        .database
+        .ensure_task_owner(task_id, user.id)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
+
+    // Get latest run
+    let run_id = app_state
+        .database
+        .get_latest_run_id_for_task(task_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let Some(run_id) = run_id else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
+
+    let run = app_state
+        .database
+        .get_run_by_id(run_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let status = run.status.unwrap_or_default();
+    let stoppable = status == "spinning" || status == "running";
+
+    if !stoppable {
+        return Err(StatusCode::CONFLICT);
+    }
+
+    // Attempt to stop sandbox if present
+    if let Some(sandbox_id) = run.sandbox_id.as_ref() {
+        let _ = app_state.sandbox.stop_sandbox(sandbox_id).await;
+        // Also clean up and prevent idle timeout cleanup from racing
+        let _ = app_state.sandbox.delete_sandbox(sandbox_id).await;
+    }
+
+    // Mark run failed (terminal) and clear idle timeout
+    let _ = app_state
+        .database
+        .update_run_status(run_id, "failed")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let _ = app_state
+        .database
+        .clear_run_idle_timeout(run_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Optional: log a small system message in chat
+    let _ = app_state
+        .database
+        .upsert_message(
+            task_id,
+            run_id,
+            &run.mode,
+            "Run stopped by user.",
+            "stopped_by_user",
+            "system",
+        )
+        .await;
+
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
 async fn archive_multiple_tasks(

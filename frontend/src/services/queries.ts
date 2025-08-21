@@ -287,3 +287,18 @@ export const useUpdateApiKeysMutation = () => {
     },
   })
 }
+
+export const useStopTaskMutation = (taskId: number) => {
+  const qc = useQueryClient()
+  const { data: jwt } = useBackendJwtQuery()
+
+  return useMutation({
+    mutationFn: () => ApiService.stopTask(jwt!, taskId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['task-details', taskId] })
+      qc.invalidateQueries({ queryKey: ['task-logs', taskId] })
+      qc.invalidateQueries({ queryKey: ['task-messages', taskId] })
+    },
+  })
+}

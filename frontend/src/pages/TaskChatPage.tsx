@@ -7,12 +7,13 @@ import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { RunModeButton } from "@/components/RunModeButton";
 import { InlineRunProgress } from "@/components/InlineRunProgress";
 import { statuses } from "@/data/data";
-import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation, useTaskTodosQuery } from "@/services/queries";
+import { useTaskDetailsQuery, useTasksQuery, useArchiveTaskMutation, useTaskTodosQuery, useStopTaskMutation } from "@/services/queries";
 import { useSendTaskMessage } from "@/hooks/useSendTaskMessage";
 import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 import { useRunPhase } from "@/hooks/useRunPhase";
 import { Bot, ArrowLeft, Sparkles, Zap } from 'lucide-react';
+import { Button } from "@/components/ui/button";
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { RunMode, ClaudeModel } from "@/services/api";
@@ -42,6 +43,7 @@ export function TaskChatPage() {
   const { data: allTasks = [] } = useTasksQuery();
   const { mutateAsync: sendMessage, isPending: isSending } = useSendTaskMessage(taskId || 0);
   const archiveMutation = useArchiveTaskMutation();
+  const stopMutation = useStopTaskMutation(taskId || 0);
   
   // Extract current run status for todo fetching
   const task = taskDetails?.task;
@@ -189,6 +191,9 @@ export function TaskChatPage() {
   );
   const status = statuses.find((s) => s.value === currentRunStatus);
   
+  // Determine if task is active for Stop button
+  const isActive = currentRunStatus === 'spinning' || currentRunStatus === 'running';
+  
   // Pick the first user message as description proxy if available
   const firstUser = messages.find(m => m.role === "user");
   const pendingTitle = isTitlePending({
@@ -257,22 +262,46 @@ export function TaskChatPage() {
           
           {/* Task Status */}
           {status && (
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Status
-              </span>
-              {status.icon && <status.icon className="h-3 w-3 text-gray-500" />}
-              {status.value === "pr_opened" && task.github_pr_url ? (
-                <a
-                  href={task.github_pr_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline"
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Status
+                </span>
+                {status.icon && <status.icon className="h-3 w-3 text-gray-500" />}
+                {status.value === "pr_opened" && task.github_pr_url ? (
+                  <a
+                    href={task.github_pr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    {status.label}
+                  </a>
+                ) : (
+                  <span className="text-sm text-gray-900">{status.label}</span>
+                )}
+              </div>
+
+              {isActive && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={stopMutation.isPending}
+                  onClick={async () => {
+                    const ok = window.confirm(
+                      'Stop this run? This will terminate the sandbox.'
+                    );
+                    if (!ok) return;
+                    try {
+                      await stopMutation.mutateAsync();
+                    } catch (e) {
+                      console.error('Failed to stop task:', e);
+                      alert('Failed to stop the run. Please try again.');
+                    }
+                  }}
                 >
-                  {status.label}
-                </a>
-              ) : (
-                <span className="text-sm text-gray-900">{status.label}</span>
+                  {stopMutation.isPending ? 'Stopping…' : 'Stop'}
+                </Button>
               )}
             </div>
           )}

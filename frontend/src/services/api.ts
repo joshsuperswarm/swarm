@@ -171,4 +171,14 @@ export class ApiService {
       body: JSON.stringify({ task_ids: taskIds }),
     });
   }
+
+  static async stopTask(
+    token: string,
+    taskId: number
+  ): Promise<{ success: boolean }> {
+    return request(`/api/tasks/${taskId}/stop`, {
+      token,
+      method: 'POST',
+    });
+  }
 }
