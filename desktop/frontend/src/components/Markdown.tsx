@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "../lib/cn";
 
 type Props = { content: string; streaming?: boolean };
 
@@ -14,8 +15,21 @@ export default function Markdown({ content }: Props) {
           h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-900 mb-2 mt-3 first:mt-0">{children}</h3>,
           p: ({ children }) => <p className="text-gray-900 mb-3 last:mb-0 leading-relaxed">{children}</p>,
           ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-900">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-900">{children}</ol>,
-          li: ({ children }) => <li className="text-gray-900 leading-relaxed">{children}</li>,
+          ol: ({ className, ...props }) => (
+            <ol
+              {...props}
+              className={cn(
+                "list-decimal list-inside mb-3 space-y-1 text-gray-900",
+                className
+              )}
+            />
+          ),
+          li: ({ className, ...props }) => (
+            <li
+              {...props}
+              className={cn("text-gray-900 leading-relaxed", className)}
+            />
+          ),
           pre: ({ children }) => <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 mb-3 overflow-x-auto text-sm" style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace" }}>{children}</pre>,
           code: ({ children, ...props }) => {
             const isInline = !props.className?.includes('language-')
