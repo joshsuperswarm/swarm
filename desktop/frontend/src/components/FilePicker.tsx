@@ -24,6 +24,7 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<List>(null)
 
@@ -85,6 +86,10 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
   useEffect(() => {
     setHighlightedIndex(0)
   }, [debouncedSearch])
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('chat-root'))
+  }, [])
 
   useEffect(() => {
     if (open) {
@@ -171,10 +176,23 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPortal>
+      <DialogPortal container={portalContainer ?? undefined}>
         <DialogPrimitive.Content
           className={cn(
-            "fixed left-[50%] top-[50%] z-50 grid w-[900px] max-w-[95vw] translate-x-[-50%] translate-y-[-50%] border bg-white p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-2xl max-h-[80vh]"
+            "absolute left-1/2 top-1/2 z-50 grid w-[900px] " +
+              "max-w-[95vw] -translate-x-1/2 -translate-y-1/2 " +
+              "border bg-white p-0 shadow-lg duration-200 " +
+              "data-[state=open]:animate-in " +
+              "data-[state=closed]:animate-out " +
+              "data-[state=closed]:fade-out-0 " +
+              "data-[state=open]:fade-in-0 " +
+              "data-[state=closed]:zoom-out-95 " +
+              "data-[state=open]:zoom-in-95 " +
+              "data-[state=closed]:slide-out-to-left-1/2 " +
+              "data-[state=closed]:slide-out-to-top-[48%] " +
+              "data-[state=open]:slide-in-from-left-1/2 " +
+              "data-[state=open]:slide-in-from-top-[48%] " +
+              "rounded-2xl max-h-[80vh]"
           )}
           aria-describedby="file-picker-desc"
         >

@@ -97,7 +97,7 @@ export default function App() {
       <Sidebar />
       
       {/* Main content */}
-      <div className="flex-1 flex flex-col">
+      <div id="chat-root" className="flex-1 flex flex-col relative">
         <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
           <div className="flex h-12 items-center justify-between px-4">
             <div className="flex items-center gap-3">
