@@ -128,6 +128,62 @@ const createInitialConversation = (): Conversation => ({
   filesAlreadySent: false,
 })
 
+const generateChatTitle = async (
+  conversationId: string,
+  set: (updater: (s: any) => Partial<any>) => void,
+  saveToDisk: () => void
+) => {
+  try {
+    // Get conversation messages for title generation
+    const conversations = useConversationsStore.getState().conversations
+    const conv = conversations.find(c => c.id === conversationId)
+    if (!conv) return
+
+    // Use only user and assistant messages for title generation (exclude system)
+    const titleMessages = conv.apiMessages.filter(msg => msg.role !== 'system')
+    
+    const generatedTitle = await invoke<string>('gen_chat_title', {
+      messages: titleMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        images: msg.images || undefined
+      }))
+    })
+
+    // Update conversation with generated title
+    set(state => ({
+      conversations: state.conversations.map((convState: Conversation) => {
+        if (convState.id !== conversationId) return convState
+        return {
+          ...convState,
+          title: generatedTitle,
+          titlePending: false,
+          titleStatus: 'success' as const
+        }
+      })
+    }))
+    
+    console.log(`Generated title for conversation ${conversationId}: ${generatedTitle}`)
+    saveToDisk()
+  } catch (error) {
+    console.error('Title generation failed, keeping fallback title:', error)
+    
+    // Mark as fallback but keep the existing title
+    set(state => ({
+      conversations: state.conversations.map((convState: Conversation) => {
+        if (convState.id !== conversationId) return convState
+        return {
+          ...convState,
+          titlePending: false,
+          titleStatus: 'fallback' as const
+        }
+      })
+    }))
+    
+    saveToDisk()
+  }
+}
+
 export const useConversationsStore = create<ConversationsStore>((set, get) => {
   // Debounced save function
   const debouncedSave = debounce(async () => {
@@ -308,10 +364,17 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
             ? [systemPrompt, apiMessage]
             : [...conv.apiMessages, apiMessage]
           
-          // Update title if this is the first user message
-          const newTitle = conv.messages.length === 0 
-            ? generateTitle(content)
-            : conv.title
+          // Generate title for first user message
+          let newTitle = conv.title
+          let titlePending = conv.titlePending
+          let titleStatus = conv.titleStatus
+          
+          if (conv.messages.length === 0) {
+            // Start with fallback title immediately
+            newTitle = generateTitle(content)
+            titlePending = true
+            titleStatus = 'generating'
+          }
           
           return {
             ...conv,
@@ -319,6 +382,8 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
             apiMessages,
             filesAlreadySent: filesToSend.length > 0 || conv.filesAlreadySent,
             title: newTitle,
+            titlePending,
+            titleStatus,
             updatedAt: Date.now()
           }
         })
@@ -379,6 +444,12 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
                 }
               })
             }))
+            
+            // Generate title if this was the first message
+            const conv = get().conversations.find(c => c.id === conversationId)
+            if (conv?.titlePending) {
+              generateChatTitle(conversationId, set, saveToDisk)
+            }
             
             saveToDisk()
             unlistenToken()

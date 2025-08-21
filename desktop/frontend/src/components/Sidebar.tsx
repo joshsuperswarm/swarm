@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useConversationsStore } from '../store/useConversationsStore'
 import { Conversation } from '../types'
 import { formatDistanceToNow } from 'date-fns'
+import { AnimatedTitle } from './AnimatedTitle'
 
 interface ContextMenuProps {
   show: boolean
@@ -116,7 +117,11 @@ function ConversationItem({
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm truncate">
-            {conversation.title}
+            <AnimatedTitle
+              title={conversation.titlePending ? "Generating title…" : conversation.title}
+              isAnimating={conversation.titlePending || false}
+              className=""
+            />
           </div>
           <div className="text-xs text-gray-500 truncate">
             {timeAgo}
