@@ -10,7 +10,7 @@ import { useBackendApi } from '@/services/auth'
 import { useModalStore } from './store/modalStore'
 import { useCreateTaskMutation, useUserProfileQuery } from '@/services/queries'
 import { useOnboarding } from '@/hooks/useOnboarding'
-import { Edit } from 'lucide-react'
+import { Edit, Key } from 'lucide-react'
 import swarmLogo from './assets/swarm-logo.png'
 import './App.css'
 
@@ -125,7 +125,7 @@ function App() {
                 <Edit className="w-4 h-4" />
               </button>
               <UserButton>
-                <UserButton.UserProfilePage label="API Keys" url="api-keys" labelIcon="🔑">
+                <UserButton.UserProfilePage label="API Keys" url="api-keys" labelIcon={<Key className="w-4 h-4" />}>
                   <ApiKeysPanel />
                 </UserButton.UserProfilePage>
               </UserButton>

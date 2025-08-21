@@ -1,6 +1,6 @@
 // frontend/src/lib/api-keys.ts
 export const BASE_URL =
-  process.env.VITE_API_BASE_URL || "http://localhost:8080";
+  import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export type CreateApiKeyReq = {
   name?: string;
