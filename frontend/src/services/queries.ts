@@ -241,6 +241,8 @@ export const useOnboardingStatusQuery = () => {
     enabled: isSuccess,
     queryFn: () => OnboardingService.getOnboardingStatus(jwt!),
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,   // keeps UI stable during refetch
   })
 }
 
@@ -252,6 +254,8 @@ export const useApiKeysStatusQuery = () => {
     enabled: isSuccess,
     queryFn: () => OnboardingService.getApiKeysStatus(jwt!),
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,   // keep last data while refetching
   })
 }
 

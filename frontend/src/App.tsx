@@ -1,16 +1,16 @@
 import { useEffect } from 'react'
-import { UserButton, useAuth, useUser } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { Layout } from './components/Layout'
 import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
-import ApiKeysPanel from './components/account/ApiKeysPanel'
+import { NavUserButton } from './components/NavUserButton'
 import { ApiService, type RunMode, type ClaudeModel } from './services/api'
 import { useBackendApi } from '@/services/auth'
 import { useModalStore } from './store/modalStore'
 import { useCreateTaskMutation, useUserProfileQuery } from '@/services/queries'
 import { useOnboarding } from '@/hooks/useOnboarding'
-import { Edit, Key } from 'lucide-react'
+import { Edit } from 'lucide-react'
 import swarmLogo from './assets/swarm-logo.png'
 import './App.css'
 
@@ -124,11 +124,7 @@ function App() {
               >
                 <Edit className="w-4 h-4" />
               </button>
-              <UserButton>
-                <UserButton.UserProfilePage label="API Keys" url="api-keys" labelIcon={<Key className="w-4 h-4" />}>
-                  <ApiKeysPanel />
-                </UserButton.UserProfilePage>
-              </UserButton>
+              <NavUserButton />
             </div>
           </div>
         </nav>
