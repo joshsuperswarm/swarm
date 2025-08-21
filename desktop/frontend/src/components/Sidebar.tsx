@@ -61,21 +61,55 @@ function ContextMenu({
     >
       {conversation.archived ? (
         <button
-          onClick={onUnarchive}
+          onMouseDown={(e) => {
+            if (e.button !== 0) return
+            e.stopPropagation()
+            onUnarchive()
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              onUnarchive()
+            }
+          }}
           className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 transition-colors"
         >
           Unarchive
         </button>
       ) : (
         <button
-          onClick={onArchive}
+          onMouseDown={(e) => {
+            if (e.button !== 0) return
+            e.stopPropagation()
+            onArchive()
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              onArchive()
+            }
+          }}
           className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 transition-colors"
         >
           Archive
         </button>
       )}
       <button
-        onClick={onDelete}
+        onMouseDown={(e) => {
+          // Only act on primary (left) mouse button
+          if (e.button !== 0) return
+          e.stopPropagation()
+          onDelete()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            e.stopPropagation()
+            onDelete()
+          }
+        }}
         className="w-full px-3 py-2 text-sm text-left text-red-600 hover:bg-red-50 transition-colors"
       >
         Delete
@@ -197,9 +231,7 @@ export default function Sidebar() {
 
   const handleDelete = () => {
     if (contextMenu.conversation) {
-      if (confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
-        deleteConversation(contextMenu.conversation.id)
-      }
+      deleteConversation(contextMenu.conversation.id)
     }
     handleCloseContextMenu()
   }
