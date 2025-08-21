@@ -582,3 +582,140 @@ pub async fn get_openai_api_key() -> Result<Option<String>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
     Ok(config.openai_api_key)
 }
+
+#[tauri::command]
+pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
+    info!("Generating title for conversation with {} messages", messages.len());
+    
+    let config = load_config().map_err(|e| e.to_string())?;
+    let api_key = config.openai_api_key.ok_or_else(|| {
+        error!("OpenAI API key not configured");
+        "OpenAI API key not configured".to_string()
+    })?;
+    
+    let api_key = api_key.trim().to_string();
+    
+    // Use environment variable for title model, default to gpt-5-mini
+    let model = std::env::var("OPENAI_TITLE_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+    info!("Using title generation model: {}", model);
+    
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    let mut headers = HeaderMap::new();
+    let auth_header = format!("Bearer {}", api_key);
+    
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&auth_header).map_err(|e| {
+            error!("Failed to create auth header: {}", e);
+            format!("Invalid API key format: {}", e)
+        })?,
+    );
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    
+    // Extract only visible text content from messages (exclude file contents for cost optimization)
+    let title_messages: Vec<ChatMsg> = messages
+        .into_iter()
+        .map(|msg| ChatMsg {
+            role: msg.role,
+            content: msg.content,
+            images: None, // Don't send images to title generation
+        })
+        .collect();
+    
+    // Create a system message for title generation
+    let mut title_input = vec![ChatMsg {
+        role: "system".to_string(),
+        content: "Generate a concise, descriptive title for this conversation. The title should be 3-8 words and capture the main topic or request. Do not use quotes or semicolons in the title.".to_string(),
+        images: None,
+    }];
+    title_input.extend(title_messages);
+    
+    let body = serde_json::json!({
+        "model": model,
+        "input": to_responses_input(&title_input),
+        "stream": false
+    });
+    
+    let mut retry_count = 0;
+    let max_retries = 3;
+    
+    loop {
+        info!("Attempting title generation (retry {})", retry_count);
+        
+        let response = client
+            .post("https://api.openai.com/v1/responses")
+            .headers(headers.clone())
+            .json(&body)
+            .send()
+            .await;
+        
+        match response {
+            Ok(resp) => {
+                let status = resp.status();
+                if status.is_success() {
+                    let response_body: serde_json::Value = resp.json().await
+                        .map_err(|e| format!("Failed to parse response: {}", e))?;
+                    
+                    // Extract title from response
+                    let title = response_body
+                        .get("response")
+                        .and_then(|r| r.get("output"))
+                        .and_then(|o| o.as_array())
+                        .and_then(|arr| arr.first())
+                        .and_then(|item| item.get("text"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("New Chat");
+                    
+                    // Sanitize title
+                    let sanitized_title = sanitize_title(title);
+                    info!("Generated title: {}", sanitized_title);
+                    return Ok(sanitized_title);
+                } else if status.as_u16() == 429 || status.is_server_error() {
+                    // Retry on 429 (rate limit) or 5xx errors
+                    let error_body = resp.text().await.unwrap_or_default();
+                    error!("API error {}: {}", status, error_body);
+                    
+                    if retry_count >= max_retries {
+                        return Err(format!("API error after {} retries: {}", max_retries, status));
+                    }
+                    
+                    retry_count += 1;
+                    let delay = std::time::Duration::from_millis(500 * (1 << retry_count));
+                    tokio::time::sleep(delay).await;
+                    continue;
+                } else {
+                    let error_body = resp.text().await.unwrap_or_default();
+                    error!("API error {}: {}", status, error_body);
+                    return Err(format!("API error {}: {}", status, error_body));
+                }
+            }
+            Err(e) => {
+                error!("Request failed: {}", e);
+                if retry_count >= max_retries {
+                    return Err(format!("Request failed after {} retries: {}", max_retries, e));
+                }
+                
+                retry_count += 1;
+                let delay = std::time::Duration::from_millis(500 * (1 << retry_count));
+                tokio::time::sleep(delay).await;
+            }
+        }
+    }
+}
+
+fn sanitize_title(title: &str) -> String {
+    title
+        .trim()
+        .trim_matches('"')  // Remove surrounding quotes
+        .replace(';', "")   // Remove semicolons
+        .trim_end_matches('.') // Remove trailing periods
+        .chars()
+        .take(80)  // Limit to 80 characters
+        .collect::<String>()
+        .trim()
+        .to_string()
+}

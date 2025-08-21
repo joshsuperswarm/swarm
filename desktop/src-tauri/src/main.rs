@@ -34,6 +34,7 @@ async fn main() {
             cmds::load_selected_folders,
             cmds::set_openai_api_key,
             cmds::get_openai_api_key,
+            cmds::gen_chat_title,
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
