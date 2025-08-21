@@ -13,22 +13,13 @@ interface ChatProps {
 }
 
 export default function Chat({ textareaRef }: ChatProps) {
-  const {
-    conversations,
-    activeId,
-    sendMessage,
-    cancelStream,
-    setDroppedImages,
-    pauseStreaming,
-    resumeStreaming
-  } = useConversationsStore()
+  const { conversations, activeId, sendMessage, cancelStream, setDroppedImages } = useConversationsStore()
   const { selectedFiles, selectedFolders } = useRepoStore()
   
   // Get the active conversation
   const activeConversation = conversations.find(c => c.id === activeId)
   const messages = activeConversation?.messages || []
   const isStreaming = activeConversation?.isStreaming || false
-  const isPaused = activeConversation?.isPaused || false
   const droppedImages = activeConversation?.droppedImages || []
   const [input, setInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
@@ -126,39 +117,6 @@ export default function Chat({ textareaRef }: ChatProps) {
     ta.style.height = 'auto'
     ta.style.height = Math.min(ta.scrollHeight, 220) + 'px'
   }, [input, activeTextareaRef])
-
-  // Auto-pause updates while user has a text selection in messages
-  useEffect(() => {
-    if (!isStreaming || !activeId) return
-    const onSelectionChange = () => {
-      const sel = window.getSelection()
-      if (!sel) return
-
-      const hasRange = sel.rangeCount > 0 && !sel.isCollapsed
-      if (!hasRange) {
-        if (isPaused) resumeStreaming(activeId)
-        return
-      }
-
-      const range = sel.getRangeAt(0)
-      const root = scrollContainerRef.current
-      if (!root) return
-
-      const inside =
-        root.contains(range.commonAncestorContainer as Node)
-      if (inside && !isPaused) {
-        pauseStreaming(activeId)
-      } else if (!inside && isPaused) {
-        // Selection outside messages -> resume
-        resumeStreaming(activeId)
-      }
-    }
-
-    document.addEventListener('selectionchange', onSelectionChange)
-    return () => {
-      document.removeEventListener('selectionchange', onSelectionChange)
-    }
-  }, [isStreaming, activeId, isPaused, pauseStreaming, resumeStreaming])
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -283,26 +241,6 @@ export default function Chat({ textareaRef }: ChatProps) {
           </div>
         </div>
       </div>
-
-      {/* Show a small resume banner when paused */}
-      {isPaused && (
-        <div className="fixed bottom-24 md:bottom-28 inset-x-0 z-40">
-          <div className="mx-auto w-full max-w-4xl flex justify-center">
-            <div className="px-3 py-1.5 rounded-full text-xs border
-                            bg-yellow-50 text-yellow-800 shadow
-                            flex items-center gap-2">
-              <span>Updates paused while selecting.</span>
-              <button
-                onClick={() => activeId && resumeStreaming(activeId)}
-                className="px-2 py-0.5 rounded bg-yellow-100
-                           hover:bg-yellow-200 border"
-              >
-                Resume
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <ScrollToBottom container={scrollContainerRef.current} atBottom={atBottomForPill} />
 

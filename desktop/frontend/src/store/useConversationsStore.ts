@@ -26,42 +26,39 @@ let rafHandle: number | null = null
 function flushPending(
   requestId: string,
   conversationId: string,
-  set: (updater: (s: any) => Partial<any>) => void,
-  get: () => any
+  set: (updater: (s: any) => Partial<any>) => void
 ) {
-  // Skip if paused
-  const { conversations } = get()
-  const conv = conversations.find((c: any) => c.id === conversationId)
-  if (conv?.isPaused) return
-
   const chunks = tokenBuffers.get(requestId)
   if (!chunks?.length) return
-
   const delta = chunks.join('')
   chunks.length = 0
 
   set((state: any) => {
-    const conversations = state.conversations.map((cv: Conversation) => {
-      if (cv.id !== conversationId) return cv
-
-      const last = cv.messages.length - 1
-      if (last < 0) return cv
-
-      const msgs = cv.messages.slice()
+    const conversations = state.conversations.map((conv: Conversation) => {
+      if (conv.id !== conversationId) return conv
+      
+      const last = conv.messages.length - 1
+      if (last < 0) return conv
+      
+      const msgs = conv.messages.slice()
       msgs[last] = {
         ...msgs[last],
         content: msgs[last].content + delta,
       }
-
-      const apis = cv.apiMessages.slice()
+      
+      const apis = conv.apiMessages.slice()
       apis[last] = {
         ...apis[last],
         content: apis[last].content + delta,
       }
-
-      return { ...cv, messages: msgs, apiMessages: apis }
+      
+      return {
+        ...conv,
+        messages: msgs,
+        apiMessages: apis
+      }
     })
-
+    
     return { conversations }
   })
 }
@@ -69,17 +66,12 @@ function flushPending(
 function scheduleFlush(
   requestId: string,
   conversationId: string,
-  set: (updater: (s: any) => Partial<any>) => void,
-  get: () => any
+  set: (updater: (s: any) => Partial<any>) => void
 ) {
   if (rafHandle != null) return
   rafHandle = requestAnimationFrame(() => {
     rafHandle = null
-    // Only flush if not paused
-    const { conversations } = get()
-    const conv = conversations.find((c: any) => c.id === conversationId)
-    if (conv?.isPaused) return
-    flushPending(requestId, conversationId, set, get)
+    flushPending(requestId, conversationId, set)
   })
 }
 
@@ -105,26 +97,18 @@ interface ChatPayload {
 interface ConversationsStore {
   conversations: Conversation[]
   activeId: string | null
-
+  
   // Actions
   createConversation: () => string
   setActive: (id: string | null) => void
   archiveConversation: (id: string) => void
   unarchiveConversation: (id: string) => void
   deleteConversation: (id: string) => void
-  sendMessage: (
-    conversationId: string,
-    content: string,
-    images?: ImageAttachment[]
-  ) => Promise<void>
+  sendMessage: (conversationId: string, content: string, images?: ImageAttachment[]) => Promise<void>
   cancelStream: (conversationId: string) => Promise<void>
   setDroppedImages: (conversationId: string, images: ImageAttachment[]) => void
   clearDroppedImages: (conversationId: string) => void
-
-  // NEW
-  pauseStreaming: (conversationId: string) => void
-  resumeStreaming: (conversationId: string) => void
-
+  
   // Persistence
   loadFromDisk: () => Promise<void>
   saveToDisk: () => void
@@ -150,7 +134,6 @@ const createInitialConversation = (): Conversation => ({
   createdAt: Date.now(),
   updatedAt: Date.now(),
   droppedImages: [],
-  isPaused: false, // NEW
 })
 
 const generateChatTitle = async (
@@ -452,7 +435,7 @@ and rendered as footnotes.`
             const buf = tokenBuffers.get(requestId) ?? []
             buf.push(event.payload.delta)
             tokenBuffers.set(requestId, buf)
-            scheduleFlush(requestId, conversationId, set, get)
+            scheduleFlush(requestId, conversationId, set)
           }
         })
 
@@ -503,7 +486,7 @@ and rendered as footnotes.`
           if (event.payload.request_id === requestId && 
               event.payload.conversation_id === conversationId) {
             // Final flush of any buffered chunks
-            flushPending(requestId, conversationId, set, get)
+            flushPending(requestId, conversationId, set)
             tokenBuffers.delete(requestId)
             if (rafHandle != null) {
               cancelAnimationFrame(rafHandle)
@@ -583,28 +566,6 @@ and rendered as footnotes.`
           conv.id === conversationId ? { ...conv, droppedImages: [] } : conv
         )
       }))
-    },
-
-    pauseStreaming: (conversationId: string) => {
-      set(state => ({
-        conversations: state.conversations.map((c: Conversation) =>
-          c.id === conversationId ? { ...c, isPaused: true } : c
-        )
-      }))
-    },
-
-    resumeStreaming: (conversationId: string) => {
-      set(state => ({
-        conversations: state.conversations.map((c: Conversation) =>
-          c.id === conversationId ? { ...c, isPaused: false } : c
-        )
-      }))
-      // On resume, flush any buffered chunks immediately
-      const conv = get().conversations.find(c => c.id === conversationId)
-      const reqId = conv?.activeRequestId
-      if (reqId) {
-        flushPending(reqId, conversationId, set, get)
-      }
     },
 
     loadFromDisk: async () => {
