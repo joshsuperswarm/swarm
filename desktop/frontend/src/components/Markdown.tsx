@@ -4,6 +4,9 @@ import { cn } from "../lib/cn";
 
 type Props = { content: string; streaming?: boolean };
 
+const normalizeBullets = (s: string) =>
+  s.replace(/(^|\n)\s*•\s+/g, '$1- ');
+
 export default function Markdown({ content }: Props) {
   return (
     <div className="markdown-content">
@@ -14,12 +17,16 @@ export default function Markdown({ content }: Props) {
           h2: ({ children }) => <h2 className="text-base font-semibold text-gray-900 mb-2 mt-4 first:mt-0">{children}</h2>,
           h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-900 mb-2 mt-3 first:mt-0">{children}</h3>,
           p: ({ children }) => <p className="text-gray-900 mb-3 last:mb-0 leading-relaxed">{children}</p>,
-          ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-900">{children}</ul>,
+          ul: ({ children }) => (
+            <ul className="list-disc list-outside pl-5 mb-3 space-y-1 text-gray-900">
+              {children}
+            </ul>
+          ),
           ol: ({ className, ...props }) => (
             <ol
               {...props}
               className={cn(
-                "list-decimal list-inside mb-3 space-y-1 text-gray-900",
+                "list-decimal list-outside pl-5 mb-3 space-y-1 text-gray-900",
                 className
               )}
             />
@@ -50,7 +57,7 @@ export default function Markdown({ content }: Props) {
           em: ({ children }) => <em className="italic text-gray-900">{children}</em>,
         }}
       >
-        {content}
+        {normalizeBullets(content)}
       </ReactMarkdown>
     </div>
   );

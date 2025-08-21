@@ -61,3 +61,11 @@ body, #root { @apply bg-gray-50; }
   @apply text-gray-100; /* light text for dark block */
   line-height: 1.6;
 }
+
+/* Nested list indentation for markdown content */
+.markdown-content ul ul,
+.markdown-content ul ol,
+.markdown-content ol ul,
+.markdown-content ol ol {
+  @apply pl-5 mt-1 mb-1;
+}
