@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/re
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { ApiService } from '@/services/api'
 import { useBackendJwtQuery } from '@/services/auth'
+import { OnboardingService } from '@/services/onboarding'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -216,6 +217,69 @@ export const useArchiveMultipleTasksMutation = () => {
     onSuccess: () => {
       // Invalidate tasks to refetch without the archived tasks
       qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+/* USER REPOSITORIES */
+export const useUserRepositoriesQuery = () => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  return useQuery({
+    queryKey: ['user-repositories'],
+    enabled: isSuccess,
+    queryFn: () => ApiService.getUserRepositories(jwt!),
+    // repos can change, but not super frequently
+    staleTime: 60 * 1000,
+  })
+}
+
+/* ONBOARDING STATUS */
+export const useOnboardingStatusQuery = () => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  return useQuery({
+    queryKey: ['onboarding-status'],
+    enabled: isSuccess,
+    queryFn: () => OnboardingService.getOnboardingStatus(jwt!),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/* API KEYS STATUS */
+export const useApiKeysStatusQuery = () => {
+  const { data: jwt, isSuccess } = useBackendJwtQuery()
+  return useQuery({
+    queryKey: ['api-keys-status'],
+    enabled: isSuccess,
+    queryFn: () => OnboardingService.getApiKeysStatus(jwt!),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/* MUTATIONS: onboarding/default repo */
+export const useSetDefaultRepoMutation = () => {
+  const qc = useQueryClient()
+  const { data: jwt } = useBackendJwtQuery()
+  return useMutation({
+    mutationFn: (repositoryId: number) =>
+      OnboardingService.setDefaultRepo(jwt!, { repository_id: repositoryId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user-profile'] })
+      qc.invalidateQueries({ queryKey: ['user-repositories'] })
+      qc.invalidateQueries({ queryKey: ['onboarding-status'] })
+    },
+  })
+}
+
+/* MUTATION: update API keys */
+export const useUpdateApiKeysMutation = () => {
+  const qc = useQueryClient()
+  const { data: jwt } = useBackendJwtQuery()
+  return useMutation({
+    mutationFn: (keys: { anthropic_api_key?: string; openai_api_key?: string }) =>
+      OnboardingService.updateApiKeys(jwt!, keys),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['api-keys-status'] })
+      qc.invalidateQueries({ queryKey: ['onboarding-status'] })
     },
   })
 }

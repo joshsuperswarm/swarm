@@ -1,39 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { OnboardingService } from '@/services/onboarding';
-import { ApiService } from '@/services/api';
-import { useBackendApi } from '@/services/auth';
-import { useUserStore } from '@/store/userStore';
+import { useUserRepositoriesQuery, useSetDefaultRepoMutation } from '@/services/queries';
 import { OnboardingLayout } from './OnboardingLayout';
-import type { RepositoryWithTasks } from '@/types/generated/RepositoryWithTasks';
 
 export function DefaultRepoSelector() {
-  const [repositories, setRepositories] = useState<RepositoryWithTasks[]>([]);
   const [selectedRepoId, setSelectedRepoId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const navigate = useNavigate();
-  const api = useBackendApi();
-  const { refreshUserProfile } = useUserStore();
-
-  useEffect(() => {
-    const loadRepositories = async () => {
-      try {
-        const response = await api(token => ApiService.getUserRepositories(token));
-        setRepositories(response.repositories);
-      } catch (err) {
-        console.error('Failed to load repositories:', err);
-        setError('Failed to load repositories. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadRepositories();
-  }, [api]);
+  const { data, isLoading, error: queryError } = useUserRepositoriesQuery();
+  const setDefaultRepo = useSetDefaultRepoMutation();
+  const repositories = data?.repositories ?? [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,24 +20,11 @@ export function DefaultRepoSelector() {
       setError('Please select a repository');
       return;
     }
-
     setIsSubmitting(true);
-    setError(null);
-
     try {
-      await api(async (token) => {
-        await OnboardingService.setDefaultRepo(token, {
-          repository_id: selectedRepoId,
-        });
-      });
-      
-      // Refresh user profile to get the updated default repository
-      await api(token => refreshUserProfile(token));
-      
-      // Navigate to main app
+      await setDefaultRepo.mutateAsync(selectedRepoId);
       navigate('/', { replace: true });
-    } catch (err) {
-      console.error('Failed to set default repository:', err);
+    } catch {
       setError('Failed to set default repository. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -158,9 +124,9 @@ export function DefaultRepoSelector() {
           ))}
         </div>
 
-        {error && (
+        {(error || queryError) && (
           <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-            {error}
+            {error || 'Failed to load repositories. Please try again.'}
           </div>
         )}
 

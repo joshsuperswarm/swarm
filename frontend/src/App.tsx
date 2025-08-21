@@ -6,9 +6,8 @@ import { Router } from './routes'
 import { CreateTaskModal } from './components/CreateTaskModal'
 import { ApiService, type RunMode, type ClaudeModel } from './services/api'
 import { useBackendApi } from '@/services/auth'
-import { useUserStore } from './store/userStore'
 import { useModalStore } from './store/modalStore'
-import { useCreateTaskMutation } from '@/services/queries'
+import { useCreateTaskMutation, useUserProfileQuery } from '@/services/queries'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { Edit } from 'lucide-react'
 import swarmLogo from './assets/swarm-logo.png'
@@ -17,14 +16,14 @@ import './App.css'
 function App() {
   const { isSignedIn, isLoaded } = useAuth()
   const { user } = useUser()
-  const { user: userData, loadUserProfile, clearUserProfile } = useUserStore()
+  const { data: profile } = useUserProfileQuery()
   const { createTaskOpen, openCreateTask, closeCreateTask } = useModalStore()
   const createTask = useCreateTaskMutation()
   const api = useBackendApi()
   const { onboardingStatus, isLoading: onboardingLoading } = useOnboarding()
 
-  // Extract default repository from user data (single source of truth)
-  const defaultRepository = userData?.default_repo ?? null
+  // Extract default repository from profile data (single source of truth)
+  const defaultRepository = profile?.default_repo ?? null
 
   const handleTaskCreated = async (taskData: {
     description: string;
@@ -58,48 +57,22 @@ function App() {
   // Handle Clerk authentication and GitHub token storage
   useEffect(() => {
     (async () => {
-      if (!isSignedIn || !user) {
-        // Clear user data when signed out
-        clearUserProfile()
-        return
-      }
+      if (!isSignedIn || !user) return
 
       try {
-        // Try to connect GitHub via backend (uses Clerk Management API)
-        try {
-          const githubAccount = user.externalAccounts?.find(account => account.provider === 'github')
-          console.log('GitHub account found:', !!githubAccount)
-          
-          if (githubAccount) {
-            console.log('→ Connecting GitHub via backend...')
-            await api(token => ApiService.connectGitHub(token))
-            console.log('GitHub token retrieved and cached successfully')
-
-            // Fetch user repositories from GitHub and cache them
-            console.log('→ Fetching user repositories...')
-            try {
-              const repoResponse = await api(token => ApiService.getUserRepositories(token))
-              console.log(`Fetched ${repoResponse.count} repositories from GitHub`)
-            } catch (repoError) {
-              console.log('⚠ Could not fetch repositories:', repoError)
-            }
-          } else {
-            console.log('ℹ No GitHub account connected - will show demo repositories')
-          }
-        } catch (tokenError) {
-          console.log('⚠ Could not retrieve GitHub token:', tokenError)
-          console.log('Will fall back to demo repositories')
+        const githubAccount = user.externalAccounts?.find(
+          a => a.provider === 'github'
+        )
+        if (githubAccount) {
+          // fire-and-forget; don't await before rendering
+          api(token => ApiService.connectGitHub(token)).catch(() => {})
+          api(token => ApiService.getUserRepositories(token)).catch(() => {})
         }
-
-        // Load user profile data for global access
-        console.log('→ Loading user profile...')
-        await api(token => loadUserProfile(token))
-        console.log('User profile loaded and cached')
       } catch (error) {
-        console.error('✗ Failed to handle authentication:', error)
+        console.log('Failed to connect GitHub or fetch repositories:', error)
       }
     })()
-  }, [isSignedIn, user, loadUserProfile, clearUserProfile, api])
+  }, [isSignedIn, user, api])
 
   // Global hotkeys - guard against opening multiple times
   useHotkeys('c', () => {

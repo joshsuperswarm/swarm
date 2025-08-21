@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { OnboardingService } from '@/services/onboarding';
-import { useBackendApi } from '@/services/auth';
+import { useUpdateApiKeysMutation } from '@/services/queries';
 import { OnboardingLayout } from './OnboardingLayout';
 
 export function ApiKeysForm() {
@@ -14,28 +13,20 @@ export function ApiKeysForm() {
   const [error, setError] = useState<string | null>(null);
   
   const navigate = useNavigate();
-  const api = useBackendApi();
+  const updateKeys = useUpdateApiKeysMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
     if (!anthropicKey.trim()) {
       setError('Please provide your Anthropic API key');
       return;
     }
-
     setIsSubmitting(true);
     try {
-      await api(async (token) => {
-        await OnboardingService.updateApiKeys(token, {
-          anthropic_api_key: anthropicKey.trim(),
-        });
-      });
-      
+      await updateKeys.mutateAsync({ anthropic_api_key: anthropicKey.trim() });
       navigate('/onboarding/default-repo');
-    } catch (err) {
-      console.error('Failed to save API keys:', err);
+    } catch {
       setError('Failed to save API keys. Please try again.');
     } finally {
       setIsSubmitting(false);
