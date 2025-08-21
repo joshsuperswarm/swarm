@@ -18,7 +18,8 @@ export default function App() {
     createConversation, 
     setActive, 
     clearDroppedImages, 
-    loadFromDisk 
+    loadFromDisk,
+    archiveConversation
   } = useConversationsStore()
   const { hasApiKey, isLoading: isLoadingApiKey, recheckApiKey } = useApiKey()
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -61,6 +62,20 @@ export default function App() {
       }
     }
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
+
+  // Archive current conversation: E
+  useHotkeys('e', (e) => {
+    // Do not trigger if no active conversation
+    if (!activeId) return
+    // Do not trigger if picker is open
+    if (isPickerOpen) return
+    // Do not trigger if conversation is already archived
+    const conv = conversations.find(c => c.id === activeId)
+    if (!conv || conv.archived) return
+
+    e.preventDefault()
+    archiveConversation(activeId)
+  }, {}, [activeId, conversations, isPickerOpen, archiveConversation])
 
   const handleFileSelection = () => {
     // Focus the chat textarea after file selection
