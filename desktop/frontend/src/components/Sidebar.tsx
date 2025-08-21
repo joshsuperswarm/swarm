@@ -109,7 +109,6 @@ function ConversationItem({
           ? 'bg-blue-100 text-blue-900 border-l-2 border-blue-500' 
           : 'hover:bg-gray-100 text-gray-700'
         }
-        ${conversation.isStreaming ? 'animate-pulse' : ''}
       `}
       onClick={onClick}
       onContextMenu={(e) => onContextMenu(e, conversation)}
