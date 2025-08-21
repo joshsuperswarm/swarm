@@ -1,8 +1,10 @@
 use anyhow::Result;
-use directories::ProjectDirs;
+use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+
+const TAURI_IDENTIFIER: &str = "com.swarm";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -26,14 +28,19 @@ impl Default for Config {
     }
 }
 
+fn app_local_data_root() -> Result<PathBuf> {
+    let base = BaseDirs::new()
+        .ok_or_else(|| anyhow::anyhow!("Failed to resolve base dirs"))?;
+    let mut p = base.data_local_dir().to_path_buf();
+    // Match Tauri's BaseDirectory::AppLocalData, which uses the bundle identifier
+    p.push(TAURI_IDENTIFIER);
+    fs::create_dir_all(&p)?;
+    Ok(p)
+}
+
 fn get_config_path() -> Result<PathBuf> {
-    let project_dirs = ProjectDirs::from("com", "swarm", "swarm")
-        .ok_or_else(|| anyhow::anyhow!("Failed to get project directories"))?;
-
-    let config_dir = project_dirs.config_dir();
-    fs::create_dir_all(config_dir)?;
-
-    Ok(config_dir.join("config.json"))
+    let root = app_local_data_root()?;
+    Ok(root.join("config.json"))
 }
 
 pub fn load_config() -> Result<Config> {

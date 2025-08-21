@@ -191,7 +191,7 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
     const file = 'conversations.json'
     try {
       // Ensure dir exists (usually does, but safe)
-      await mkdir('.', { baseDir: BaseDirectory.AppLocalData, recursive: true })
+      await mkdir('', { baseDir: BaseDirectory.AppLocalData, recursive: true })
       await writeTextFile(
         file, 
         JSON.stringify(conversations, null, 2),

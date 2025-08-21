@@ -1,6 +1,6 @@
 use crate::repo::RepoManager;
 use anyhow::Result;
-use directories::ProjectDirs;
+use directories::BaseDirs;
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use tiktoken_rs::{get_bpe_from_model, CoreBPE};
+
+const TAURI_IDENTIFIER: &str = "com.swarm";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileToken {
@@ -48,8 +51,16 @@ static TOKEN_CACHE: Lazy<Mutex<HashMap<String, CachedCount>>> =
 static MEMORY_CACHE: Lazy<Mutex<LruCache<String, CachedCount>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
+fn app_local_data_root() -> Option<PathBuf> {
+    let base = BaseDirs::new()?;
+    let mut p = base.data_local_dir().to_path_buf();
+    p.push(TAURI_IDENTIFIER);
+    let _ = fs::create_dir_all(&p);
+    Some(p)
+}
+
 fn cache_path() -> Option<std::path::PathBuf> {
-    ProjectDirs::from("com", "swarm", "swarm").map(|d| d.cache_dir().join("token-cache.json"))
+    app_local_data_root().map(|d| d.join("token-cache.json"))
 }
 
 fn load_token_cache() -> Option<HashMap<String, CachedCount>> {
