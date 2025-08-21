@@ -61,4 +61,6 @@ export interface Conversation {
   droppedImages: ImageAttachment[];
   titlePending?: boolean;
   titleStatus?: 'generating' | 'success' | 'error' | 'fallback';
+  // NEW: pause streaming while user selects text
+  isPaused?: boolean;
 }
