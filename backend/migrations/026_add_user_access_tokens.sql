@@ -18,5 +18,4 @@ CREATE INDEX IF NOT EXISTS idx_uat_user_id
 
 CREATE INDEX IF NOT EXISTS idx_uat_valid
   ON user_access_tokens(token_id)
-  WHERE revoked_at IS NULL
-    AND (expires_at IS NULL OR expires_at > NOW());
+  WHERE revoked_at IS NULL;
