@@ -289,6 +289,8 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
       const conversation = conversations.find(c => c.id === conversationId)
       if (!conversation) return
 
+      const isFirstUserMessage = conversation.messages.length === 0
+
       // Get expanded file selection from repo store
       const { expandedSelectedFiles, selectedFiles, selectedFolders } = useRepoStore.getState()
       const expandedFiles = expandedSelectedFiles()
@@ -412,6 +414,11 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
           })
         }))
 
+        if (isFirstUserMessage) {
+          // Start title generation in parallel with streaming
+          generateChatTitle(conversationId, set, saveToDisk)
+        }
+
         const unlistenToken = await listen<StreamToken>('chat_token', (event) => {
           if (event.payload.request_id === requestId && 
               event.payload.conversation_id === conversationId) {
@@ -444,12 +451,6 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
                 }
               })
             }))
-            
-            // Generate title if this was the first message
-            const conv = get().conversations.find(c => c.id === conversationId)
-            if (conv?.titlePending) {
-              generateChatTitle(conversationId, set, saveToDisk)
-            }
             
             saveToDisk()
             unlistenToken()
