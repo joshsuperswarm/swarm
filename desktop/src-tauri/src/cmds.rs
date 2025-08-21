@@ -198,7 +198,11 @@ pub async fn repo_count_tokens(relpaths: Vec<String>) -> Result<TokenReport, Str
 }
 
 #[tauri::command]
-pub async fn chat_stream_start(app: AppHandle, conversation_id: String, messages: Vec<ChatMsg>) -> Result<String, String> {
+pub async fn chat_stream_start(
+    app: AppHandle,
+    conversation_id: String,
+    messages: Vec<ChatMsg>,
+) -> Result<String, String> {
     info!("Starting chat stream with {} messages", messages.len());
     for (i, msg) in messages.iter().enumerate() {
         debug!(
@@ -246,7 +250,10 @@ pub async fn chat_stream_start(app: AppHandle, conversation_id: String, messages
     // Check for common issues with the API key
     if api_key.contains('\n') || api_key.contains('\r') {
         error!("API key contains newline characters");
-        return Err("API key contains newline characters - please check your API key configuration".to_string());
+        return Err(
+            "API key contains newline characters - please check your API key configuration"
+                .to_string(),
+        );
     }
 
     headers.insert(
@@ -585,28 +592,31 @@ pub async fn get_openai_api_key() -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
-    info!("Generating title for conversation with {} messages", messages.len());
-    
+    info!(
+        "Generating title for conversation with {} messages",
+        messages.len()
+    );
+
     let config = load_config().map_err(|e| e.to_string())?;
     let api_key = config.openai_api_key.ok_or_else(|| {
         error!("OpenAI API key not configured");
         "OpenAI API key not configured".to_string()
     })?;
-    
+
     let api_key = api_key.trim().to_string();
-    
+
     // Use environment variable for title model, default to gpt-5-mini
     let model = std::env::var("OPENAI_TITLE_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
     info!("Using title generation model: {}", model);
-    
+
     let client = reqwest::Client::builder()
         .no_proxy()
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-    
+
     let mut headers = HeaderMap::new();
     let auth_header = format!("Bearer {}", api_key);
-    
+
     headers.insert(
         AUTHORIZATION,
         HeaderValue::from_str(&auth_header).map_err(|e| {
@@ -615,7 +625,7 @@ pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
         })?,
     );
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    
+
     // Extract only visible text content from messages (exclude file contents for cost optimization)
     let title_messages: Vec<ChatMsg> = messages
         .into_iter()
@@ -625,7 +635,7 @@ pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
             images: None, // Don't send images to title generation
         })
         .collect();
-    
+
     // Create a system message for title generation
     let mut title_input = vec![ChatMsg {
         role: "system".to_string(),
@@ -633,43 +643,48 @@ pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
         images: None,
     }];
     title_input.extend(title_messages);
-    
+
     let body = serde_json::json!({
         "model": model,
         "input": to_responses_input(&title_input),
         "stream": false
     });
-    
+
     let mut retry_count = 0;
     let max_retries = 3;
-    
+
     loop {
         info!("Attempting title generation (retry {})", retry_count);
-        
+
         let response = client
             .post("https://api.openai.com/v1/responses")
             .headers(headers.clone())
             .json(&body)
             .send()
             .await;
-        
+
         match response {
             Ok(resp) => {
                 let status = resp.status();
                 if status.is_success() {
-                    let response_body: serde_json::Value = resp.json().await
+                    let response_body: serde_json::Value = resp
+                        .json()
+                        .await
                         .map_err(|e| format!("Failed to parse response: {}", e))?;
-                    
-                    // Extract title from response
-                    let title = response_body
-                        .get("response")
-                        .and_then(|r| r.get("output"))
-                        .and_then(|o| o.as_array())
-                        .and_then(|arr| arr.first())
-                        .and_then(|item| item.get("text"))
-                        .and_then(|t| t.as_str())
-                        .unwrap_or("New Chat");
-                    
+
+                    debug!(
+                        "Title generation API response: {}",
+                        serde_json::to_string_pretty(&response_body).unwrap_or_default()
+                    );
+
+                    // Extract title from Responses API shape:
+                    // - Prefer top-level "output_text" if present.
+                    // - Else, scan "output" array for a "message" item and
+                    //   take the first "content" entry with
+                    //   type == "output_text", use its "text".
+                    let title_result = extract_title_from_responses(&response_body);
+                    let title = title_result.as_deref().unwrap_or("New Chat");
+
                     // Sanitize title
                     let sanitized_title = sanitize_title(title);
                     info!("Generated title: {}", sanitized_title);
@@ -678,11 +693,14 @@ pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
                     // Retry on 429 (rate limit) or 5xx errors
                     let error_body = resp.text().await.unwrap_or_default();
                     error!("API error {}: {}", status, error_body);
-                    
+
                     if retry_count >= max_retries {
-                        return Err(format!("API error after {} retries: {}", max_retries, status));
+                        return Err(format!(
+                            "API error after {} retries: {}",
+                            max_retries, status
+                        ));
                     }
-                    
+
                     retry_count += 1;
                     let delay = std::time::Duration::from_millis(500 * (1 << retry_count));
                     tokio::time::sleep(delay).await;
@@ -696,9 +714,12 @@ pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
             Err(e) => {
                 error!("Request failed: {}", e);
                 if retry_count >= max_retries {
-                    return Err(format!("Request failed after {} retries: {}", max_retries, e));
+                    return Err(format!(
+                        "Request failed after {} retries: {}",
+                        max_retries, e
+                    ));
                 }
-                
+
                 retry_count += 1;
                 let delay = std::time::Duration::from_millis(500 * (1 << retry_count));
                 tokio::time::sleep(delay).await;
@@ -710,12 +731,61 @@ pub async fn gen_chat_title(messages: Vec<ChatMsg>) -> Result<String, String> {
 fn sanitize_title(title: &str) -> String {
     title
         .trim()
-        .trim_matches('"')  // Remove surrounding quotes
-        .replace(';', "")   // Remove semicolons
+        .trim_matches('"') // Remove surrounding quotes
+        .replace(';', "") // Remove semicolons
         .trim_end_matches('.') // Remove trailing periods
         .chars()
-        .take(80)  // Limit to 80 characters
+        .take(80) // Limit to 80 characters
         .collect::<String>()
         .trim()
         .to_string()
+}
+
+fn extract_title_from_responses(v: &serde_json::Value) -> Option<String> {
+    let arr = v.get("output")?.as_array()?;
+
+    for item in arr {
+        let is_message = item
+            .get("type")
+            .and_then(|t| t.as_str())
+            .map(|t| t == "message")
+            .unwrap_or(false);
+
+        if !is_message {
+            continue;
+        }
+
+        // Optional: require assistant role (safe to keep).
+        if item
+            .get("role")
+            .and_then(|r| r.as_str())
+            .map(|r| r != "assistant")
+            .unwrap_or(false)
+        {
+            continue;
+        }
+
+        if let Some(content_arr) = item.get("content").and_then(|c| c.as_array()) {
+            for c in content_arr {
+                let is_output_text = c
+                    .get("type")
+                    .and_then(|t| t.as_str())
+                    .map(|t| t == "output_text")
+                    .unwrap_or(false);
+
+                if !is_output_text {
+                    continue;
+                }
+
+                if let Some(text) = c.get("text").and_then(|t| t.as_str()) {
+                    let t = text.trim();
+                    if !t.is_empty() {
+                        return Some(t.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
