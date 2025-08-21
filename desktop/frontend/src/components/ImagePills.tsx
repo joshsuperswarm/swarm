@@ -22,14 +22,14 @@ export default function ImagePills({ images, onRemove }: ImagePillsProps) {
             transition={{ duration: 0.15 }}
             className="relative group"
           >
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-100 border border-blue-200 text-sm">
-              <Image className="w-4 h-4 text-blue-600" />
-              <span className="text-blue-900 max-w-[150px] truncate">{image.name}</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 border border-gray-200 text-sm">
+              <Image className="w-4 h-4 text-gray-700" />
+              <span className="text-gray-900 max-w-[150px] truncate">{image.name}</span>
               <button
                 onClick={() => onRemove(index)}
-                className="ml-1 w-4 h-4 rounded-full bg-blue-200 hover:bg-blue-300 flex items-center justify-center transition-colors"
+                className="ml-1 w-4 h-4 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
               >
-                <X className="w-3 h-3 text-blue-700" />
+                <X className="w-3 h-3 text-gray-700" />
               </button>
             </div>
             {/* Image preview on hover */}

@@ -27,7 +27,7 @@ body, #root { @apply bg-gray-50; }
 .msg-assistant { @apply bg-white; }
 .avatar { @apply mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full; }
 .avatar-user { @apply bg-gray-100 text-gray-600; }
-.avatar-bot { @apply bg-blue-100 text-blue-600; }
+.avatar-bot { @apply bg-gray-100 text-gray-700; }
 
 /* Markdown "prose" tweaks */
 .prose-chat { @apply prose prose-slate max-w-none; }

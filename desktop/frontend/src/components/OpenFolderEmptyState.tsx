@@ -14,7 +14,7 @@ export default function OpenFolderEmptyState() {
         <p className="mb-4 text-sm text-gray-600">Open a folder to start chatting about your code</p>
         <button
           onClick={openRepo}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2"
         >
           <Folder className="h-4 w-4" />
           Open Folder

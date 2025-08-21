@@ -169,7 +169,7 @@ export default function Chat({ textareaRef }: ChatProps) {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
         <div className="chat-container pointer-events-auto pb-3">
             <div className="mx-auto w-full max-w-4xl">
-              <div className={`rounded-xl md:rounded-2xl border ${isDragging ? 'border-blue-500 border-2' : 'border-gray-200'} bg-white/90 backdrop-blur shadow-lg transition-colors`}>
+              <div className={`rounded-xl md:rounded-2xl border ${isDragging ? 'border-gray-700 border-2' : 'border-gray-200'} bg-white/90 backdrop-blur shadow-lg transition-colors`}>
             <div className="flex flex-col gap-2 p-2">
               {/* Image pills row - above file pills */}
               {droppedImages.length > 0 && (
@@ -185,7 +185,7 @@ export default function Chat({ textareaRef }: ChatProps) {
               )}
               {/* Input and button row */}
               <div className="w-full">
-                <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-blue-500 transition-colors">
+                <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-gray-700 transition-colors">
                   <textarea
                     ref={activeTextareaRef}
                     value={input}
@@ -230,8 +230,8 @@ export default function Chat({ textareaRef }: ChatProps) {
 
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-          <div className="text-2xl font-semibold text-blue-600">
+        <div className="absolute inset-0 z-50 bg-gray-500/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="text-2xl font-semibold text-gray-700">
             Drop images here
           </div>
         </div>

@@ -140,7 +140,7 @@ function ConversationItem({
       className={`
         px-3 py-2 cursor-pointer rounded-md transition-colors
         ${isActive 
-          ? 'bg-blue-100 text-blue-900 border-l-2 border-blue-500' 
+          ? 'bg-gray-100 text-gray-900 border-l-2 border-gray-400' 
           : 'hover:bg-gray-100 text-gray-700'
         }
       `}
@@ -161,7 +161,7 @@ function ConversationItem({
           </div>
         </div>
         {conversation.isStreaming && (
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+          <div className="w-2 h-2 bg-gray-700 rounded-full animate-pulse" />
         )}
       </div>
     </div>
@@ -242,7 +242,7 @@ export default function Sidebar() {
       <div className="p-4 border-b border-gray-200">
         <button
           onClick={handleNewChat}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+          className="w-full px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
         >
           <span>+</span>
           <span>New Chat</span>

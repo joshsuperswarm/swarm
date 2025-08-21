@@ -47,7 +47,7 @@ export default function Markdown({ content }: Props) {
             )
           },
           blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-200 pl-4 mb-3 text-gray-700 italic">{children}</blockquote>,
-          a: ({ href, children }) => <a href={href as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline decoration-1 underline-offset-2">{children}</a>,
+          a: ({ href, children }) => <a href={href as string} target="_blank" rel="noopener noreferrer" className="text-gray-900 hover:text-gray-700 underline decoration-1 underline-offset-2">{children}</a>,
           table: ({ children }) => <div className="overflow-x-auto mb-3"><table className="w-full border-collapse border border-gray-200 rounded-md">{children}</table></div>,
           thead: ({ children }) => <thead className="bg-gray-50">{children}</thead>,
           th: ({ children }) => <th className="border border-gray-200 px-3 py-2 text-left text-sm font-medium text-gray-900">{children}</th>,

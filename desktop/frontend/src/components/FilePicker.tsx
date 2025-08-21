@@ -147,14 +147,14 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
         key={`${item.kind}-${item.relpath}`}
         style={style}
         className={`grid grid-cols-[16px,1fr,16px] items-center gap-3 px-4 py-2 cursor-pointer min-w-0
-          ${active ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+          ${active ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
         onClick={() => handleToggle(item)}
         onMouseEnter={() => setHighlightedIndex(index)}
         role="option"
         aria-selected={active}
       >
         {isFolder ? (
-          <Folder className="h-4 w-4 text-blue-500" />
+          <Folder className="h-4 w-4 text-gray-700" />
         ) : (
           <File className="h-4 w-4 text-gray-400" />
         )}
@@ -163,7 +163,7 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
         </span>
         {/* reserve space so layout doesn't shift when selected */}
         <span className="h-4 w-4 inline-flex items-center justify-center">
-          {selected ? <Check className="h-4 w-4 text-blue-600" /> : null}
+          {selected ? <Check className="h-4 w-4 text-gray-700" /> : null}
         </span>
       </div>
     )
@@ -194,7 +194,7 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search files and folders..."
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-gray-700"
               />
             </div>
 
