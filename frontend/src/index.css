@@ -150,6 +150,20 @@ html, body {
 }
 .blink {
   animation: blink 1s step-start infinite;
+  /* Optimize for mobile performance */
+  will-change: opacity;
+  backface-visibility: hidden;
+}
+
+/* Mobile performance optimizations for animations */
+.three-dots-animation {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.three-dots-static {
+  /* Static fallback for reduced motion */
+  opacity: 0.8;
 }
 
 :root{
@@ -179,5 +193,25 @@ html, body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  /* Respect user motion preferences while keeping essential animations functional */
+  * { 
+    animation-duration: 0.01s !important; 
+    transition-duration: 0.01s !important; 
+  }
+  
+  /* Keep the blinking cursor visible but reduce duration */
+  .blink {
+    animation-duration: 2s !important;
+    animation-timing-function: step-start !important;
+  }
+  
+  /* Disable complex motion but keep simple state changes */
+  .three-dots-animation {
+    animation: none !important;
+  }
+  
+  /* Disable transform-based animations but keep opacity changes */
+  * {
+    transform: none !important;
+  }
 }

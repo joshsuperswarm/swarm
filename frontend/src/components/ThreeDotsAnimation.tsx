@@ -1,14 +1,31 @@
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { useMemo } from "react"
 
 interface ThreeDotsAnimationProps {
   className?: string
 }
 
 export function ThreeDotsAnimation({ className }: ThreeDotsAnimationProps) {
+  const prefersReducedMotion = useMemo(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
+    []
+  )
+
+  if (prefersReducedMotion) {
+    // Simple static dots for reduced motion preference
+    return (
+      <span className={cn("inline-flex three-dots-static", className)}>
+        <span className="mx-[1px] opacity-60">·</span>
+        <span className="mx-[1px] opacity-80">·</span>
+        <span className="mx-[1px] opacity-100">·</span>
+      </span>
+    )
+  }
+
   return (
     <motion.span
-      className={cn("inline-flex", className)}
+      className={cn("inline-flex three-dots-animation", className)}
       initial="start"
       animate="pulse"
       variants={{ pulse: { transition: { staggerChildren: 0.12, repeat: Infinity } } }}

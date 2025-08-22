@@ -71,16 +71,30 @@ export function AnimatedTitle({
     setDisplayed("")
     const chars = [...title]
     let i = 0
-    const step = () => {
-      i += Math.random() < 0.5 ? 1 : 2 // 1–2 chars per frame-ish
+    const startTime = performance.now()
+    
+    const step = (currentTime: number) => {
+      // More consistent timing for mobile - aim for ~60fps with adaptive speed
+      const elapsed = currentTime - startTime
+      const targetDuration = Math.min(title.length * 30, 2000) // 30ms per char, max 2s
+      const progress = elapsed / targetDuration
+      
+      // Calculate how many characters should be shown
+      const targetIndex = Math.floor(progress * chars.length)
+      i = Math.min(targetIndex, chars.length)
+      
       setDisplayed(chars.slice(0, i).join(""))
-      if (i < chars.length) {
+      
+      if (i < chars.length && elapsed < targetDuration) {
         typingRef.current = requestAnimationFrame(step)
       } else {
+        // Ensure we show the complete title
+        setDisplayed(title)
         typingRef.current = null
       }
     }
     typingRef.current = requestAnimationFrame(step)
+    
     return () => {
       if (typingRef.current) cancelAnimationFrame(typingRef.current)
     }
