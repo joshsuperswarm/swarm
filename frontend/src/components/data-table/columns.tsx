@@ -1,7 +1,7 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal, Zap, FileText, Search, MessageSquare } from "lucide-react"
+import { MoreHorizontal, Zap, FileText, Search, MessageSquare, Archive } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -21,7 +21,8 @@ import { isTitlePending } from "@/lib/titleState"
 
 export const createColumns = (
   selectedTaskIds?: Set<number>,
-  onSelectionChange?: (taskId: number, selected: boolean) => void
+  onSelectionChange?: (taskId: number, selected: boolean) => void,
+  onArchiveTask?: (taskId: number) => void
 ): ColumnDef<Task>[] => [
   {
     id: "select",
@@ -240,7 +241,17 @@ export const createColumns = (
             <DropdownMenuItem onClick={() => window.location.href = `/tasks/${task.task_id}`}>
               View task
             </DropdownMenuItem>
-            <DropdownMenuItem>Edit task</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchiveTask?.(task.task_id);
+              }}
+              className="text-red-600 focus:text-red-600"
+            >
+              <Archive className="mr-2 h-4 w-4" />
+              Archive task
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )

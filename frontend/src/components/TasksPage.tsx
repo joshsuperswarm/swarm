@@ -166,9 +166,27 @@ export function TasksPage() {
   // Use custom hotkeys hook for j/k navigation and archive
   useTaskHotkeys(tasks.length, selectedIndex, setSelectedIndex, handleArchive, handleToggleSelect);
 
+  // Archive individual task handler for dropdown
+  const handleArchiveTask = (taskId: number) => {
+    archiveMutation.mutate(taskId, {
+      onSuccess: () => {
+        qc.setQueryData(['tasks'], (prev: any[] | undefined) =>
+          Array.isArray(prev) ? prev.filter(t => t.task_id !== taskId) : prev
+        );
+        // Adjust selectedIndex if we archived the currently selected task
+        if (currentSelectedTask?.task_id === taskId) {
+          const taskIndex = tasks.findIndex(t => t.task_id === taskId);
+          if (taskIndex >= 0 && selectedIndex >= taskIndex && selectedIndex > 0) {
+            setSelectedIndex(selectedIndex - 1);
+          }
+        }
+      }
+    });
+  };
+
   // Memoize columns to prevent table re-initialization
   const columns = useMemo(() => {
-    return createColumns(selectedTaskIds, handleSelectionChange);
+    return createColumns(selectedTaskIds, handleSelectionChange, handleArchiveTask);
   }, [selectedTaskIds]);
 
   // Handle Enter key to navigate to task detail
