@@ -830,7 +830,11 @@ pub async fn get_swarm_api_key() -> Result<Option<String>, String> {
 pub async fn set_swarm_base_url(url: String) -> Result<(), String> {
     let mut cfg = crate::config::load_config().map_err(|e| e.to_string())?;
     let trimmed = url.trim().trim_end_matches('/').to_string();
-    cfg.swarm_base_url = if trimmed.is_empty() { None } else { Some(trimmed) };
+    cfg.swarm_base_url = if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    };
     crate::config::save_config(&cfg).map_err(|e| e.to_string())
 }
 
@@ -865,9 +869,7 @@ pub async fn swarm_send_message(text: String) -> Result<(), String> {
         .as_ref()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| {
-            "Swarm API key not set. Add it in Settings (gear icon).".to_string()
-        })?;
+        .ok_or_else(|| "Swarm API key not set. Add it in Settings (gear icon).".to_string())?;
 
     let base = resolve_swarm_base_url(&cfg);
 
@@ -915,12 +917,12 @@ pub async fn swarm_send_message(text: String) -> Result<(), String> {
             .to_string()
     })?;
 
-    // 2) Create task (chat mode)
+    // 2) Create task (execute mode by default)
     let tasks_url = format!("{}/api/tasks", base);
     let body = serde_json::json!({
         "description": text,
         "repository_id": repo_id,
-        "mode": "chat"
+        "mode": "execute"
     });
 
     let resp = client
