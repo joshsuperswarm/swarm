@@ -23,6 +23,8 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import { statuses } from "@/data/data"
+import { Zap, FileText, Search, MessageSquare } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -78,6 +80,34 @@ export function DataTable<TData, TValue>({
 
   const isMobile = useIsMobile();
 
+  const mobileModeConfig = (mode?: string) => {
+    switch (mode) {
+      case "execute":
+        return { Icon: Zap, label: "Execute", color: "text-green-600" };
+      case "plan":
+        return { Icon: FileText, label: "Plan", color: "text-blue-600" };
+      case "review":
+        return { Icon: Search, label: "Review", color: "text-purple-600" };
+      case "chat":
+        return { Icon: MessageSquare, label: "Chat", color: "text-blue-600" };
+      default:
+        return null;
+    }
+  };
+
+  const mobileStatusColor = (value?: string) => {
+    switch (value) {
+      case "pr_opened":
+        return "text-blue-600";
+      case "pr_merged":
+        return "text-green-600";
+      case "pr_closed":
+        return "text-orange-600";
+      default:
+        return "text-gray-600";
+    }
+  };
+
   return (
     <div className="space-y-1 w-full">
       {/* Mobile cards */}
@@ -107,9 +137,33 @@ export function DataTable<TData, TValue>({
                 <div className="mt-1 text-sm font-medium">
                   {r.title || 'Untitled'}
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-gray-600">
-                  {r.mode && <span className="capitalize">{String(r.mode)}</span>}
-                  {r.status && <span className="capitalize">• {String(r.status).replace('_', ' ')}</span>}
+                <div className="mt-1 flex items-center gap-3 text-xs">
+                  {/* Mode chip */}
+                  {(() => {
+                    const cfg = mobileModeConfig(r.mode as string | undefined);
+                    if (!cfg) return null;
+                    const { Icon, label, color } = cfg;
+                    return (
+                      <span className={`inline-flex items-center gap-1 ${color}`}>
+                        <Icon className="h-3 w-3" />
+                        <span>{label}</span>
+                      </span>
+                    );
+                  })()}
+
+                  {/* Status chip */}
+                  {(() => {
+                    const st = statuses.find(s => s.value === r.status);
+                    if (!st) return null;
+                    const Icon = st.icon as React.ComponentType<{ className?: string }>;
+                    const color = mobileStatusColor(st.value);
+                    return (
+                      <span className={`inline-flex items-center gap-1 ${color}`}>
+                        {Icon && <Icon className="h-3 w-3" />}
+                        <span>{st.label}</span>
+                      </span>
+                    );
+                  })()}
                 </div>
               </button>
             )
