@@ -15,6 +15,10 @@ pub struct Config {
     pub selected_folders: Vec<String>,
     #[serde(default)]
     pub openai_api_key: Option<String>,
+    #[serde(default)]
+    pub swarm_api_key: Option<String>,
+    #[serde(default)]
+    pub swarm_base_url: Option<String>,
 }
 
 impl Default for Config {
@@ -24,6 +28,8 @@ impl Default for Config {
             selected_files: Vec::new(),
             selected_folders: Vec::new(),
             openai_api_key: None,
+            swarm_api_key: None,
+            swarm_base_url: None,
         }
     }
 }

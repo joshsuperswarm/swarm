@@ -35,6 +35,11 @@ async fn main() {
             cmds::set_openai_api_key,
             cmds::get_openai_api_key,
             cmds::gen_chat_title,
+            cmds::set_swarm_api_key,
+            cmds::get_swarm_api_key,
+            cmds::set_swarm_base_url,
+            cmds::get_swarm_base_url,
+            cmds::swarm_send_message,
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();

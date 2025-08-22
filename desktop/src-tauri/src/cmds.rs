@@ -8,6 +8,7 @@ use log::{debug, error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
@@ -810,4 +811,132 @@ fn extract_title_from_responses(v: &serde_json::Value) -> Option<String> {
     }
 
     None
+}
+
+#[tauri::command]
+pub async fn set_swarm_api_key(api_key: String) -> Result<(), String> {
+    let mut cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    cfg.swarm_api_key = Some(api_key.trim().to_string());
+    crate::config::save_config(&cfg).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_swarm_api_key() -> Result<Option<String>, String> {
+    let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    Ok(cfg.swarm_api_key)
+}
+
+#[tauri::command]
+pub async fn set_swarm_base_url(url: String) -> Result<(), String> {
+    let mut cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    let trimmed = url.trim().trim_end_matches('/').to_string();
+    cfg.swarm_base_url = if trimmed.is_empty() { None } else { Some(trimmed) };
+    crate::config::save_config(&cfg).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_swarm_base_url() -> Result<Option<String>, String> {
+    let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    Ok(cfg.swarm_base_url)
+}
+
+fn resolve_swarm_base_url(cfg: &crate::config::Config) -> String {
+    if let Some(url) = cfg.swarm_base_url.as_ref() {
+        return url.trim().trim_end_matches('/').to_string();
+    }
+    if let Ok(env_url) = env::var("SWARM_BASE_URL") {
+        let u = env_url.trim().trim_end_matches('/').to_string();
+        if !u.is_empty() {
+            return u;
+        }
+    }
+    "https://api.superswarm.dev".to_string()
+}
+
+#[tauri::command]
+pub async fn swarm_send_message(text: String) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err("Message is empty".into());
+    }
+
+    let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    let api_key = cfg
+        .swarm_api_key
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            "Swarm API key not set. Add it in Settings (gear icon).".to_string()
+        })?;
+
+    let base = resolve_swarm_base_url(&cfg);
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // 1) Get user profile to find default repo
+    let prof_url = format!("{}/api/user/profile", base);
+    let prof_resp = client
+        .get(&prof_url)
+        .header("x-api-key", &api_key)
+        .send()
+        .await
+        .map_err(|e| format!("Profile request failed: {}", e))?;
+
+    if !prof_resp.status().is_success() {
+        let s = prof_resp.status();
+        let b = prof_resp.text().await.unwrap_or_default();
+        return Err(format!("Profile error {}: {}", s, b));
+    }
+
+    // Only require default_repo_id
+    let prof_json: serde_json::Value = prof_resp
+        .json()
+        .await
+        .map_err(|e| format!("Profile parse error: {}", e))?;
+
+    let default_repo_id = prof_json
+        .get("default_repo_id")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32)
+        .or_else(|| {
+            prof_json
+                .get("default_repo")
+                .and_then(|v| v.get("id"))
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32)
+        });
+
+    let repo_id = default_repo_id.ok_or_else(|| {
+        "No default repository set on your Swarm account. Please set your \
+         default repo in Swarm, then try again."
+            .to_string()
+    })?;
+
+    // 2) Create task (chat mode)
+    let tasks_url = format!("{}/api/tasks", base);
+    let body = serde_json::json!({
+        "description": text,
+        "repository_id": repo_id,
+        "mode": "chat"
+    });
+
+    let resp = client
+        .post(&tasks_url)
+        .header("x-api-key", &api_key)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Task request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let s = resp.status();
+        let b = resp.text().await.unwrap_or_default();
+        return Err(format!("Task create error {}: {}", s, b));
+    }
+
+    Ok(())
 }

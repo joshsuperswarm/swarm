@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { ChatMessage } from '../types'
-import { FileCode, Clipboard, Folder, Loader2 } from 'lucide-react'
+import { FileCode, Clipboard, Folder, Loader2, Send } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Markdown from './Markdown'
 
@@ -12,12 +13,30 @@ interface MessageBubbleProps {
 function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sentOk, setSentOk] = useState<null | boolean>(null)
   const isThinking = !isUser && streaming && (message.content?.length ?? 0) === 0
 
   const copyAll = async () => {
     await navigator.clipboard.writeText(message.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 1200)
+  }
+
+  const sendToSwarm = async () => {
+    if (!message.content?.trim()) return
+    try {
+      setSending(true)
+      setSentOk(null)
+      await invoke('swarm_send_message', { text: message.content })
+      setSentOk(true)
+    } catch (e) {
+      console.error('Send to Swarm failed:', e)
+      setSentOk(false)
+    } finally {
+      setSending(false)
+      setTimeout(() => setSentOk(null), 1500)
+    }
   }
 
   return (
@@ -98,17 +117,40 @@ function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
           ) : null}
         </div>
 
-        {/* hover copy */}
-        <button
-          onClick={copyAll}
-          className="absolute top-2 right-2 hidden group-hover:block rounded-md border border-gray-200 bg-white h-6 px-2 text-xs text-gray-700 shadow-sm hover:bg-gray-50"
-          aria-label="Copy message"
-        >
-          <div className="flex items-center gap-1">
-            <Clipboard className="h-3 w-3" />
-            {copied ? 'Copied' : 'Copy'}
-          </div>
-        </button>
+        {/* Hover actions */}
+        <div className="absolute top-2 right-2 hidden group-hover:flex gap-2">
+          <button
+            onClick={sendToSwarm}
+            className="rounded-md border border-gray-200 bg-white
+                       h-6 px-2 text-xs text-gray-700 shadow-sm
+                       hover:bg-gray-50 disabled:opacity-50"
+            aria-label="Send to Swarm"
+            disabled={sending}
+            title="Create a Swarm chat task with this message"
+          >
+            <div className="flex items-center gap-1">
+              {sending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Send className="h-3 w-3" />
+              )}
+              {sentOk === true ? 'Sent' : sentOk === false ? 'Error' : 'Send'}
+            </div>
+          </button>
+
+          <button
+            onClick={copyAll}
+            className="rounded-md border border-gray-200 bg-white
+                       h-6 px-2 text-xs text-gray-700 shadow-sm
+                       hover:bg-gray-50"
+            aria-label="Copy message"
+          >
+            <div className="flex items-center gap-1">
+              <Clipboard className="h-3 w-3" />
+              {copied ? 'Copied' : 'Copy'}
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   )

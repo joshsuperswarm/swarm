@@ -12,6 +12,9 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
   const [isOpen, setIsOpen] = useState(required)
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
+  const [swarmKey, setSwarmKey] = useState('')
+  const [showSwarmKey, setShowSwarmKey] = useState(false)
+  const [swarmBase, setSwarmBase] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -34,8 +37,17 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
       if (existingKey) {
         setApiKey(existingKey)
       }
+      // Load Swarm creds
+      const existingSwarmKey = await invoke<string | null>('get_swarm_api_key')
+      if (existingSwarmKey) {
+        setSwarmKey(existingSwarmKey)
+      }
+      const existingSwarmBase = await invoke<string | null>('get_swarm_base_url')
+      if (existingSwarmBase) {
+        setSwarmBase(existingSwarmBase)
+      }
     } catch (error) {
-      console.error('Failed to load API key:', error)
+      console.error('Failed to load API keys:', error)
     }
   }
 
@@ -50,13 +62,18 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
 
     try {
       await invoke('set_openai_api_key', { apiKey: apiKey.trim() })
+      // Save Swarm settings (both optional)
+      if (swarmKey.trim().length > 0) {
+        await invoke('set_swarm_api_key', { apiKey: swarmKey.trim() })
+      }
+      await invoke('set_swarm_base_url', { url: swarmBase.trim() })
       setIsOpen(false)
       if (onApiKeySet) {
         onApiKeySet()
       }
     } catch (error) {
-      setError('Failed to save API key')
-      console.error('Failed to save API key:', error)
+      setError('Failed to save API settings')
+      console.error('Failed to save API settings:', error)
     } finally {
       setIsLoading(false)
     }
@@ -115,6 +132,49 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
             </button>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
+        </div>
+
+        {/* Divider */}
+        <hr className="border-gray-200" />
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Swarm API (optional)</h3>
+          <p className="text-sm text-gray-600">
+            Set your Swarm API key to send messages to the Swarm backend.
+          </p>
+
+          <label className="text-sm font-medium">Swarm API Key</label>
+          <div className="relative">
+            <input
+              type={showSwarmKey ? 'text' : 'password'}
+              value={swarmKey}
+              onChange={(e) => setSwarmKey(e.target.value)}
+              placeholder="sk_live.xxxxx.yyyyy"
+              className="w-full px-3 py-2 pr-10 border border-gray-300
+                         rounded-md focus:outline-none focus:ring-2
+                         focus:ring-gray-700"
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              onClick={() => setShowSwarmKey(!showSwarmKey)}
+              className="absolute right-3 top-1/2 -translate-y-1/2
+                         text-gray-400 hover:text-gray-600"
+            >
+              {showSwarmKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+
+          <label className="text-sm font-medium">Swarm Base URL</label>
+          <input
+            type="text"
+            value={swarmBase}
+            onChange={(e) => setSwarmBase(e.target.value)}
+            placeholder="https://api.superswarm.dev (leave blank for default)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md
+                       focus:outline-none focus:ring-2 focus:ring-gray-700"
+            disabled={isLoading}
+          />
         </div>
 
         <div className="flex justify-end gap-2">
