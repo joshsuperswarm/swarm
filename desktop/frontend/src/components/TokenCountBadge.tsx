@@ -1,5 +1,5 @@
 import { AlertCircle } from 'lucide-react'
-import { useRepoStore } from '../store/useRepoStore'
+import { useConversationsStore } from '../store/useConversationsStore'
 import { cn } from '../lib/cn'
 
 function formatTokenCount(count: number): string {
@@ -12,11 +12,10 @@ function formatTokenCount(count: number): string {
 }
 
 export default function TokenCountBadge() {
-  const { tokenReport } = useRepoStore()
-
-  if (!tokenReport || tokenReport.total_tokens === 0) {
-    return null
-  }
+  const { conversations, activeId } = useConversationsStore()
+  const conv = conversations.find(c => c.id === activeId)
+  const tokenReport = conv?.contextTokens
+  if (!tokenReport) return null
 
   const isWarning = tokenReport.may_exceed_context
 

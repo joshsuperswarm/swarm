@@ -216,3 +216,23 @@ fn get_model_context_window(model: &str) -> u32 {
         _ => 128000, // Default to gpt-4o context
     }
 }
+
+// New: count tokens for arbitrary text blobs (e.g., full chat messages)
+pub fn count_tokens_for_text_blobs(blobs: &[String], model: &str) -> TokenReport {
+    let total_tokens: u64 = blobs
+        .iter()
+        .map(|s| TOKENIZER.encode_ordinary(s).len() as u64)
+        .sum();
+
+    let total_bytes: u64 = blobs.iter().map(|s| s.as_bytes().len() as u64).sum();
+    let context_window = get_model_context_window(model);
+
+    TokenReport {
+        files: vec![], // no per-file breakdown here
+        total_tokens,
+        total_bytes,
+        encoding: model.to_string(),
+        model_context_window: context_window,
+        may_exceed_context: total_tokens > context_window as u64 * 9 / 10,
+    }
+}

@@ -18,6 +18,7 @@ import { debounce } from 'lodash-es'
 import {
   extractWebSearchCitations,
 } from '../search/parseCitations'
+import type { TokenReport } from '../types'
 
 // Batching for stream tokens (module scope)
 const tokenBuffers = new Map<string, string[]>()
@@ -214,6 +215,24 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
     debouncedSave()
   }
 
+  // New: recompute full-chat context usage
+  const recomputeContextTokens = async (conversationId: string) => {
+    try {
+      const conv = get().conversations.find(c => c.id === conversationId)
+      if (!conv) return
+      const report = await invoke<TokenReport>('chat_count_tokens', {
+        messages: conv.apiMessages
+      })
+      set(state => ({
+        conversations: state.conversations.map(cv =>
+          cv.id === conversationId ? { ...cv, contextTokens: report } : cv
+        )
+      }))
+    } catch (err) {
+      console.error('Failed to compute context tokens:', err)
+    }
+  }
+
   return {
     conversations: [],
     activeId: null,
@@ -319,8 +338,8 @@ include citations. Sources will be parsed from url_citation annotations
 and rendered as footnotes.`
       }
       
-      // Determine which files to send (only on first message)
-      const filesToSend = isFirstUserMessage ? expandedFiles : []
+      // Determine which files to send (always include the current selection)
+      const filesToSend = expandedFiles
       // For UI display, show top-level selections (folders + individual files)
       let includedFiles: string[] = []
       let fullContent = content
@@ -400,6 +419,9 @@ and rendered as footnotes.`
           }
         })
       }))
+
+      // Recompute full-chat context usage after adding the user turn
+      await recomputeContextTokens(conversationId)
 
       const updatedConversation = get().conversations.find(c => c.id === conversationId)!
 
@@ -509,6 +531,9 @@ and rendered as footnotes.`
             unlistenToken()
             unlistenDone()
             unlistenPayload()
+
+            // Recompute context usage now that assistant content is finalized
+            recomputeContextTokens(conversationId)
           }
         })
       } catch (error) {
@@ -594,6 +619,10 @@ and rendered as footnotes.`
               conversations: conversations.sort((a, b) => b.updatedAt - a.updatedAt), 
               activeId 
             })
+            // Compute context usage for the active conversation
+            if (activeId) {
+              await recomputeContextTokens(activeId)
+            }
           }
         } else {
           // No saved conversations, create a default one

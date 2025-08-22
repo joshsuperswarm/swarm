@@ -1,6 +1,6 @@
 use crate::config::{load_config, save_config};
 use crate::repo::{FileMeta, RepoManager, RepoSummary};
-use crate::tokens::{count_tokens_for_files, TokenReport};
+use crate::tokens::{count_tokens_for_files, count_tokens_for_text_blobs, TokenReport};
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use lazy_static::lazy_static;
@@ -941,4 +941,12 @@ pub async fn swarm_send_message(text: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+// New: count tokens for the full chat (system + all turns), based on apiMessages
+#[tauri::command]
+pub async fn chat_count_tokens(messages: Vec<ChatMsg>) -> Result<TokenReport, String> {
+    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5".to_string());
+    let blobs: Vec<String> = messages.into_iter().map(|m| m.content).collect();
+    Ok(count_tokens_for_text_blobs(&blobs, &model))
 }

@@ -61,4 +61,6 @@ export interface Conversation {
   droppedImages: ImageAttachment[];
   titlePending?: boolean;
   titleStatus?: 'generating' | 'success' | 'error' | 'fallback';
+  // New: running count of the chat context usage (all messages/files sent so far)
+  contextTokens?: TokenReport;
 }
