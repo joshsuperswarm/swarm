@@ -7,6 +7,7 @@ from . import gitutils as g
 from .naming import branch_name
 from .state import RunRecord, add_run, get_run
 from .claude import ensure_claude_cli, run_headless
+from .bootstrap import run_setup_script
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -22,38 +23,42 @@ def ensure_repo() -> Path:
 @app.command()
 def local(prompt: str):
     """
-    Create a temp worktree, run Claude, commit, remove worktree, record id.
+    Create a temp worktree, run .swarm/setup.sh, run Claude, commit, remove.
     """
     repo = ensure_repo()
     ensure_claude_cli()
 
     branch = branch_name(prompt)
     repo_slug = repo.name.replace(" ", "-").lower()
-    wt_root = Path.home() / ".swrm" / "worktrees" / repo_slug / branch
-
-    # Create worktree on a new branch
+    wt_root = Path.home() / ".swarm" / "worktrees" / repo_slug / branch
     g.add_worktree(repo, branch, wt_root)
 
-    # Run Claude in the worktree
+    # Run repo-owned setup script (no env prep in the CLI)
+    try:
+        run_setup_script(repo, wt_root)
+    except Exception as e:
+        print(f"[red]setup failed: {e}[/red]")
+        raise typer.Exit(1)
+
+    # Claude
     code = run_headless(prompt, wt_root)
     if code != 0:
         print("[red]Claude run failed[/red]")
-        # Leave the worktree so user can inspect; don't remove
         raise typer.Exit(code)
 
-    # Commit changes
-    commit = g.commit_all(wt_root, f"swrm: {prompt[:60]}")
+    # Commit
+    try:
+        commit = g.commit_all(wt_root, f"swarm: {prompt[:60]}")
+    except g.GitError as e:
+        print(f"[red]git commit failed[/red]\n{e}")
+        raise typer.Exit(1)
 
-    # Remove worktree so the branch is free to switch in main repo
+    # Remove worktree so branch is free
     try:
         g.worktree_remove(repo, wt_root, force=True)
         removed = True
-    except g.GitError as e:
+    except g.GitError:
         removed = False
-        print(
-            "[yellow]Could not remove worktree automatically. "
-            f"Remove manually: git worktree remove --force {wt_root}[/yellow]"
-        )
 
     rec = add_run(
         repo,
@@ -68,17 +73,15 @@ def local(prompt: str):
         ),
     )
 
-    print(f"[swrm] local id={rec.id} branch={branch}")
-    if removed:
-        print("[swrm] worktree removed (branch free)")
-    else:
-        print("[swrm] worktree still present:", wt_root)
+    print(f"[swarm] local id={rec.id} branch={branch}")
+    print("[swarm] worktree removed (branch free)"
+          if removed else f"[swarm] worktree still present: {wt_root}")
 
 
 @app.command()
 def apply(id: int):
     """
-    Switch to the branch created by a previous swrm run (local only).
+    Switch to the branch created by a previous swarm run (local only).
     """
     repo = ensure_repo()
     rec = get_run(repo, id)
@@ -90,20 +93,10 @@ def apply(id: int):
         print(f"[red]Run {id} is not a local run[/red]")
         raise typer.Exit(1)
 
-    # Try to switch. If branch is still checked out in a worktree, Git
-    # will error. Suggest removing the worktree.
     try:
         g.switch_branch(repo, rec.branch)
     except g.GitError as e:
-        msg = str(e)
-        if "already checked out" in msg.lower():
-            print(
-                "[red]Branch is checked out in a worktree.[/red]\n"
-                f"Remove it first:\n"
-                f"  git worktree remove --force {rec.worktree_path}"
-            )
-        else:
-            print(f"[red]{e}[/red]")
+        print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 
-    print(f"[swrm] switched to {rec.branch}")
+    print(f"[swarm] switched to {rec.branch}")

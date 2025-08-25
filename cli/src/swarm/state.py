@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 import json
 import time
 
-STATE_DIR = Path.home() / ".swrm"
+STATE_DIR = Path.home() / ".swarm"
 RUNS_FILE = STATE_DIR / "runs.json"
 
 
