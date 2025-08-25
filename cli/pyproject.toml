@@ -1,0 +1,16 @@
+[project]
+name = "swrm"
+version = "0.1.0"
+description = "Swarm: branch-first Claude Code (local only)"
+requires-python = ">=3.11"
+dependencies = [
+  "typer>=0.12",
+  "rich>=13",
+]
+
+[project.scripts]
+swrm = "swrm.__main__:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
