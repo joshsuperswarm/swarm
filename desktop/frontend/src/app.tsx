@@ -11,7 +11,7 @@ import Chat from './components/Chat'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 export default function App() {
-  const { repo, loadRecent, clearFiles } = useRepoStore()
+  const { repo, loadRecent, clearFiles, openRepo } = useRepoStore()
   const { 
     conversations, 
     activeId, 
@@ -39,6 +39,12 @@ export default function App() {
     if (repo) {
       setPickerOpen(true)
     }
+  }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
+
+  // Open Folder: Cmd/Ctrl+O
+  useHotkeys('mod+o', (e) => {
+    e.preventDefault()
+    openRepo()
   }, { enableOnFormTags: ['TEXTAREA', 'INPUT'] })
 
   // New Chat: Cmd/Ctrl+N
