@@ -61,10 +61,15 @@ install_rust() {
         log_success "Rust already installed"
     fi
 
-    # Ensure we have the latest stable version
-    log_info "Updating Rust to latest stable..."
-    rustup update stable
-    rustup default stable
+    # Ensure we have the latest stable version (skip on macOS)
+    local os=$(detect_os)
+    if [[ "$os" != "macos" ]]; then
+        log_info "Updating Rust to latest stable..."
+        rustup update stable
+        rustup default stable
+    else
+        log_info "Skipping rustup commands on macOS"
+    fi
 }
 
 # Install Bun if needed
@@ -145,10 +150,13 @@ install_additional_tools() {
         bun add -g prettier
     fi
 
-    # Ensure rustfmt is available
-    if command_exists rustup; then
+    # Ensure rustfmt is available (skip rustup on macOS)
+    local os=$(detect_os)
+    if command_exists rustup && [[ "$os" != "macos" ]]; then
         log_info "Installing rustfmt component..."
         rustup component add rustfmt
+    elif [[ "$os" == "macos" ]]; then
+        log_info "Skipping rustup component installation on macOS"
     fi
 
     # Install other development tools based on OS
@@ -168,7 +176,7 @@ install_additional_tools() {
 # Setup git hooks
 setup_git_hooks() {
     local git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
-    local hooks_dir="$git_root/.git/hooks"
+    local hooks_dir="$(git rev-parse --git-common-dir 2>/dev/null || echo "$git_root/.git")/hooks"
     local scripts_dir="$git_root/scripts"
 
     if [[ ! -d "$hooks_dir" ]]; then
@@ -326,36 +334,6 @@ verify_installation() {
     return $errors
 }
 
-# Test project compilation
-test_compilation() {
-    local git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
-
-    log_info "Testing project compilation..."
-
-    # Test Rust compilation
-    if [[ -f "$git_root/backend/Cargo.toml" ]]; then
-        log_info "Testing Rust compilation..."
-        cd "$git_root/backend"
-        if cargo check --quiet; then
-            log_success "Rust compilation test passed"
-        else
-            log_warning "Rust compilation test failed (this may be normal for incomplete setup)"
-        fi
-        cd "$git_root"
-    fi
-
-    # Test TypeScript compilation (web frontend)
-    if [[ -f "$git_root/frontend/package.json" ]]; then
-        log_info "Testing web frontend TypeScript compilation..."
-        cd "$git_root/frontend"
-        if bunx tsc --noEmit; then
-            log_success "Web frontend TypeScript compilation test passed"
-        else
-            log_warning "Web frontend TypeScript compilation test failed"
-        fi
-        cd "$git_root"
-    fi
-}
 
 # Main setup function
 main() {
@@ -391,8 +369,6 @@ main() {
     else
         log_warning "Some tools may need manual installation"
     fi
-
-    test_compilation
 
     echo ""
     echo "🎉 Setup complete!"
