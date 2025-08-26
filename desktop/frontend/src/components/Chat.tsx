@@ -27,8 +27,10 @@ export default function Chat({ textareaRef }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const composerRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [hasNewerBelow, setHasNewerBelow] = useState(false)
+  const [padBottom, setPadBottom] = useState(160) // fallback
   
   // Use the passed ref if available, otherwise use the internal ref
   const activeTextareaRef = textareaRef || internalTextareaRef
@@ -87,6 +89,19 @@ export default function Chat({ textareaRef }: ChatProps) {
   useEffect(() => {
     setHasNewerBelow(false)
   }, [activeId])
+
+  // Dynamic padding based on composer height
+  useEffect(() => {
+    const el = composerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      // measure full composer height and add a little breathing room
+      const h = el.getBoundingClientRect().height
+      setPadBottom(Math.ceil(h + 8))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Global drag event listeners to handle drag ending outside the window
   useEffect(() => {
@@ -227,7 +242,11 @@ export default function Chat({ textareaRef }: ChatProps) {
       onDrop={handleDrop}
     >
       {/* Messages */}
-      <div ref={scrollContainerRef} className="h-full overflow-y-auto pb-36 md:pb-40 pt-3 scroll-gutter-stable">
+      <div 
+        ref={scrollContainerRef} 
+        className="h-full overflow-y-auto pt-3 scroll-gutter-stable"
+        style={{ paddingBottom: padBottom }}
+      >
         <div className="chat-container">
           <div className="mx-auto w-full max-w-4xl space-y-4">
             {messages.map((message, i) => {
@@ -246,7 +265,11 @@ export default function Chat({ textareaRef }: ChatProps) {
 
       {/* Floating Composer */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
-        <div className="chat-container pointer-events-auto pb-3">
+        {/* measure this wrapper (includes card + its paddings) */}
+        <div 
+          ref={composerRef}
+          className="chat-container pointer-events-auto pb-3"
+        >
             <div className="mx-auto w-full max-w-4xl">
               <div className={`rounded-xl md:rounded-2xl border ${isDragging ? 'border-gray-700 border-2' : 'border-gray-200'} bg-white/90 backdrop-blur shadow-lg transition-colors`}>
             <div className="flex flex-col gap-2 p-2">
