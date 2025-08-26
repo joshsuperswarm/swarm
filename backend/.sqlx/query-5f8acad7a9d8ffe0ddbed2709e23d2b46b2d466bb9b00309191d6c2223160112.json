@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO messages (task_id, run_id, mode, body_md, sha, role)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT (task_id, run_id, mode, role) WHERE run_id IS NOT NULL\n            DO UPDATE SET\n                body_md = EXCLUDED.body_md,\n                sha = EXCLUDED.sha,\n                role = EXCLUDED.role,\n                updated_at = NOW()\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4", "Int4", "Text", "Text", "Text", "Text"]
+    },
+    "nullable": [false]
+  },
+  "hash": "5f8acad7a9d8ffe0ddbed2709e23d2b46b2d466bb9b00309191d6c2223160112"
+}

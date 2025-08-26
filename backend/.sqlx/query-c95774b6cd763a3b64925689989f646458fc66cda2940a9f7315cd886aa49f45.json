@@ -1,0 +1,119 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE runs\n               SET final_message_md = $2, updated_at = NOW()\n             WHERE id = $1\n            RETURNING id, task_id, message_id, sandbox_id, sandbox_hostname, session_id, command_id, branch, status, commit_title, commit_body, final_message_md, mode, model, idle_timeout_at, created_at, updated_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "task_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "message_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "sandbox_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "sandbox_hostname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "session_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "command_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "branch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "commit_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "commit_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "final_message_md",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 14,
+        "name": "idle_timeout_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "c95774b6cd763a3b64925689989f646458fc66cda2940a9f7315cd886aa49f45"
+}

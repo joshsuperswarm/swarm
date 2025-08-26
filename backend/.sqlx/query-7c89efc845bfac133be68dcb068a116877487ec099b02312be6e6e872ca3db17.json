@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO user_api_keys (user_id, anthropic_ciphertext, anthropic_nonce, openai_ciphertext, openai_nonce)\n            VALUES ($1, $2, $3, $4, $5)\n            ON CONFLICT (user_id) \n            DO UPDATE SET \n                anthropic_ciphertext = COALESCE($2, user_api_keys.anthropic_ciphertext),\n                anthropic_nonce = COALESCE($3, user_api_keys.anthropic_nonce),\n                openai_ciphertext = COALESCE($4, user_api_keys.openai_ciphertext),\n                openai_nonce = COALESCE($5, user_api_keys.openai_nonce),\n                updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4", "Text", "Text", "Text", "Text"]
+    },
+    "nullable": []
+  },
+  "hash": "7c89efc845bfac133be68dcb068a116877487ec099b02312be6e6e872ca3db17"
+}

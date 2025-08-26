@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE messages SET run_id = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4", "Int8"]
+    },
+    "nullable": []
+  },
+  "hash": "25468ecebf05a25eca77c280d44d701d844126a26976d460530732720ce76faa"
+}

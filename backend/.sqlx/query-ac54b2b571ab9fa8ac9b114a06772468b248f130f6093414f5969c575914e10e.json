@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FROM runs WHERE task_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4"]
+    },
+    "nullable": [null]
+  },
+  "hash": "ac54b2b571ab9fa8ac9b114a06772468b248f130f6093414f5969c575914e10e"
+}

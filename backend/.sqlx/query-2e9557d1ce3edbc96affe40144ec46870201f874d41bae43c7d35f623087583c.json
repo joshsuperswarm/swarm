@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "-- Archive multiple tasks and return branch/repository info for branch deletion\nUPDATE tasks \nSET is_archived = TRUE, updated_at = NOW()\nWHERE id = ANY($1) AND user_id = $2\nRETURNING \n    id as task_id,\n    (\n        SELECT r.branch \n        FROM runs r \n        WHERE r.task_id = tasks.id \n        ORDER BY r.created_at DESC \n        LIMIT 1\n    ) as branch,\n    (\n        SELECT repo.owner\n        FROM repositories repo\n        WHERE repo.id = tasks.repository_id\n    ) as repo_owner,\n    (\n        SELECT repo.name\n        FROM repositories repo\n        WHERE repo.id = tasks.repository_id\n    ) as repo_name;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "task_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "branch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "repo_owner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "repo_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4Array", "Int4"]
+    },
+    "nullable": [false, null, null, null]
+  },
+  "hash": "2e9557d1ce3edbc96affe40144ec46870201f874d41bae43c7d35f623087583c"
+}

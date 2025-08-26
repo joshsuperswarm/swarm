@@ -1,0 +1,160 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "-- One row per task (its latest run)\nSELECT DISTINCT ON (r.task_id)\n       r.id           AS run_id,\n       t.id           AS task_id,\n       t.title,\n       /* NEW – fall back to first user message */\n       COALESCE(\n         t.description,\n         (\n           SELECT body_md\n           FROM   messages m\n           WHERE  m.task_id = t.id\n           AND    m.role    = 'user'\n           ORDER  BY m.created_at\n           LIMIT 1\n         )\n       )              AS description,\n       t.repository_id,\n       t.user_id,\n       -- surfaced run fields\n       r.status,\n       r.branch        AS github_branch,\n       r.sandbox_id,\n       r.sandbox_hostname,\n       r.session_id,\n       r.command_id,\n       r.commit_title,\n       r.commit_body,\n       r.mode,         -- run mode (chat/execute)\n       r.model,        -- claude model (sonnet/opus)\n       t.pr_title,     -- PR artifacts from task\n       t.pr_body,      -- PR artifacts from task\n       t.is_archived,\n       r.created_at,\n       r.updated_at,\n       t.github_pr_url, -- still lives on task\n       t.pr_merged_at,  -- timestamp when PR was merged\n       t.pr_closed_at   -- timestamp when PR was closed (but not merged)\nFROM   tasks t\nJOIN   runs  r ON r.task_id = t.id\nWHERE  t.user_id = $1 AND t.is_archived = FALSE\nORDER  BY r.task_id, r.created_at DESC;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "run_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "task_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "repository_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "github_branch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "sandbox_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "sandbox_hostname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "session_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "command_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "commit_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "commit_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 16,
+        "name": "pr_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "pr_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "is_archived",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "github_pr_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 22,
+        "name": "pr_merged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 23,
+        "name": "pr_closed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "26557fe97596d9876a8a03bb9582d5fbe8b998aef834344cc84f85d154c484e5"
+}

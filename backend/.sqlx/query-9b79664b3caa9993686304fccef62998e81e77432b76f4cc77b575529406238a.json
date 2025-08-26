@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO messages (task_id, run_id, mode, body_md, sha, role, metadata)\n            VALUES ($1, $2, $3, $4, $5, $6, $7)\n            RETURNING id, task_id, run_id, mode, body_md, sha, role, \n                      metadata as \"metadata: serde_json::Value\", created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "task_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "run_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "body_md",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "sha",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "metadata: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4", "Int4", "Text", "Text", "Text", "Text", "Jsonb"]
+    },
+    "nullable": [false, false, true, false, false, true, false, false, true]
+  },
+  "hash": "9b79664b3caa9993686304fccef62998e81e77432b76f4cc77b575529406238a"
+}

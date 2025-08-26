@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT \n    r.id, r.github_repo_id, r.owner, r.name, r.full_name, r.is_private, r.created_at, r.last_fetched_at, r.github_pushed_at,\n    COUNT(t.id) as task_count\nFROM repositories r\nLEFT JOIN tasks t ON r.id = t.repository_id AND t.is_archived = FALSE\nWHERE r.user_id = $1\nGROUP BY r.id, r.github_repo_id, r.owner, r.name, r.full_name, r.is_private, r.created_at, r.last_fetched_at, r.github_pushed_at\nORDER BY r.github_pushed_at DESC NULLS LAST, r.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "github_repo_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "owner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "full_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_private",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "last_fetched_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "github_pushed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "task_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "c2872fb1f6e8b1dbd98abb07dc3f7009778fd23de5a354f975b6d84b3135a609"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                    INSERT INTO agent_todos (run_id, todo_id, content, priority, status)\n                                    VALUES ($1, $2, $3, $4, $5)\n                                    ON CONFLICT (run_id, todo_id)\n                                    DO UPDATE SET content = EXCLUDED.content,\n                                                  priority = EXCLUDED.priority,\n                                                  status   = EXCLUDED.status,\n                                                  updated_at = now()\n                                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4", "Text", "Text", "Text", "Text"]
+    },
+    "nullable": []
+  },
+  "hash": "5c94f76738ec5a8cbadd5f2d4804b60115035bbe3aef075c4ed31831178d967c"
+}

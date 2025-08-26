@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO repositories (github_repo_id, owner, name, full_name, user_id, is_private, last_fetched_at, github_pushed_at)\nVALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)\nON CONFLICT (github_repo_id, user_id) DO UPDATE SET\n    owner = EXCLUDED.owner,\n    name = EXCLUDED.name,\n    full_name = EXCLUDED.full_name,\n    is_private = EXCLUDED.is_private,\n    last_fetched_at = NOW(),\n    github_pushed_at = EXCLUDED.github_pushed_at\nRETURNING id, github_repo_id, owner, name, full_name, user_id, is_private, created_at, last_fetched_at, github_pushed_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "github_repo_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "owner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "full_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_private",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "last_fetched_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "github_pushed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Bool",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5d2b526e91242e745a2aa844583c7872f860a34ef34f074836be68944bf72907"
+}

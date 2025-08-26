@@ -1,0 +1,102 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "-- description is now NULL; first prompt will be written to messages later\nINSERT INTO tasks (user_id, repository_id, title)\nVALUES ($1, $2, $3)\nRETURNING id, user_id, repository_id, title,\n         NULL::TEXT          AS description,\n         status, github_pr_url,\n         pr_title, pr_body, pr_merged_at, pr_closed_at, is_archived, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "repository_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "github_pr_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "pr_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "pr_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "pr_merged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "pr_closed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "is_archived",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "07ef1edd4641bd4d5c84a5077b5d26e917dfd1570e298527ae8d8acb6429edc8"
+}

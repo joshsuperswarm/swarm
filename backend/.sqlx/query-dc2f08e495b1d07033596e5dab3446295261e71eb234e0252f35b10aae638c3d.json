@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users \nSET github_username = $2, github_user_id = $3, updated_at = NOW()\nWHERE id = $1\nRETURNING id, clerk_user_id, github_username, github_user_id, email, default_repo_id, onboarding_completed, onboarding_completed_at, onboarding_step, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "clerk_user_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "github_username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "github_user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "default_repo_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "onboarding_completed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "onboarding_completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "onboarding_step",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "dc2f08e495b1d07033596e5dab3446295261e71eb234e0252f35b10aae638c3d"
+}

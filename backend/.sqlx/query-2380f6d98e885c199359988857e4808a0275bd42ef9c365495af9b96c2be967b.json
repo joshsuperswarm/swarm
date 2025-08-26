@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE runs \n            SET idle_timeout_at = NOW() + INTERVAL '1 minute' * $2, updated_at = NOW()\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4", "Float8"]
+    },
+    "nullable": []
+  },
+  "hash": "2380f6d98e885c199359988857e4808a0275bd42ef9c365495af9b96c2be967b"
+}

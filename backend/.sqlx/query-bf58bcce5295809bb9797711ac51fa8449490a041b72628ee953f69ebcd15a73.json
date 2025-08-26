@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET onboarding_step = $2, updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4", "Text"]
+    },
+    "nullable": []
+  },
+  "hash": "bf58bcce5295809bb9797711ac51fa8449490a041b72628ee953f69ebcd15a73"
+}

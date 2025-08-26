@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT branch FROM runs \n            WHERE task_id = $1 \n            AND status = 'pr_opened'\n            ORDER BY created_at DESC \n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "branch",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4"]
+    },
+    "nullable": [true]
+  },
+  "hash": "c538c6aadda03b0d1f736d6e60321e92ee910823e54dfc0874c7b9bc865f53df"
+}

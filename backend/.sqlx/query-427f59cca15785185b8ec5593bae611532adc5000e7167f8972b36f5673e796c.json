@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tasks \nSET is_archived = TRUE, updated_at = NOW()\nWHERE id = ANY($1) AND user_id = $2\nRETURNING id;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": ["Int4Array", "Int4"]
+    },
+    "nullable": [false]
+  },
+  "hash": "427f59cca15785185b8ec5593bae611532adc5000e7167f8972b36f5673e796c"
+}
