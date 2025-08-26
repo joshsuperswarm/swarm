@@ -26,6 +26,7 @@ def run_headless(prompt: str, cwd: Path) -> int:
         prompt,
         "--output-format",
         "stream-json",
+        "--verbose",
     ]
     p = subprocess.Popen(
         cmd,
