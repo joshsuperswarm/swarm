@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ChatMessage } from '../types'
-import { FileCode, Clipboard, Folder, Loader2, Send } from 'lucide-react'
+import { FileCode, Clipboard, Folder, Loader2, Send, TerminalSquare } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Markdown from './Markdown'
+import { buildClaudeCommand } from '../utils/cli'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -13,6 +14,7 @@ interface MessageBubbleProps {
 function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
+  const [claudeCopied, setClaudeCopied] = useState(false)
   const [sending, setSending] = useState(false)
   const [sentOk, setSentOk] = useState<null | boolean>(null)
   const isThinking = !isUser && streaming && (message.content?.length ?? 0) === 0
@@ -21,6 +23,18 @@ function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
     await navigator.clipboard.writeText(message.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 1200)
+  }
+
+  const copyClaude = async () => {
+    const content = message.content ?? ''
+    if (!content.trim()) return
+
+    // Build a single-arg CLI command (newlines collapsed).
+    const cmd = buildClaudeCommand(content, { collapse: true })
+    await navigator.clipboard.writeText(cmd)
+
+    setClaudeCopied(true)
+    setTimeout(() => setClaudeCopied(false), 1200)
   }
 
   const sendToSwarm = async () => {
@@ -137,6 +151,23 @@ function MessageBubbleImpl({ message, streaming }: MessageBubbleProps) {
               {sentOk === true ? 'Sent' : sentOk === false ? 'Error' : 'Send'}
             </div>
           </button>
+
+          {/* Copy Claude (new) */}
+          {!isUser && (
+            <button
+              onClick={copyClaude}
+              className="rounded-md border border-gray-200 bg-white
+                         h-6 px-2 text-xs text-gray-700 shadow-sm
+                         hover:bg-gray-50"
+              aria-label="Copy Claude command"
+              title="Copy as: claude &quot;&lt;message&gt;&quot;"
+            >
+              <div className="flex items-center gap-1">
+                <TerminalSquare className="h-3 w-3" />
+                {claudeCopied ? 'Copied' : 'Claude'}
+              </div>
+            </button>
+          )}
 
           <button
             onClick={copyAll}
