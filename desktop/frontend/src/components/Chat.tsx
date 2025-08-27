@@ -13,7 +13,7 @@ interface ChatProps {
 }
 
 export default function Chat({ textareaRef }: ChatProps) {
-  const { conversations, activeId, sendMessage, cancelStream, setDroppedImages } = useConversationsStore()
+  const { conversations, activeId, sendMessage, cancelStream, setDroppedImages, setMode } = useConversationsStore()
   const { selectedFiles, selectedFolders } = useRepoStore()
   
   // Get the active conversation
@@ -21,6 +21,7 @@ export default function Chat({ textareaRef }: ChatProps) {
   const messages = activeConversation?.messages || []
   const isStreaming = activeConversation?.isStreaming || false
   const droppedImages = activeConversation?.droppedImages || []
+  const mode = activeConversation?.mode ?? 'fast'
   const [input, setInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0)
@@ -288,11 +289,40 @@ export default function Chat({ textareaRef }: ChatProps) {
               {/* Input and button row */}
               <div className="w-full">
                 <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-gray-700 transition-colors overflow-hidden">
+                  {/* Mode dropdown on the left */}
+                  <select
+                    aria-label="Model mode"
+                    value={mode}
+                    onChange={e =>
+                      activeId && setMode(activeId, e.target.value as 'fast' | 'thinking')
+                    }
+                    className="ml-2 mr-1 h-8 px-2 text-xs border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50"
+                    disabled={isStreaming}
+                    title={
+                      mode === 'fast'
+                        ? 'Fast (reasoning_effort=minimal). Shift+Tab to toggle.'
+                        : 'Thinking (reasoning_effort=high). Shift+Tab to toggle.'
+                    }
+                  >
+                    <option value="fast">Fast</option>
+                    <option value="thinking">Thinking</option>
+                  </select>
+                  
                   <textarea
                     ref={activeTextareaRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
+                      // NEW: Shift+Tab toggles mode
+                      if (e.shiftKey && e.key === 'Tab') {
+                        e.preventDefault()
+                        if (activeId) {
+                          const next = mode === 'fast' ? 'thinking' : 'fast'
+                          setMode(activeId, next)
+                        }
+                        return
+                      }
+
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
                         handleSubmit()

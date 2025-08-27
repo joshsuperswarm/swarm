@@ -210,6 +210,7 @@ pub async fn chat_stream_start(
     app: AppHandle,
     conversation_id: String,
     messages: Vec<ChatMsg>,
+    reasoning_effort: Option<String>,
 ) -> Result<String, String> {
     info!("Starting chat stream with {} messages", messages.len());
     for (i, msg) in messages.iter().enumerate() {
@@ -279,12 +280,16 @@ pub async fn chat_stream_start(
     );
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": model,
         "input": to_responses_input(&messages),
         "tools": [{ "type": "web_search" }],
         "stream": true
     });
+
+    if let Some(eff) = reasoning_effort {
+        body["reasoning_effort"] = serde_json::json!(eff);
+    }
     debug!(
         "Request body: {}",
         serde_json::to_string_pretty(&body).unwrap()

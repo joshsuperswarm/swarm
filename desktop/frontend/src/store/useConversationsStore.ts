@@ -109,6 +109,7 @@ interface ConversationsStore {
   cancelStream: (conversationId: string) => Promise<void>
   setDroppedImages: (conversationId: string, images: ImageAttachment[]) => void
   clearDroppedImages: (conversationId: string) => void
+  setMode: (id: string, mode: 'fast' | 'thinking') => void
   
   // Persistence
   loadFromDisk: () => Promise<void>
@@ -135,6 +136,7 @@ const createInitialConversation = (): Conversation => ({
   createdAt: Date.now(),
   updatedAt: Date.now(),
   droppedImages: [],
+  mode: 'fast',
 })
 
 const generateChatTitle = async (
@@ -249,6 +251,15 @@ export const useConversationsStore = create<ConversationsStore>((set, get) => {
 
     setActive: (id: string | null) => {
       set({ activeId: id })
+    },
+
+    setMode: (id, mode) => {
+      set(state => ({
+        conversations: state.conversations.map(c =>
+          c.id === id ? { ...c, mode } : c
+        ),
+      }))
+      saveToDisk()
     },
 
     archiveConversation: (id: string) => {
@@ -424,11 +435,14 @@ and rendered as footnotes.`
       await recomputeContextTokens(conversationId)
 
       const updatedConversation = get().conversations.find(c => c.id === conversationId)!
+      const mode = updatedConversation.mode ?? 'fast'
+      const reasoningEffort = mode === 'fast' ? 'minimal' : 'high'
 
       try {
         const requestId = await invoke<string>('chat_stream_start', {
           conversationId,
-          messages: updatedConversation.apiMessages
+          messages: updatedConversation.apiMessages,
+          reasoningEffort,
         })
         
         // Add assistant placeholder message and start streaming

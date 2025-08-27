@@ -27,6 +27,8 @@ export interface TokenReport {
   may_exceed_context: boolean;
 }
 
+export type ChatMode = 'fast' | 'thinking'
+
 export interface ImageAttachment {
   data: string; // base64 data URL
   type: string; // MIME type
@@ -63,4 +65,5 @@ export interface Conversation {
   titleStatus?: 'generating' | 'success' | 'error' | 'fallback';
   // New: running count of the chat context usage (all messages/files sent so far)
   contextTokens?: TokenReport;
+  mode?: ChatMode;
 }
