@@ -153,7 +153,11 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
         style={style}
         className={`grid grid-cols-[16px,1fr,16px] items-center gap-3 px-4 py-2 cursor-pointer min-w-0
           ${active ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
-        onClick={() => handleToggle(item)}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return; // left button only
+          e.preventDefault();         // avoid text selection/focus churn
+          handleToggle(item);
+        }}
         onMouseEnter={() => setHighlightedIndex(index)}
         role="option"
         aria-selected={active}
@@ -224,6 +228,9 @@ export default function FilePicker({ open, onOpenChange, onFileSelected }: FileP
                 itemCount={filteredItems.length}
                 itemSize={40} // Height per item (py-2 = 8px + content ~32px)
                 overscanCount={5} // Render extra items for smooth scrolling
+                itemKey={(index) =>
+                  `${filteredItems[index].kind}:${filteredItems[index].relpath}`
+                }
               >
                 {RowComponent}
               </List>
