@@ -283,12 +283,18 @@ pub async fn chat_stream_start(
     let mut body = serde_json::json!({
         "model": model,
         "input": to_responses_input(&messages),
-        "tools": [{ "type": "web_search" }],
         "stream": true
     });
 
-    if let Some(eff) = reasoning_effort {
-        body["reasoning_effort"] = serde_json::json!(eff);
+    // Add tools conditionally based on reasoning effort
+    if let Some(ref eff) = reasoning_effort {
+        if eff != "minimal" {
+            body["tools"] = serde_json::json!([{ "type": "web_search" }]);
+        }
+        body["reasoning"] = serde_json::json!({"effort": eff});
+    } else {
+        // Default case - include tools when no reasoning effort specified
+        body["tools"] = serde_json::json!([{ "type": "web_search" }]);
     }
     debug!(
         "Request body: {}",

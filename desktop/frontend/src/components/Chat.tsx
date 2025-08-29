@@ -5,6 +5,7 @@ import MessageBubble from './MessageBubble'
 import FilePills from './FilePills'
 import ImagePills from './ImagePills'
 import ScrollToBottom from './ScrollToBottom'
+import ModeToggle from './ModeToggle'
 import { ImageAttachment } from '../types'
 import { fileToBase64 } from '../utils/fileUtils'
 
@@ -289,24 +290,12 @@ export default function Chat({ textareaRef }: ChatProps) {
               {/* Input and button row */}
               <div className="w-full">
                 <div className="group relative flex items-center rounded-md border border-gray-300 bg-white focus-within:border-gray-700 transition-colors overflow-hidden">
-                  {/* Mode dropdown on the left */}
-                  <select
-                    aria-label="Model mode"
-                    value={mode}
-                    onChange={e =>
-                      activeId && setMode(activeId, e.target.value as 'fast' | 'thinking')
-                    }
-                    className="ml-2 mr-1 h-8 px-2 text-xs border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50"
+                  {/* Mode toggle */}
+                  <ModeToggle
+                    mode={mode}
+                    onChange={(m) => activeId && setMode(activeId, m)}
                     disabled={isStreaming}
-                    title={
-                      mode === 'fast'
-                        ? 'Fast (reasoning_effort=minimal). Shift+Tab to toggle.'
-                        : 'Thinking (reasoning_effort=high). Shift+Tab to toggle.'
-                    }
-                  >
-                    <option value="fast">Fast</option>
-                    <option value="thinking">Thinking</option>
-                  </select>
+                  />
                   
                   <textarea
                     ref={activeTextareaRef}
