@@ -37,8 +37,6 @@ async fn main() {
             cmds::gen_chat_title,
             cmds::set_swarm_api_key,
             cmds::get_swarm_api_key,
-            cmds::set_swarm_base_url,
-            cmds::get_swarm_base_url,
             cmds::swarm_send_message,
             cmds::chat_count_tokens,
         ])

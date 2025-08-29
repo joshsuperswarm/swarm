@@ -8,7 +8,6 @@ use log::{debug, error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::env;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
@@ -837,36 +836,8 @@ pub async fn get_swarm_api_key() -> Result<Option<String>, String> {
     Ok(cfg.swarm_api_key)
 }
 
-#[tauri::command]
-pub async fn set_swarm_base_url(url: String) -> Result<(), String> {
-    let mut cfg = crate::config::load_config().map_err(|e| e.to_string())?;
-    let trimmed = url.trim().trim_end_matches('/').to_string();
-    cfg.swarm_base_url = if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed)
-    };
-    crate::config::save_config(&cfg).map_err(|e| e.to_string())
-}
 
-#[tauri::command]
-pub async fn get_swarm_base_url() -> Result<Option<String>, String> {
-    let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
-    Ok(cfg.swarm_base_url)
-}
 
-fn resolve_swarm_base_url(cfg: &crate::config::Config) -> String {
-    if let Some(url) = cfg.swarm_base_url.as_ref() {
-        return url.trim().trim_end_matches('/').to_string();
-    }
-    if let Ok(env_url) = env::var("SWARM_BASE_URL") {
-        let u = env_url.trim().trim_end_matches('/').to_string();
-        if !u.is_empty() {
-            return u;
-        }
-    }
-    "https://api.superswarm.dev".to_string()
-}
 
 #[tauri::command]
 pub async fn swarm_send_message(text: String) -> Result<(), String> {
@@ -882,7 +853,7 @@ pub async fn swarm_send_message(text: String) -> Result<(), String> {
         .filter(|s| !s.is_empty())
         .ok_or_else(|| "Swarm API key not set. Add it in Settings (gear icon).".to_string())?;
 
-    let base = resolve_swarm_base_url(&cfg);
+    let base = "https://api.superswarm.dev".to_string();
 
     let client = reqwest::Client::builder()
         .no_proxy()

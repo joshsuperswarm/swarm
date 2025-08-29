@@ -14,7 +14,6 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
   const [showApiKey, setShowApiKey] = useState(false)
   const [swarmKey, setSwarmKey] = useState('')
   const [showSwarmKey, setShowSwarmKey] = useState(false)
-  const [swarmBase, setSwarmBase] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,10 +41,6 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
       if (existingSwarmKey) {
         setSwarmKey(existingSwarmKey)
       }
-      const existingSwarmBase = await invoke<string | null>('get_swarm_base_url')
-      if (existingSwarmBase) {
-        setSwarmBase(existingSwarmBase)
-      }
     } catch (error) {
       console.error('Failed to load API keys:', error)
     }
@@ -62,11 +57,10 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
 
     try {
       await invoke('set_openai_api_key', { apiKey: apiKey.trim() })
-      // Save Swarm settings (both optional)
+      // Save Swarm settings (optional)
       if (swarmKey.trim().length > 0) {
         await invoke('set_swarm_api_key', { apiKey: swarmKey.trim() })
       }
-      await invoke('set_swarm_base_url', { url: swarmBase.trim() })
       setIsOpen(false)
       if (onApiKeySet) {
         onApiKeySet()
@@ -165,16 +159,6 @@ export default function ApiKeySettings({ required = false, onApiKeySet }: ApiKey
             </button>
           </div>
 
-          <label className="text-sm font-medium">Swarm Base URL</label>
-          <input
-            type="text"
-            value={swarmBase}
-            onChange={(e) => setSwarmBase(e.target.value)}
-            placeholder="https://api.superswarm.dev (leave blank for default)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md
-                       focus:outline-none focus:ring-2 focus:ring-gray-700"
-            disabled={isLoading}
-          />
         </div>
 
         <div className="flex justify-end gap-2">
