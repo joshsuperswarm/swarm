@@ -127,12 +127,30 @@ export default function Chat({ textareaRef }: ChatProps) {
   }, [])
 
 
-  // auto-grow textarea
+  // auto-grow textarea with stabilized height calculation
   useEffect(() => {
     const ta = activeTextareaRef.current
     if (!ta) return
-    ta.style.height = 'auto'
-    ta.style.height = Math.min(ta.scrollHeight, 220) + 'px'
+
+    // Ensure box sizing
+    ta.style.boxSizing = 'border-box'
+
+    // Defer to next frame so fonts/parent padding settle
+    const id = requestAnimationFrame(() => {
+      // Compute a stable one-line min height once
+      const cs = getComputedStyle(ta)
+      const lineHeight =
+        parseFloat(cs.lineHeight || '0') || ta.scrollHeight || 20
+      const vertPad =
+        parseFloat(cs.paddingTop || '0') + parseFloat(cs.paddingBottom || '0')
+      const min = Math.ceil(lineHeight + vertPad)
+
+      ta.style.minHeight = `${min}px`
+      ta.style.height = 'auto'
+      ta.style.height = Math.min(ta.scrollHeight, 220) + 'px'
+    })
+
+    return () => cancelAnimationFrame(id)
   }, [input, activeTextareaRef])
 
   const handleSubmit = async (e?: React.FormEvent) => {
