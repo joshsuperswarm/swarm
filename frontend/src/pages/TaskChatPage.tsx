@@ -13,7 +13,6 @@ import { useRunMode } from "@/hooks/useRunMode";
 import { useStickToBottom } from "@/hooks/useStickToBottom";
 import { useRunPhase } from "@/hooks/useRunPhase";
 import { Bot, ArrowLeft, Sparkles, Zap } from 'lucide-react';
-import { Button } from "@/components/ui/button";
 import type { MessageWithRun } from "@/types/generated/MessageWithRun";
 import type { TaskWithRun } from "@/types/generated/TaskWithRun";
 import type { RunMode, ClaudeModel } from "@/services/api";
@@ -282,27 +281,6 @@ export function TaskChatPage() {
                 )}
               </div>
 
-              {isActive && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={stopMutation.isPending}
-                  onClick={async () => {
-                    const ok = window.confirm(
-                      'Stop this run? This will terminate the sandbox.'
-                    );
-                    if (!ok) return;
-                    try {
-                      await stopMutation.mutateAsync();
-                    } catch (e) {
-                      console.error('Failed to stop task:', e);
-                      alert('Failed to stop the run. Please try again.');
-                    }
-                  }}
-                >
-                  {stopMutation.isPending ? 'Stopping…' : 'Stop'}
-                </Button>
-              )}
             </div>
           )}
         </div>
@@ -464,14 +442,36 @@ export function TaskChatPage() {
                     disabled={isSending}
                     className="flex-1 px-3 py-2 text-gray-900 placeholder:text-gray-500 bg-transparent focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 min-w-0"
                   />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!inputValue.trim() || isSending}
-                    className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target flex-shrink-0"
-                    title="Send message"
-                  >
-                    <span className="text-xs">{isSending ? "..." : "→"}</span>
-                  </button>
+                  {isActive ? (
+                    <button
+                      onClick={async () => {
+                        const ok = window.confirm(
+                          'Stop this run? This will terminate the sandbox.'
+                        );
+                        if (!ok) return;
+                        try {
+                          await stopMutation.mutateAsync();
+                        } catch (e) {
+                          console.error('Failed to stop task:', e);
+                          alert('Failed to stop the run. Please try again.');
+                        }
+                      }}
+                      disabled={stopMutation.isPending}
+                      className="m-1 w-8 h-8 rounded-md bg-red-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-red-700 transition-colors flex items-center justify-center touch-target flex-shrink-0"
+                      title="Stop task"
+                    >
+                      <span className="text-xs">{stopMutation.isPending ? "..." : "■"}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!inputValue.trim() || isSending}
+                      className="m-1 w-8 h-8 rounded-md bg-gray-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors flex items-center justify-center touch-target flex-shrink-0"
+                      title="Send message"
+                    >
+                      <span className="text-xs">{isSending ? "..." : "→"}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
