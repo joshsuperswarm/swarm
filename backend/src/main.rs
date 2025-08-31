@@ -211,13 +211,13 @@ async fn handle_task_success(
         }
     };
 
-    // Only treat "failed" as terminal. We still want to comment on "pr_opened".
+    // Only treat "failed" and "stopped" as terminal. We still want to comment on "pr_opened".
     // Check the latest run's status instead of task.status (which is being phased out)
     if let Ok(Some(run_id)) = app_state.database.get_latest_run_id_for_task(task_id).await {
         if let Ok(Some(run)) = app_state.database.get_run_by_id(run_id).await {
-            if matches!(run.status.as_deref(), Some("failed")) {
+            if matches!(run.status.as_deref(), Some("failed" | "stopped")) {
                 tracing::info!(
-                    "Task {} has failed run; skipping post-run handling",
+                    "Task {} has failed/stopped run; skipping post-run handling",
                     task_id
                 );
                 return Ok(());
@@ -2308,10 +2308,10 @@ async fn stop_task(
         let _ = app_state.sandbox.delete_sandbox(sandbox_id).await;
     }
 
-    // Mark run failed (terminal) and clear idle timeout
+    // Mark run stopped (terminal) and clear idle timeout
     let _ = app_state
         .database
-        .update_run_status(run_id, "failed")
+        .update_run_status(run_id, "stopped")
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

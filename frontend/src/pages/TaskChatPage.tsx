@@ -185,7 +185,7 @@ export function TaskChatPage() {
     );
   }
   
-  const finished = ["done", "failed", "pr_opened"].includes(
+  const finished = ["done", "failed", "stopped", "pr_opened"].includes(
     currentRunStatus || "",
   );
   const status = statuses.find((s) => s.value === currentRunStatus);

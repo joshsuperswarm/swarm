@@ -209,7 +209,7 @@ export function TaskPage() {
   }
 
   const status = statuses.find((s) => s.value === currentRunStatus);
-  const showLogsEligible = ['spinning', 'running', 'done', 'failed', 'pr_opened', 'pr_merged', 'pr_closed'].includes(
+  const showLogsEligible = ['spinning', 'running', 'done', 'failed', 'stopped', 'pr_opened', 'pr_merged', 'pr_closed'].includes(
     currentRunStatus ?? ''
   );
 
@@ -404,7 +404,7 @@ export function TaskPage() {
                   }`} />
                   <span className="text-xs text-muted-foreground">
                     {logsState.isLoading ? 'Loading...' : 
-                     logsState.taskCompleted || (currentRunStatus && ['done', 'failed', 'pr_opened', 'pr_merged', 'pr_closed'].includes(currentRunStatus)) ? `Task completed • ${logsState.logs.length} entries` :
+                     logsState.taskCompleted || (currentRunStatus && ['done', 'failed', 'stopped', 'pr_opened', 'pr_merged', 'pr_closed'].includes(currentRunStatus)) ? `Task completed • ${logsState.logs.length} entries` :
                      `${logsState.logs.length} log entries`}
                   </span>
                   {logsVisible && !logsState.isLoading && (
