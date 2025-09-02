@@ -2,7 +2,7 @@ export default function Footer() {
   return (
     <footer className="mt-16 mb-8">
       <p className="text-center text-sm text-gray-400">
-        Built by{' '}
+        built with ♥ by{' '}
         <a
           href="https://twitter.com/jmvldz"
           target="_blank"
@@ -10,8 +10,7 @@ export default function Footer() {
           className="underline hover:text-gray-200"
         >
           Josh
-        </a>{' '}
-        in SF
+        </a>
       </p>
     </footer>
   );
