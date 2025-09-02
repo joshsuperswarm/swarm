@@ -16,24 +16,22 @@ export default function WaitlistForm() {
   };
 
   return (
-    <div className="mb-8">
-      <button
-        onClick={handleClick}
-        className="px-6 py-3 text-sm font-medium transition-colors duration-200 cursor-pointer"
-        style={{
-          backgroundColor: "#7dd3fc",
-          color: "#0f172a",
-          borderRadius: "8px",
-        }}
-        onMouseEnter={(e) =>
-          (e.currentTarget.style.backgroundColor = "#60a5fa")
-        }
-        onMouseLeave={(e) =>
-          (e.currentTarget.style.backgroundColor = "#7dd3fc")
-        }
-      >
-        Join the Beta
-      </button>
-    </div>
+    <button
+      onClick={handleClick}
+      className="px-6 py-3 text-sm font-medium transition-colors duration-200 cursor-pointer h-[48px]"
+      style={{
+        backgroundColor: "#7dd3fc",
+        color: "#0f172a",
+        borderRadius: "8px",
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.backgroundColor = "#60a5fa")
+      }
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.backgroundColor = "#7dd3fc")
+      }
+    >
+      Join the Beta
+    </button>
   );
 }
