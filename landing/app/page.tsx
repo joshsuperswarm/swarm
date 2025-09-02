@@ -38,7 +38,7 @@ export default function Page() {
             "
             style={{ textWrap: 'balance' }}
           >
-            The fastest way to run Claude Code in the cloud
+            The code planning interface
           </h1>
 
           {/* Subheadline */}
