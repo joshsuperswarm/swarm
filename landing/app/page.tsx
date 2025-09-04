@@ -38,13 +38,13 @@ export default function Page() {
             "
             style={{ textWrap: 'balance' }}
           >
-            The code planning interface
+            The best way to run Claude Code in the cloud
           </h1>
 
           {/* Subheadline */}
           <div className="mx-auto max-w-[56ch] text-center mb-6 md:mb-7">
             <p className="text-[clamp(14px,1.1vw,17px)] text-gray-300/85 leading-relaxed">
-              AI coding tools for the uncompromising developer.
+              Experience Claude Code in a managed cloud environment with seamless collaboration and powerful AI assistance.
             </p>
           </div>
 
